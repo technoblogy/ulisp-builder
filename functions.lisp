@@ -2615,7 +2615,7 @@ object *fn_watchdog (object *args, object *env) {
   return nil;
 }")
 
-      #+(or avr arm esp)
+      #+(or avr arm esp riscv)
       (PINMODE nil 2 2 "
 object *fn_pinmode (object *args, object *env) {
   (void) env;
@@ -2720,7 +2720,7 @@ object *fn_analogreadresolution (object *args, object *env) {
   return arg;
 }"#)
 
-      #+arm
+      #+(or arm riscv)
       (ANALOGREADRESOLUTION nil 1 1 #"
 object *fn_analogreadresolution (object *args, object *env) {
   (void) env;
@@ -2752,7 +2752,7 @@ object *fn_analogwrite (object *args, object *env) {
   return value;
 }"#)
 
-      #+arm
+      #+(or arm riscv)
       (ANALOGWRITERESOLUTION nil 1 1 #"
 object *fn_analogwriteresolution (object *args, object *env) {
   (void) env;

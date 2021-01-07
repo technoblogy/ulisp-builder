@@ -1737,7 +1737,7 @@ void setup () {
   initenv();
   initsleep();
   initgfx();
-  pfstring(PSTR("uLisp 3.3 "), pserial); pln(pserial);
+  pfstring(PSTR("uLisp 3.4 "), pserial); pln(pserial);
 }"#
 
 #+arm

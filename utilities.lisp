@@ -255,6 +255,14 @@ RAMFUNC uint8_t MyCode[CODESIZE] WORDALIGNED;
 object Workspace[WORKSPACESIZE] WORDALIGNED;
 char SymbolTable[SYMBOLTABLESIZE];"#
 
+#+riscv
+#"
+// Global variables
+
+object Workspace[WORKSPACESIZE] WORDALIGNED;
+char SymbolTable[SYMBOLTABLESIZE];
+uint8_t MyCode[CODESIZE] WORDALIGNED;"#
+
 #"
 jmp_buf exception;
 unsigned int Freespace = 0;
