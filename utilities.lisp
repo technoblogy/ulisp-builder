@@ -36,7 +36,7 @@ typedef struct {
 
 typedef int (*gfun_t)();
 typedef void (*pfun_t)(char);
-#if defined(CPU_ATmega328P) || defined(CPU_ATmega2560) || defined(CPU_ATmega1284P) || defined(CPU_AVR128DA48)
+#if defined(CPU_ATmega328P) || defined(CPU_ATmega2560) || defined(CPU_ATmega1284P) || defined(CPU_AVR128DX48)
 typedef int BitOrder;
 typedef int PinMode;
 #endif"#)
@@ -284,7 +284,7 @@ char LastPrint = 0;"#
 #"
 // Flags
 enum flag { PRINTREADABLY, RETURNFLAG, ESCAPE, EXITEDITOR, LIBRARYLOADED, NOESC };
-volatile char Flags = 0b00001; // PRINTREADABLY set by default"#
+volatile uint8_t Flags = 0b00001; // PRINTREADABLY set by default"#
 
 #+(or msp430 avr badge)
 #"
@@ -352,7 +352,7 @@ void errorsub (symbol_t fname, PGM_P string) {
 
 /*
   error - prints an error message and reenters the REPL.
-  Prints: "Error: 'fname' string: symbol", where symbol is the object generating the error.
+  Prints: "Error: 'fname' string: symbol", where symbol should be the object generating the error.
 */
 void error (symbol_t fname, PGM_P string, object *symbol) {
   errorsub(fname, string);
@@ -390,7 +390,6 @@ const char indexnegative[] PROGMEM = "index can't be negative";
 const char invalidarg[] PROGMEM = "invalid argument";
 const char invalidkey[] PROGMEM = "invalid keyword";
 const char invalidpin[] PROGMEM = "invalid pin";
-const char resultproper[] PROGMEM = "result is not a proper list";
 const char oddargs[] PROGMEM = "odd number of arguments";"#))
 
 (defparameter *setup-workspace* #"
@@ -463,7 +462,7 @@ object *makefloat (float f) {
 /*
   makefloat - make a character object with value c and return it
 */
-object *character (char c) {
+object *character (uint8_t c) {
   object *ptr = myalloc();
   ptr->type = CHARACTER;
   ptr->chars = c;
@@ -521,7 +520,7 @@ object *newsymbol (symbol_t name) {
 /*
   stream - make a stream object defined by streamtype and address, and return it
 */
-object *stream (unsigned char streamtype, unsigned char address) {
+object *stream (uint8_t streamtype, uint8_t address) {
   object *ptr = myalloc();
   ptr->type = STREAM;
   ptr->integer = streamtype<<8 | address;
@@ -680,28 +679,17 @@ bool consp (object *x) {
   if (x == NULL) return false;
   unsigned int type = x->type;
   return type >= PAIR || type == ZZERO;
-}"#
+}
 
-    #"
-bool atom (object *x) {
-  if (x == NULL) return true;
-  unsigned int type = x->type;
-  return type < PAIR && type != ZZERO;
-}"#
+#define atom(x) (!consp(x))
 
-    #"
 bool listp (object *x) {
   if (x == NULL) return true;
   unsigned int type = x->type;
   return type >= PAIR || type == ZZERO;
-}"#
-
-    #"
-bool improperp (object *x) {
-  if (x == NULL) return false;
-  unsigned int type = x->type;
-  return type < PAIR && type != ZZERO;
 }
+
+#define improperp(x) (!listp(x))
 
 object *quote (object *arg) {
   return cons(symbol(QUOTE), cons(arg,NULL));
@@ -961,12 +949,19 @@ object *delassoc (object *key, object **alist) {
 #"
 // Array utilities
 
+/*
+  nextpower2 - returns the smallest power of 2 that is equal to or greater than n
+*/
 int nextpower2 (int n) {
   n--; n |= n >> 1; n |= n >> 2; n |= n >> 4;
   n |= n >> 8; n |= n >> 16; n++;
   return n<2 ? 2 : n;
 }
 
+/*
+  buildarray - builds an array with n elements using a tree of size s which must be a power of 2
+  The elements are initialised to the default def
+*/
 object *buildarray (int n, int s, object *def) {
   int s2 = s>>1;
   if (s2 == 1) {
@@ -996,6 +991,9 @@ object *makearray (symbol_t name, object *dims, object *def, bool bitp) {
   return ptr;
 }
 
+/*
+  arrayref - returns a pointer to the element specified by index in the array of size s
+*/
 object **arrayref (object *array, int index, int size) {
   int mask = nextpower2(size)>>1;
   object **p = &car(cdr(array));
@@ -1006,6 +1004,10 @@ object **arrayref (object *array, int index, int size) {
   return p;
 }
 
+/*
+  getarray - gets a pointer to an element in a multi-dimensional array, given a list of the subscripts subs
+  If the first subscript is negative it's a bit array and bit is set to the bit number
+*/
 object **getarray (symbol_t name, object *array, object *subs, object *env, int *bit) {
   int index = 0, size = 1, s;
   *bit = -1;
@@ -1029,6 +1031,9 @@ object **getarray (symbol_t name, object *array, object *subs, object *env, int 
   return arrayref(array, index, size);
 }
 
+/*
+  rslice - reads a slice of an array recursively
+*/
 void rslice (object *array, int size, int slice, object *dims, object *args) {
   int d = first(dims)->integer;
   for (int i = 0; i < d; i++) {
@@ -1094,6 +1099,9 @@ object *readbitarray (gfun_t gfun) {
   return array;
 }
 
+/*
+  pslice - prints a slice of an array recursively
+*/
 void pslice (object *array, int size, int slice, object *dims, pfun_t pfun, bool bitp) {
   bool spaces = true;
   if (slice == -1) { spaces = false; slice = 0; }
@@ -1109,6 +1117,9 @@ void pslice (object *array, int size, int slice, object *dims, pfun_t pfun, bool
   }
 }
 
+/*
+  printarray - prints an array
+*/
 void printarray (object *array, pfun_t pfun) {
   object *dimensions = cddr(array);
   object *dims = dimensions;
@@ -1144,7 +1155,7 @@ object *startstring (symbol_t name) {
   return string;
 }
 
-void buildstring (char ch, int *chars, object **head) {
+void buildstring (uint8_t ch, int *chars, object **head) {
   static object* tail;
   static uint8_t shift;
   if (*chars == 0) {
@@ -1167,7 +1178,7 @@ void buildstring (char ch, int *chars, object **head) {
   readstring - reads characters from an input stream up to delimiter delim
   and returns a Lisp string
 */
-object *readstring (char delim, gfun_t gfun) {
+object *readstring (uint8_t delim, gfun_t gfun) {
   object *obj = myalloc();
   obj->type = STRING;
   int ch = gfun();
@@ -1202,7 +1213,7 @@ int stringlength (object *form) {
 /*
   nthchar - returns the nth character from a Lisp string
 */
-char nthchar (object *string, int n) {
+uint8_t nthchar (object *string, int n) {
   object *arg = cdr(string);
   int top;
   if (sizeof(int) == 4) { top = n>>2; n = 3 - (n&3); }
@@ -1582,7 +1593,7 @@ uint8_t const TWI_SDA_PIN = 6;
 uint8_t const TWI_SCL_PIN = 5;
 #endif
 
-#if defined(CPU_ATmega4809) || defined(CPU_AVR128DA48)
+#if defined(CPU_ATmega4809) || defined(CPU_AVR128DX48)
 uint32_t const FREQUENCY = 400000L;  // Hardware I2C clock in Hz
 uint32_t const T_RISE = 300L;        // Rise time
 #else
@@ -1597,7 +1608,7 @@ uint8_t const I2C_WRITE = 0;
 #endif
 
 void I2Cinit (bool enablePullup) {
-#if defined(CPU_ATmega4809) || defined(CPU_AVR128DA48)
+#if defined(CPU_ATmega4809) || defined(CPU_AVR128DX48)
   if (enablePullup) {
     pinMode(PIN_WIRE_SDA, INPUT_PULLUP);
     pinMode(PIN_WIRE_SCL, INPUT_PULLUP);
@@ -1617,7 +1628,7 @@ void I2Cinit (bool enablePullup) {
 }
 
 int I2Cread () {
-#if defined(CPU_ATmega4809) || defined(CPU_AVR128DA48)
+#if defined(CPU_ATmega4809) || defined(CPU_AVR128DX48)
   if (I2CCount != 0) I2CCount--;
   while (!(TWI0.MSTATUS & TWI_RIF_bm));                               // Wait for read interrupt flag
   uint8_t data = TWI0.MDATA;
@@ -1634,7 +1645,7 @@ int I2Cread () {
 }
 
 bool I2Cwrite (uint8_t data) {
-#if defined(CPU_ATmega4809) || defined(CPU_AVR128DA48)
+#if defined(CPU_ATmega4809) || defined(CPU_AVR128DX48)
   while (!(TWI0.MSTATUS & TWI_WIF_bm));                               // Wait for write interrupt flag
   TWI0.MDATA = data;
   TWI0.MCTRLB = TWI_MCMD_RECVTRANS_gc;                                // Do nothing
@@ -1648,7 +1659,7 @@ bool I2Cwrite (uint8_t data) {
 }
 
 bool I2Cstart (uint8_t address, uint8_t read) {
-#if defined(CPU_ATmega4809) || defined(CPU_AVR128DA48)
+#if defined(CPU_ATmega4809) || defined(CPU_AVR128DX48)
   TWI0.MADDR = address<<1 | read;                                     // Send START condition
   while (!(TWI0.MSTATUS & (TWI_WIF_bm | TWI_RIF_bm)));                // Wait for write or read interrupt flag
   if ((TWI0.MSTATUS & TWI_ARBLOST_bm)) return false;                  // Return false if arbitration lost or bus error
@@ -1671,7 +1682,7 @@ bool I2Crestart (uint8_t address, uint8_t read) {
 }
 
 void I2Cstop (uint8_t read) {
-#if defined(CPU_ATmega4809) || defined(CPU_AVR128DA48)
+#if defined(CPU_ATmega4809) || defined(CPU_AVR128DX48)
   (void) read;
   TWI0.MCTRLB = TWI_ACKACT_bm | TWI_MCMD_STOP_gc;                     // Send STOP
 #else

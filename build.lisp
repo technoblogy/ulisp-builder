@@ -158,7 +158,7 @@
              (t nil))))))
     ;; Write PROGMEM strings
     (format str "~%// Insert your own function definitions here~%")
-    (format str "~%// Built-in procedure names - stored in PROGMEM~%~%")
+    (format str "~%// Built-in symbol names~%")
     (let ((i 0))
       (dolist (section definitions)
         (destructuring-bind (comment defs &optional prefix) section
@@ -174,8 +174,9 @@
       (do-keyword-progmems str keywords i))
     ;; Write table
     (let ((i 0)
-          (comment "// Third parameter is no. of arguments; 1st hex digit is min, 2nd hex digit is max, 0xF is unlimited"))
-      (format str "~%~a~%const tbl_entry_t lookup_table[] PROGMEM = {~%" comment)
+          (heading "// Insert your own function names here")
+          (comment "// Built-in symbol lookup table"))
+      (format str "~%~a~%~%~a~%const tbl_entry_t lookup_table[] PROGMEM = {~%" heading comment)
       (dolist (section definitions)
         (destructuring-bind (comment defs &optional (prefix "fn")) section
           (declare (ignore comment))
@@ -190,7 +191,7 @@
                 (incf i))))))
       ; Do keywords
       (do-keyword-table str keywords i)
-      (format str "};~%"))
+      (format str "~%~a~%~%};~%" "// Insert your own table entries here"))
     ;; Write rest
     (include :table str)
     (include :eval str)

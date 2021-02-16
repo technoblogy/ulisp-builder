@@ -12,6 +12,10 @@
     #"
 // Table lookup functions
 
+/*
+  builtin - looks up a string in lookup_table[], and returns the index of its entry,
+  or ENDFUNCTIONS if no match is found
+*/
 int builtin (char* n) {
   int entry = 0;
   while (entry < ENDFUNCTIONS) {
@@ -26,6 +30,10 @@ int builtin (char* n) {
     #"
 // Table lookup functions
 
+/*
+  builtin - looks up a string in lookup_table[], and returns the index of its entry,
+  or ENDFUNCTIONS if no match is found
+*/
 int builtin (char* n) {
   int entry = 0;
   while (entry < ENDFUNCTIONS) {
@@ -44,6 +52,10 @@ int builtin (char* n) {
     #"
 // Table lookup functions
 
+/*
+  builtin - looks up a string in lookup_table[], and returns the index of its entry,
+  or ENDFUNCTIONS if no match is found
+*/
 int builtin (char* n) {
   int entry = 0;
   while (entry < ENDFUNCTIONS) {
@@ -58,6 +70,10 @@ int builtin (char* n) {
     #"
 // Table lookup functions
 
+/*
+  builtin - looks up a string in lookup_table[], and returns the index of its entry,
+  or ENDFUNCTIONS if no match is found
+*/
 int builtin (char* n) {
   int entry = 0;
   while (entry < ENDFUNCTIONS) {
@@ -101,21 +117,33 @@ int longsymbol (char *buffer) {
 
    #-(or avr esp)
    #"
+/*
+  lookupfn - looks up the entry for name in lookup_table[], and returns the function entry point
+*/
 intptr_t lookupfn (symbol_t name) {
   return (intptr_t)lookup_table[name].fptr;
 }
 
+/*
+  getminmax - gets the byte from lookup_table[] whose nibbles specify the minimum and maximum number of arguments for name
+*/
 uint8_t getminmax (symbol_t name) {
   uint8_t minmax = lookup_table[name].minmax;
   return minmax;
 }
 
+/*
+  checkminmax - checks that the number of arguments nargs for name is within the range specified in lookup_table[]
+*/
 void checkminmax (symbol_t name, int nargs) {
   uint8_t minmax = getminmax(name);
   if (nargs<(minmax >> 4)) error2(name, toofewargs);
   if ((minmax & 0x0f) != 0x0f && nargs>(minmax & 0x0f)) error2(name, toomanyargs);
 }
 
+/*
+  lookupbuiltin - looks up the entry for name in lookup_table[] and returns the name of the function as a string
+*/
 char *lookupbuiltin (symbol_t name) {
   char *buffer = SymbolTop;
   strcpy(buffer, (char *)lookup_table[name].string);
@@ -124,21 +152,33 @@ char *lookupbuiltin (symbol_t name) {
 
    #+esp
    #"
+/*
+  lookupfn - looks up the entry for name in lookup_table[], and returns the function entry point
+*/
 intptr_t lookupfn (symbol_t name) {
   return (intptr_t)pgm_read_ptr(&lookup_table[name].fptr);
 }
 
+/*
+  getminmax - gets the byte from lookup_table[] whose nibbles specify the minimum and maximum number of arguments for name
+*/
 uint8_t getminmax (symbol_t name) {
   uint8_t minmax = pgm_read_byte(&lookup_table[name].minmax);
   return minmax;
 }
 
+/*
+  checkminmax - checks that the number of arguments nargs for name is within the range specified in lookup_table[]
+*/
 void checkminmax (symbol_t name, int nargs) {
   uint8_t minmax = getminmax(name);
   if (nargs<(minmax >> 4)) error2(name, toofewargs);
   if ((minmax & 0x0f) != 0x0f && nargs>(minmax & 0x0f)) error2(name, toomanyargs);
 }
 
+/*
+  lookupbuiltin - looks up the entry for name in lookup_table[] and returns the name of the function as a string
+*/
 char *lookupbuiltin (symbol_t name) {
   char *buffer = SymbolTop;
   strcpy_P(buffer, lookup_table[name].string);
@@ -147,6 +187,9 @@ char *lookupbuiltin (symbol_t name) {
 
     #+(and avr (not badge))
     #"
+/*
+  lookupfn - looks up the entry for name in lookup_table[], and returns the function entry point
+*/
 intptr_t lookupfn (symbol_t name) {
   #if defined(CPU_ATmega4809)
   return (intptr_t)lookup_table[name].fptr;
@@ -155,6 +198,9 @@ intptr_t lookupfn (symbol_t name) {
   #endif
 }
 
+/*
+  getminmax - gets the byte from lookup_table[] whose nibbles specify the minimum and maximum number of arguments for name
+*/
 uint8_t getminmax (symbol_t name) {
   #if defined(CPU_ATmega4809)
   uint8_t minmax = lookup_table[name].minmax;
@@ -164,12 +210,18 @@ uint8_t getminmax (symbol_t name) {
   return minmax;
 }
 
+/*
+  checkminmax - checks that the number of arguments nargs for name is within the range specified in lookup_table[]
+*/
 void checkminmax (symbol_t name, int nargs) {
   uint8_t minmax = getminmax(name);
   if (nargs<(minmax >> 4)) error2(name, toofewargs);
   if ((minmax & 0x0f) != 0x0f && nargs>(minmax & 0x0f)) error2(name, toomanyargs);
 }
 
+/*
+  lookupbuiltin - looks up an entry in the symbol table and returns the name of the function as a string
+*/
 char *lookupbuiltin (symbol_t name) {
   char *buffer = SymbolTop;
   #if defined(CPU_ATmega4809)
@@ -182,16 +234,25 @@ char *lookupbuiltin (symbol_t name) {
 
     #+badge
     #"
+/*
+  lookupfn - looks up an entry in the lookup table, and returns the function entry point
+*/
 intptr_t lookupfn (symbol_t name) {
   return pgm_read_word(&lookup_table[name].fptr);
 }
 
+/*
+  checkminmax - checks that the number of arguments nargs for name is within the range specified in lookup_table[]
+*/
 void checkminmax (symbol_t name, int nargs) {
   uint8_t minmax = pgm_read_byte(&lookup_table[name].minmax);
   if (nargs<(minmax >> 4)) error2(name, toofewargs);
   if ((minmax & 0x0f) != 0x0f && nargs>(minmax & 0x0f)) error2(name, toomanyargs);
 }
 
+/*
+  lookupbuiltin - looks up an entry in the symbol table and returns the name of the function as a string
+*/
 char *lookupbuiltin (symbol_t name) {
   char *buffer = SymbolTop;
   strcpy_P(buffer, (char *)(pgm_read_word(&lookup_table[name].string)));
@@ -657,12 +718,11 @@ void pserial (char c) {
 const char ControlCodes[] PROGMEM = "Null\0SOH\0STX\0ETX\0EOT\0ENQ\0ACK\0Bell\0Backspace\0Tab\0Newline\0VT\0"
 "Page\0Return\0SO\0SI\0DLE\0DC1\0DC2\0DC3\0DC4\0NAK\0SYN\0ETB\0CAN\0EM\0SUB\0Escape\0FS\0GS\0RS\0US\0Space\0";
 
-void pcharacter (char c, pfun_t pfun) {
+void pcharacter (uint8_t c, pfun_t pfun) {
   if (!tstflag(PRINTREADABLY)) pfun(c);
   else {
     pfun('#'); pfun('\\');
-    if (c > 32) pfun(c);
-    else {
+    if (c <= 32) {
       PGM_P p = ControlCodes;
       #if defined(CPU_ATmega4809)
       while (c > 0) {p = p + strlen(p) + 1; c--; }
@@ -670,7 +730,8 @@ void pcharacter (char c, pfun_t pfun) {
       while (c > 0) {p = p + strlen_P(p) + 1; c--; }
       #endif
       pfstring(p, pfun);
-    }
+    } else if (c < 127) pfun(c);
+    else pint(c, pfun);
   }
 }"#
 
@@ -679,16 +740,16 @@ void pcharacter (char c, pfun_t pfun) {
 const char ControlCodes[] PROGMEM = "Null\0SOH\0STX\0ETX\0EOT\0ENQ\0ACK\0Bell\0Backspace\0Tab\0Newline\0VT\0"
 "Page\0Return\0SO\0SI\0DLE\0DC1\0DC2\0DC3\0DC4\0NAK\0SYN\0ETB\0CAN\0EM\0SUB\0Escape\0FS\0GS\0RS\0US\0Space\0";
 
-void pcharacter (char c, pfun_t pfun) {
+void pcharacter (uint8_t c, pfun_t pfun) {
   if (!tstflag(PRINTREADABLY)) pfun(c);
   else {
     pfun('#'); pfun('\\');
-    if (c > 32) pfun(c);
-    else {
+    if (c <= 32) {
       PGM_P p = ControlCodes;
       while (c > 0) {p = p + strlen_P(p) + 1; c--; }
       pfstring(p, pfun);
-    }
+    } else if (c < 127) pfun(c);
+    else pint(c, pfun);
   }
 }"#
 
@@ -697,16 +758,22 @@ void pcharacter (char c, pfun_t pfun) {
 const char ControlCodes[] PROGMEM = "Null\0SOH\0STX\0ETX\0EOT\0ENQ\0ACK\0Bell\0Backspace\0Tab\0Newline\0VT\0"
 "Page\0Return\0SO\0SI\0DLE\0DC1\0DC2\0DC3\0DC4\0NAK\0SYN\0ETB\0CAN\0EM\0SUB\0Escape\0FS\0GS\0RS\0US\0Space\0";
 
-void pcharacter (char c, pfun_t pfun) {
+/*
+  pcharacter - prints a character
+  If <= 32 prints character name; eg #\Space
+  If < 127 prints ASCII; eg #\A
+  Otherwise prints decimal; eg #\234
+*/
+void pcharacter (uint8_t c, pfun_t pfun) {
   if (!tstflag(PRINTREADABLY)) pfun(c);
   else {
     pfun('#'); pfun('\\');
-    if (c > 32) pfun(c);
-    else {
+    if (c <= 32) {
       const char *p = ControlCodes;
       while (c > 0) {p = p + strlen(p) + 1; c--; }
       pfstring(p, pfun);
-    }
+    } else if (c < 127) pfun(c);
+    else pint(c, pfun);
   }
 }"#
 
@@ -806,14 +873,13 @@ void pint (int i, pfun_t pfun) {
 
     #+(or arm riscv esp)
     #"
-void pinthex (uint32_t i, pfun_t pfun) {
+/*
+  pintbase - prints an integer in a specified base. power2 is 1 for binary and 4 for hexadecimal
+*/
+void pintbase (uint32_t i, uint8_t power2, pfun_t pfun) {
   int lead = 0;
-  #if INT_MAX == 32767
-  uint32_t p = 0x1000;
-  #else
-  uint32_t p = 0x10000000;
-  #endif
-  for (uint32_t d=p; d>0; d=d/16) {
+  uint32_t p = 1<<(32-power2);
+  for (uint32_t d=p; d>0; d=d>>power2) {
     uint32_t j = i/d;
     if (j!=0 || lead || d==1) { pfun((j<10) ? j+'0' : j+'W'); lead=1;}
     i = i - j*d;
@@ -822,10 +888,13 @@ void pinthex (uint32_t i, pfun_t pfun) {
 
     #+(or avr msp430)
     #"
-void pinthex (uint16_t i, pfun_t pfun) {
+/*
+  pintbase - prints an integer in a specified base. power2 is 1 for binary and 4 for hexadecimal
+*/
+void pintbase (uint16_t i, uint8_t power2, pfun_t pfun) {
   int lead = 0;
-  uint16_t p = 0x1000;
-  for (uint16_t d=p; d>0; d=d/16) {
+  uint16_t p = 1<<(16-power2);
+  for (uint16_t d=p; d>0; d=d>>power2) {
     uint16_t j = i/d;
     if (j!=0 || lead || d==1) { pfun((j<10) ? j+'0' : j+'W'); lead=1;}  
     i = i - j*d;
@@ -834,6 +903,9 @@ void pinthex (uint16_t i, pfun_t pfun) {
 
     #+code
     #"
+/*
+  pinthex4 - prints a four-digit hexadecimal number with leading zeros
+*/
 void printhex4 (int i, pfun_t pfun) {
   int p = 0x1000;
   for (int d=p; d>0; d=d/16) {
@@ -1438,6 +1510,7 @@ object *nextitem (gfun_t gfun) {
       p = p + strlen_P(p) + 1; c++;
       #endif
     }
+    if (index == 3) return character((buffer[0]*10+buffer[1])*10+buffer[2]-5328);
     error2(0, PSTR("unknown character"));
   }
   
@@ -1464,6 +1537,7 @@ object *nextitem (gfun_t gfun) {
       if (strcasecmp_P(buffer, p) == 0) return character(c);
       p = p + strlen_P(p) + 1; c++;
     }
+    if (index == 3) return character((buffer[0]*10+buffer[1])*10+buffer[2]-5328);
     error2(0, PSTR("unknown character"));
   }
   
@@ -1593,6 +1667,7 @@ object *nextitem (gfun_t gfun) {
       if (strcasecmp(buffer, p) == 0) return character(c);
       p = p + strlen(p) + 1; c++;
     }
+    if (index == 3) return character((buffer[0]*10+buffer[1])*10+buffer[2]-5328);
     error2(0, PSTR("unknown character"));
   }
 
@@ -1619,6 +1694,7 @@ object *nextitem (gfun_t gfun) {
       if (strcasecmp_P(buffer, p) == 0) return character(c);
       p = p + strlen_P(p) + 1; c++;
     }
+    if (index == 3) return character((buffer[0]*10+buffer[1])*10+buffer[2]-5328);
     error2(0, PSTR("unknown character"));
   }
 
@@ -1656,6 +1732,9 @@ object *readrest (gfun_t gfun) {
 }"#
 
   #"
+/*
+  read - recursively reads a Lisp object from the stream gfun and returns it
+*/
 object *read (gfun_t gfun) {
   object *item = nextitem(gfun);
   if (item == (object *)KET) error2(0, PSTR("incomplete list"));
@@ -1673,6 +1752,9 @@ object *read (gfun_t gfun) {
 
 #+avr
 #"
+/*
+  initenv - initialises the uLisp environment
+*/
 void initenv () {
   GlobalEnv = NULL;
   tee = symbol(TEE);
@@ -1685,11 +1767,14 @@ void setup () {
   initworkspace();
   initenv();
   initsleep();
-  pfstring(PSTR("uLisp 3.4 "), pserial); pln(pserial);
+  pfstring(PSTR("uLisp 3.5 "), pserial); pln(pserial);
 }"#
 
 #+esp
 #"
+/*
+  initgfx - initialises the graphics
+*/
 void initgfx () {
 #if defined(gfxsupport)
   Wire.begin();
@@ -1699,6 +1784,9 @@ void initgfx () {
 #endif
 }
 
+/*
+  initenv - initialises the uLisp environment
+*/
 void initenv () {
   GlobalEnv = NULL;
   tee = symbol(TEE);
@@ -1712,11 +1800,14 @@ void setup () {
   initenv();
   initsleep();
   initgfx();
-  pfstring(PSTR("uLisp 3.4 "), pserial); pln(pserial);
+  pfstring(PSTR("uLisp 3.5 "), pserial); pln(pserial);
 }"#
 
 #+riscv
 #"
+/*
+  initgfx - initialises the graphics
+*/
 void initgfx () {
 #if defined(gfxsupport)
   tft.begin(15000000, COLOR_BLACK);
@@ -1724,6 +1815,9 @@ void initgfx () {
 #endif
 }
 
+/*
+  initenv - initialises the uLisp environment
+*/
 void initenv () {
   GlobalEnv = NULL;
   tee = symbol(TEE);
@@ -1737,11 +1831,14 @@ void setup () {
   initenv();
   initsleep();
   initgfx();
-  pfstring(PSTR("uLisp 3.4 "), pserial); pln(pserial);
+  pfstring(PSTR("uLisp 3.5 "), pserial); pln(pserial);
 }"#
 
 #+arm
 #"
+/*
+  initgfx - initialises the graphics
+*/
 void initgfx () {
 #if defined(gfxsupport)
   tft.initR(INITR_BLACKTAB);
@@ -1752,6 +1849,9 @@ void initgfx () {
 #endif
 }
 
+/*
+  initenv - initialises the uLisp environment
+*/
 void initenv () {
   GlobalEnv = NULL;
   tee = symbol(TEE);
@@ -1765,7 +1865,7 @@ void setup () {
   initenv();
   initsleep();
   initgfx();
-  pfstring(PSTR("uLisp 3.4 "), pserial); pln(pserial);
+  pfstring(PSTR("uLisp 3.5 "), pserial); pln(pserial);
 }"#))
 
 (defparameter *repl* #"

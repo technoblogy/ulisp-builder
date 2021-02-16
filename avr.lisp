@@ -5,8 +5,8 @@
 ; AVR
 
 (defparameter *header-avr*
-#"/* uLisp AVR Version 3.4a - www.ulisp.com
-   David Johnson-Davies - www.technoblogy.com - 5th January 2021
+#"/* uLisp AVR Version 3.5 - www.ulisp.com
+   David Johnson-Davies - www.technoblogy.com - unreleased
 
    Licensed under the MIT license: https://opensource.org/licenses/MIT
 */
@@ -96,7 +96,7 @@ const char LispLibrary[] PROGMEM = "";
   #define EEPROMSIZE 256                  /* Bytes */
   #define SYMBOLTABLESIZE 256             /* Bytes */
   #define STACKDIFF 320
-  #define CPU_AVR128DA48
+  #define CPU_AVR128DX48
 
 #elif defined(__AVR_AVR128DB48__)
   #define Serial Serial3
@@ -104,7 +104,7 @@ const char LispLibrary[] PROGMEM = "";
   #define EEPROMSIZE 256                  /* Bytes */
   #define SYMBOLTABLESIZE 256             /* Bytes */
   #define STACKDIFF 320
-  #define CPU_AVR128DA48
+  #define CPU_AVR128DX48
   
 #else
 #error "Board not supported!"
@@ -116,7 +116,7 @@ const char LispLibrary[] PROGMEM = "";
 inline int spiread () { return SPI.transfer(0); }
 #if defined(CPU_ATmega1284P)
 inline int serial1read () { while (!Serial1.available()) testescape(); return Serial1.read(); }
-#elif defined(CPU_ATmega2560) || defined(CPU_AVR128DA48)
+#elif defined(CPU_ATmega2560) || defined(CPU_AVR128DX48)
 inline int serial1read () { while (!Serial1.available()) testescape(); return Serial1.read(); }
 inline int serial2read () { while (!Serial2.available()) testescape(); return Serial2.read(); }
 inline int serial3read () { while (!Serial3.available()) testescape(); return Serial3.read(); }
@@ -139,7 +139,7 @@ void serialbegin (int address, int baud) {
   #elif defined(CPU_ATmega1284P)
   if (address == 1) Serial1.begin((long)baud*100);
   else error(WITHSERIAL, PSTR("port not supported"), number(address));
-  #elif defined(CPU_ATmega2560) || defined(CPU_AVR128DA48)
+  #elif defined(CPU_ATmega2560) || defined(CPU_AVR128DX48)
   if (address == 1) Serial1.begin((long)baud*100);
   else if (address == 2) Serial2.begin((long)baud*100);
   else if (address == 3) Serial3.begin((long)baud*100);
@@ -152,7 +152,7 @@ void serialend (int address) {
   (void) address;
   #elif defined(CPU_ATmega1284P)
   if (address == 1) {Serial1.flush(); Serial1.end(); }
-  #elif defined(CPU_ATmega2560) || defined(CPU_AVR128DA48)
+  #elif defined(CPU_ATmega2560) || defined(CPU_AVR128DX48)
   if (address == 1) {Serial1.flush(); Serial1.end(); }
   else if (address == 2) {Serial2.flush(); Serial2.end(); }
   else if (address == 3) {Serial3.flush(); Serial3.end(); }
@@ -173,7 +173,7 @@ gfun_t gstreamfun (object *args) {
     if (address == 0) gfun = gserial;
     #if defined(CPU_ATmega1284P)
     else if (address == 1) gfun = serial1read;
-    #elif defined(CPU_ATmega2560) || defined(CPU_AVR128DA48)
+    #elif defined(CPU_ATmega2560) || defined(CPU_AVR128DX48)
     else if (address == 1) gfun = serial1read;
     else if (address == 2) gfun = serial2read;
     else if (address == 3) gfun = serial3read;
@@ -189,7 +189,7 @@ gfun_t gstreamfun (object *args) {
 inline void spiwrite (char c) { SPI.transfer(c); }
 #if defined(CPU_ATmega1284P)
 inline void serial1write (char c) { Serial1.write(c); }
-#elif defined(CPU_ATmega2560) || defined(CPU_AVR128DA48)
+#elif defined(CPU_ATmega2560) || defined(CPU_AVR128DX48)
 inline void serial1write (char c) { Serial1.write(c); }
 inline void serial2write (char c) { Serial2.write(c); }
 inline void serial3write (char c) { Serial3.write(c); }
@@ -212,7 +212,7 @@ pfun_t pstreamfun (object *args) {
     if (address == 0) pfun = pserial;
     #if defined(CPU_ATmega1284P)
     else if (address == 1) pfun = serial1write;
-    #elif defined(CPU_ATmega2560) || defined(CPU_AVR128DA48)
+    #elif defined(CPU_ATmega2560) || defined(CPU_AVR128DX48)
     else if (address == 1) pfun = serial1write;
     else if (address == 2) pfun = serial2write;
     else if (address == 3) pfun = serial3write;
@@ -285,7 +285,7 @@ void checkanalogwrite (int pin) {
 (defparameter *note-avr* #"
 // Note
 
-#if defined(CPU_ATmega4809) || defined(CPU_AVR128DA48)
+#if defined(CPU_ATmega4809) || defined(CPU_AVR128DX48)
 const int scale[] PROGMEM = {4186,4435,4699,4978,5274,5588,5920,6272,6645,7040,7459,7902};
 #else
 const uint8_t scale[] PROGMEM = {239,226,213,201,190,179,169,160,151,142,134,127};
@@ -336,7 +336,7 @@ void playnote (int pin, int note, int octave) {
   if (prescaler<0 || prescaler>8) error(NOTE, PSTR("octave out of range"), number(prescaler));
   tone(pin, scale[note%12]>>prescaler);
 
-#elif defined(CPU_AVR128DA48)
+#elif defined(CPU_AVR128DX48)
   int prescaler = 8 - octave - note/12;
   if (prescaler<0 || prescaler>8) error(NOTE, PSTR("octave out of range"), number(prescaler));
   tone(pin, pgm_read_word(&scale[note%12])>>prescaler);
@@ -344,7 +344,7 @@ void playnote (int pin, int note, int octave) {
 }
 
 void nonote (int pin) {
-#if defined(CPU_ATmega4809) || defined(CPU_AVR128DA48)
+#if defined(CPU_ATmega4809) || defined(CPU_AVR128DX48)
   noTone(pin);
 #else
   (void) pin;
@@ -355,7 +355,7 @@ void nonote (int pin) {
 (defparameter *sleep-avr* #"
 // Sleep
 
-#if !defined(CPU_ATmega4809) && !defined(CPU_AVR128DA48)
+#if !defined(CPU_ATmega4809) && !defined(CPU_AVR128DX48)
   // Interrupt vector for sleep watchdog
   ISR(WDT_vect) {
   WDTCSR |= 1<<WDIE;
@@ -367,7 +367,7 @@ void initsleep () {
 }
 
 void sleep (int secs) {
-#if !defined(CPU_ATmega4809) && !defined(CPU_AVR128DA48)
+#if !defined(CPU_ATmega4809) && !defined(CPU_AVR128DX48)
   // Set up Watchdog timer for 1 Hz interrupt
   WDTCSR = 1<<WDCE | 1<<WDE;
   WDTCSR = 1<<WDIE | 6<<WDP0;     // 1 sec interrupt
@@ -464,7 +464,7 @@ ISR(INT7_vect) { interrupt(7); }
      ((DIGITALWRITE HIGH LOW)
       (PINMODE INPUT INPUT_PULLUP OUTPUT)
       (ANALOGREFERENCE DEFAULT INTERNAL VDD INTERNAL0V55 INTERNAL1V1 INTERNAL1V5 INTERNAL2V5 INTERNAL4V3 EXTERNAL)))
-    ("CPU_AVR128DA48"
+    ("CPU_AVR128DX48"
      ((DIGITALWRITE HIGH LOW)
       (PINMODE INPUT INPUT_PULLUP OUTPUT)
       (ANALOGREFERENCE DEFAULT VDD INTERNAL1V024 INTERNAL2V048 INTERNAL4V096 INTERNAL2V5 EXTERNAL)

@@ -1,6 +1,6 @@
 ;; Options: :avr :arm :msp430 :esp :stm32 :badge :zero :riscv
 
-(push :avr *features*)
+(push :riscv *features*)
 
 ;***************************************
 

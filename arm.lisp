@@ -5,8 +5,8 @@
 ; Arm
 
 (defparameter *header-arm*
-#"/* uLisp ARM Version 3.4 - www.ulisp.com
-   David Johnson-Davies - www.technoblogy.com - 4th January 2021
+#"/* uLisp ARM Version 3.5 - www.ulisp.com
+   David Johnson-Davies - www.technoblogy.com - unreleased
 
    Licensed under the MIT license: https://opensource.org/licenses/MIT
 */
@@ -198,7 +198,7 @@ Technoblogy_ST7735 tft = Technoblogy_ST7735(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, 
   #define SYMBOLTABLESIZE 1024            /* Bytes */
   #define CODESIZE 256                    /* Bytes */
   #define STACKDIFF 15000
-  #define CPU_IMXRT1062
+  #define CPU_iMXRT1062
   #define SDCARD_SS_PIN BUILTIN_SDCARD
   #define BitOrder uint8_t
   #undef RAMFUNC
@@ -380,9 +380,9 @@ void checkanalogread (int pin) {
 #elif defined(ARDUINO_METRO_M4)
   if (!(pin>=14 && pin<=21)) error(ANALOGREAD, invalidpin, number(pin));
 #elif defined(ARDUINO_ITSYBITSY_M4)
-  if (!(pin>=14 && pin<=19)) error(ANALOGREAD, invalidpin, number(pin));
+  if (!(pin>=14 && pin<=20)) error(ANALOGREAD, invalidpin, number(pin));
 #elif defined(ARDUINO_FEATHER_M4)
-  if (!(pin>=14 && pin<=19)) error(ANALOGREAD, invalidpin, number(pin));
+  if (!(pin>=14 && pin<=20)) error(ANALOGREAD, invalidpin, number(pin));
 #elif defined(ARDUINO_GRAND_CENTRAL_M4)
   if (!((pin>=67 && pin<=74) || (pin>=54 && pin<=61)))  error(ANALOGREAD, invalidpin, number(pin));
 #elif defined(ARDUINO_BBC_MICROBIT)
@@ -536,11 +536,11 @@ void sleep (int secs) {
      ((DIGITALWRITE HIGH LOW)))
     ("CPU_ATSAMD21"
      ((PINMODE INPUT INPUT_PULLUP INPUT_PULLDOWN OUTPUT)
-      (ANALOGREFERENCE AR_DEFAULT AR_INTERNAL AR_INTERNAL1V0 AR_INTERNAL1V65 AR_INTERNAL2V23 AR_EXTERNAL)))
+      (ANALOGREFERENCE AR_DEFAULT AR_INTERNAL1V0 AR_INTERNAL1V65 AR_INTERNAL2V23 AR_EXTERNAL)))
     ("CPU_ATSAMD51"
      ((PINMODE INPUT INPUT_PULLUP INPUT_PULLDOWN OUTPUT)
-      (ANALOGREFERENCE AR_INTERNAL1V0 AR_INTERNAL1V1 AR_INTERNAL1V2 AR_INTERNAL1V25 AR_INTERNAL2V0 AR_INTERNAL2V2
-                       AR_INTERNAL2V23 AR_INTERNAL2V4 AR_INTERNAL2V5 AR_INTERNAL1V65 AR_EXTERNAL)))
+      (ANALOGREFERENCE AR_DEFAULT AR_INTERNAL1V0 AR_INTERNAL1V1 AR_INTERNAL1V2 AR_INTERNAL1V25 AR_INTERNAL1V65 AR_INTERNAL2V0
+                       AR_INTERNAL2V2 AR_INTERNAL2V23 AR_INTERNAL2V4 AR_INTERNAL2V5 AR_EXTERNAL)))
     ("CPU_NRF51822"
      ((PINMODE INPUT INPUT_PULLUP INPUT_PULLDOWN OUTPUT)
       (ANALOGREFERENCE AR_DEFAULT AR_VBG AR_SUPPLY_ONE_HALF AR_SUPPLY_ONE_THIRD AR_EXT0 AR_EXT1)))

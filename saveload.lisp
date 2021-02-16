@@ -143,7 +143,7 @@ unsigned int saveimage (object *arg) {
   if (!(arg == NULL || listp(arg))) error(SAVEIMAGE, invalidarg, arg);
   int SymbolUsed = SymbolTop - SymbolTable;
   int bytesneeded = imagesize*4 + SymbolUsed + 10;
-  if (bytesneeded > EEPROMSIZE) error(SAVEIMAGE, PSTR("image size too large"), number(imagesize));
+  if (bytesneeded > EEPROMSIZE) error(SAVEIMAGE, PSTR("image too large"), number(imagesize));
   unsigned int addr = 0;
   EEPROMWriteInt(&addr, (unsigned int)arg);
   EEPROMWriteInt(&addr, imagesize);
@@ -200,8 +200,7 @@ unsigned int loadimage (object *arg) {
   gc(NULL, NULL);
   return imagesize;
 #else
-  unsigned int addr = 0;
-  EEPROMReadInt(&addr); // Skip eval address
+  unsigned int addr = 2; // Skip eval address
   unsigned int imagesize = EEPROMReadInt(&addr);
   if (imagesize == 0 || imagesize == 0xFFFF) error2(LOADIMAGE, PSTR("no saved image"));
   GlobalEnv = (object *)EEPROMReadInt(&addr);
@@ -393,7 +392,7 @@ int saveimage (object *arg) {
   // Save to DataFlash
   int SymbolUsed = SymbolTop - SymbolTable;
   int bytesneeded = 20 + SymbolUsed + CODESIZE + imagesize*8;
-  if (bytesneeded > DATAFLASHSIZE) error(SAVEIMAGE, PSTR("image size too large"), number(imagesize));
+  if (bytesneeded > DATAFLASHSIZE) error(SAVEIMAGE, PSTR("image too large"), number(imagesize));
   uint32_t addr = 0;
   FlashBeginWrite((bytesneeded+65535)/65536);
   FlashWriteInt(&addr, (uintptr_t)arg);
@@ -667,7 +666,7 @@ unsigned int saveimage (object *arg) {
 #else
   if (!(arg == NULL || listp(arg))) error(SAVEIMAGE, PSTR("illegal argument"), arg);
   int bytesneeded = imagesize*8 + SYMBOLTABLESIZE + 36;
-  if (bytesneeded > EEPROMSIZE) error(SAVEIMAGE, PSTR("image size too large"), number(imagesize));
+  if (bytesneeded > EEPROMSIZE) error(SAVEIMAGE, PSTR("image too large"), number(imagesize));
   EEPROM.begin(EEPROMSIZE);
   int addr = 0;
   EpromWriteInt(&addr, (uintptr_t)arg);
@@ -832,7 +831,7 @@ int saveimage (object *arg) {
   // Save to EEPROM
   int bytesneeded = imagesize*8 + SYMBOLTABLESIZE + 20;
   if (bytesneeded > EEPROMSIZE) {
-    pfstring(PSTR("Error: Image size too large: "), pserial);
+    pfstring(PSTR("Error: image too large: "), pserial);
     pint(imagesize, pserial); pln(pserial);
     GCStack = NULL;
     longjmp(exception, 1);
@@ -1004,7 +1003,7 @@ int saveimage (object *arg) {
   if (!(arg == NULL || listp(arg))) error3(SAVEIMAGE, PSTR(" illegal argument"));
   int bytesneeded = imagesize*4 + SYMBOLTABLESIZE + 10;
   if (imagesize > IMAGEDATASIZE) {
-    pfstring(PSTR("Error: Image size too large: "), pserial);
+    pfstring(PSTR("Error: image too large: "), pserial);
     pint(imagesize, pserial); pln(pserial);
     GCStack = NULL;
     longjmp(exception, 1);
@@ -1027,7 +1026,7 @@ int saveimage (object *arg) {
   if (!(arg == NULL || listp(arg))) error3(SAVEIMAGE, PSTR(" illegal argument"));
   int bytesneeded = imagesize*4 + SYMBOLTABLESIZE + 10;
   if (imagesize > IMAGEDATASIZE) {
-    pfstring(PSTR("Error: Image size too large: "), pserial);
+    pfstring(PSTR("Error: image too large: "), pserial);
     pint(imagesize, pserial); pln(pserial);
     GCStack = NULL;
     longjmp(exception, 1);

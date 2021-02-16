@@ -36,6 +36,16 @@ object *sp_quote (object *args, object *env) {
   return first(args);
 }")
 
+      (OR nil 0 127 "
+object *sp_or (object *args, object *env) {
+  while (args != NULL) {
+    object *val = eval(car(args), env);
+    if (val != NULL) return val;
+    args = cdr(args);
+  }
+  return nil;
+}")
+
       #+ignore
       (LAMBDA nil 0 127 "
 object *sp_lambda (object *args, object *env) {
@@ -537,6 +547,7 @@ object *sp_withi2c (object *args, object *env) {
   object *var = first(params);
   int address = checkinteger(WITHI2C, eval(second(params), env));
   params = cddr(params);
+  if (address == 0) params = cdr(params); // Ignore port
   int read = 0; // Write
   I2CCount = 0;
   if (params != NULL) {
@@ -1104,15 +1115,6 @@ object *tf_and (object *args, object *env) {
     more = cdr(args);
   }
   return car(args);
-}")
-
-      (OR nil 0 127 "
-object *tf_or (object *args, object *env) {
-  while (args != NULL) {
-    if (eval(car(args), env) != NULL) return car(args);
-    args = cdr(args);
-  }
-  return nil;
 }")) "tf")
 
     ("Core functions"
@@ -1153,7 +1155,7 @@ object *fn_consp (object *args, object *env) {
 object *fn_symbolp (object *args, object *env) {
   (void) env;
   object *arg = first(args);
-  return symbolp(arg) ? tee : nil;
+  return (arg == NULL || symbolp(arg)) ? tee : nil;
 }"#)
 
       #-avr
@@ -1235,7 +1237,7 @@ object *fn_length (object *args, object *env) {
   if (listp(arg)) return number(listlength(LENGTH, arg));
   if (stringp(arg)) return number(stringlength(arg));
   if (!(arrayp(arg) && cdr(cddr(arg)) == NULL)) error(LENGTH, PSTR("argument is not a list, 1d array, or string"), arg);
-  return number(-(first(cddr(arg))->integer));
+  return number(abs(first(cddr(arg))->integer));
 }"#)
 
       #-avr
@@ -1411,11 +1413,11 @@ void mapcarfun (object *result, object **tail) {
 }
 
 void mapcanfun (object *result, object **tail) {
+  if (cdr(*tail) != NULL) error(MAPCAN, notproper, *tail);
   while (consp(result)) {
     cdr(*tail) = result; *tail = result;
     result = cdr(result);
   }
-  if (result != NULL) error(MAPCAN, resultproper, result);
 }
 
 object *mapcarcan (symbol_t name, object *args, object *env, mapfun_t fun) {
@@ -2080,7 +2082,10 @@ object *fn_expt (object *args, object *env) {
   float value = log(abs(float1)) * checkintfloat(EXPT, arg2);
   if (integerp(arg1) && integerp(arg2) && ((arg2->integer) > 0) && (abs(value) < 21.4875))
     return number(intpower(arg1->integer, arg2->integer));
-  if (float1 < 0) error2(EXPT, PSTR("invalid result"));
+  if (float1 < 0) {
+    if (integerp(arg2)) return makefloat((arg2->integer & 1) ? -exp(value) : exp(value));
+    else error2(EXPT, PSTR("invalid result"));
+  }
   return makefloat(exp(value));
 }"#)
       
@@ -2712,8 +2717,11 @@ object *fn_analogreference (object *args, object *env) {
 object *fn_analogreadresolution (object *args, object *env) {
   (void) env;
   object *arg = first(args);
-  #if defined(CPU_AVR128DA48)
-  analogReadResolution(checkinteger(ANALOGREADRESOLUTION, arg));
+  #if defined(CPU_AVR128DX48)
+  uint8_t res = checkinteger(ANALOGREADRESOLUTION, arg);
+  if (res == 10) analogReadResolution(10);
+  else if (res == 12) analogReadResolution(12);
+  else error(ANALOGREADRESOLUTION, PSTR("invalid resolution"), res);
   #else
   error2(ANALOGREADRESOLUTION, PSTR("not supported"));
   #endif
@@ -2766,7 +2774,7 @@ object *fn_analogwriteresolution (object *args, object *env) {
 object *fn_dacreference (object *args, object *env) {
   (void) env;
   object *arg = first(args);
-  #if defined(CPU_AVR128DA48)
+  #if defined(CPU_AVR128DX48)
   int ref = checkinteger(DACREFERENCE, arg);
   DACReference(ref);
   #endif
@@ -3093,8 +3101,9 @@ object *fn_format (object *args, object *env) {
           if (args == NULL) formaterr(formatstr, noargument, n);
           if (!listp(first(args))) formaterr(formatstr, notalist, n);
           save = args; args = first(args); bra = n; tilde = false;
+          if (args == NULL) mute = true;
         }
-        else if (ch2 == 'A' || ch2 == 'S' || ch2 == 'D' || ch2 == 'G' || ch2 == 'X') {
+        else if (ch2 == 'A' || ch2 == 'S' || ch2 == 'D' || ch2 == 'G' || ch2 == 'X' || ch2 == 'B') {
           if (args == NULL) formaterr(formatstr, noargument, n);
           object *arg = first(args); args = cdr(args);
           uint8_t aw = atomwidth(arg);
@@ -3103,10 +3112,15 @@ object *fn_format (object *args, object *env) {
           if (ch2 == 'A') { prin1object(arg, pfun); indent(w, pad, pfun); }
           else if (ch2 == 'S') { printobject(arg, pfun); indent(w, pad, pfun); }
           else if (ch2 == 'D' || ch2 == 'G') { indent(w, pad, pfun); prin1object(arg, pfun); }
-          else if (ch2 == 'X' && integerp(arg)) {
-            uint8_t hw = hexwidth(arg); if (width < hw) w = 0; else w = width-hw;
-            indent(w, pad, pfun); pinthex(arg->integer, pfun);
-          } else if (ch2 == 'X') { indent(w, pad, pfun); prin1object(arg, pfun); }
+          else if (ch2 == 'X' || ch2 == 'B') {
+            if (integerp(arg)) {
+              uint8_t power2 = (ch2 == 'B') ? 1 : 4;
+              uint8_t hw = basewidth(arg, power2); if (width < hw) w = 0; else w = width-hw;
+              indent(w, pad, pfun); pintbase(arg->integer, power2, pfun);
+            } else {
+              indent(w, pad, pfun); prin1object(arg, pfun);
+            }
+          }
           tilde = false;
         } else formaterr(formatstr, PSTR("invalid directive"), n);
       }
