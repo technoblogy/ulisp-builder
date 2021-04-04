@@ -5,7 +5,7 @@
 ; Arm
 
 (defparameter *header-arm*
-#"/* uLisp ARM Version 3.5 - www.ulisp.com
+#"/* uLisp ARM Version 3.6 - www.ulisp.com
    David Johnson-Davies - www.technoblogy.com - unreleased
 
    Licensed under the MIT license: https://opensource.org/licenses/MIT
@@ -125,7 +125,7 @@ Technoblogy_ST7735 tft = Technoblogy_ST7735(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, 
   #define SYMBOLTABLESIZE 1024            /* Bytes */
   #define CODESIZE 256                    /* Bytes */
   #define STACKDIFF 400
-  #define CPU_ATSAMD51P20
+  #define CPU_ATSAMD51
 
 #elif defined(ARDUINO_SAMD_MKRZERO)
   #define WORKSPACESIZE (2816-SDSIZE)     /* Objects (8*bytes) */

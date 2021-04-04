@@ -2,7 +2,7 @@
 
 (in-package :cl-user)
 
-#+avr
+#+(and avr (not badge))
 (defparameter *typedefs* #"
 // Typedefs
 
@@ -27,6 +27,7 @@ typedef struct sobject {
 
 typedef object *(*fn_ptr_type)(object *, object *);
 typedef void (*mapfun_t)(object *, object **);
+typedef int (*intfn_ptr_type)(int w, int x, int y, int z);
 
 typedef struct {
   PGM_P string;
@@ -41,7 +42,45 @@ typedef int BitOrder;
 typedef int PinMode;
 #endif"#)
 
-#+(or msp430 badge)
+#+badge
+(defparameter *typedefs* #"
+// Typedefs
+
+typedef unsigned int symbol_t;
+
+typedef struct sobject {
+  union {
+    struct {
+      sobject *car;
+      sobject *cdr;
+    };
+    struct {
+      unsigned int type;
+      union {
+        symbol_t name;
+        int integer;
+        int chars; // For strings
+      };
+    };
+  };
+} object;
+
+typedef object *(*fn_ptr_type)(object *, object *);
+typedef void (*mapfun_t)(object *, object **);
+typedef int (*intfn_ptr_type)(int w, int x, int y, int z);
+
+typedef struct {
+  PGM_P string;
+  fn_ptr_type fptr;
+  uint8_t minmax;
+} tbl_entry_t;
+
+typedef int (*gfun_t)();
+typedef void (*pfun_t)(char);
+typedef int BitOrder;
+typedef int PinMode;"#)
+
+#+msp430
 (defparameter *typedefs* #"
 // Typedefs
 
@@ -236,7 +275,10 @@ typedef int BitOrder;"#)
 // Global variables
 
 object Workspace[WORKSPACESIZE] WORDALIGNED;
-char SymbolTable[SYMBOLTABLESIZE];"#
+char SymbolTable[SYMBOLTABLESIZE];    // Must be even
+#if defined(CODESIZE)
+uint8_t MyCode[CODESIZE] WORDALIGNED; // Must be even
+#endif"#
 
 #+arm
 #"
@@ -283,7 +325,7 @@ char LastPrint = 0;"#
 
 #"
 // Flags
-enum flag { PRINTREADABLY, RETURNFLAG, ESCAPE, EXITEDITOR, LIBRARYLOADED, NOESC };
+enum flag { PRINTREADABLY, RETURNFLAG, ESCAPE, EXITEDITOR, LIBRARYLOADED, NOESC, NOECHO };
 volatile uint8_t Flags = 0b00001; // PRINTREADABLY set by default"#
 
 #+(or msp430 avr badge)
@@ -491,7 +533,7 @@ object *symbol (symbol_t name) {
   return ptr;
 }"#
 
-#+(or arm riscv)
+#+(or avr arm riscv)
  #"
 /*
   codehead - make a code header object with value entry and return it
@@ -1575,7 +1617,7 @@ void I2Cstop (TwoWire *port, uint8_t read) {
   if (read == 0) port->endTransmission(); // Check for error?
 }"#
 
-#+(or avr badge)
+#+(and avr (not badge))
 #"
 // I2C interface
 
@@ -1690,5 +1732,66 @@ void I2Cstop (uint8_t read) {
   TWCR = 1<<TWINT | 1<<TWEN | 1<<TWSTO;
   while (TWCR & 1<<TWSTO); // wait until stop and bus released
 #endif
+}"#
+
+#+badge
+#"
+// I2C interface
+
+uint8_t const TWI_SDA_PIN = 17;
+uint8_t const TWI_SCL_PIN = 16;
+
+uint32_t const F_TWI = 400000L;  // Hardware I2C clock in Hz
+uint8_t const TWSR_MTX_DATA_ACK = 0x28;
+uint8_t const TWSR_MTX_ADR_ACK = 0x18;
+uint8_t const TWSR_MRX_ADR_ACK = 0x40;
+uint8_t const TWSR_START = 0x08;
+uint8_t const TWSR_REP_START = 0x10;
+uint8_t const I2C_READ = 1;
+uint8_t const I2C_WRITE = 0;
+
+void I2Cinit (bool enablePullup) {
+  TWSR = 0;                        // no prescaler
+  TWBR = (F_CPU/F_TWI - 16)/2;     // set bit rate factor
+  if (enablePullup) {
+    digitalWrite(TWI_SDA_PIN, HIGH);
+    digitalWrite(TWI_SCL_PIN, HIGH);
+  }
+}
+
+int I2Cread () {
+  if (I2CCount != 0) I2CCount--;
+  TWCR = 1<<TWINT | 1<<TWEN | ((I2CCount == 0) ? 0 : (1<<TWEA));
+  while (!(TWCR & 1<<TWINT));
+  return TWDR;
+}
+
+bool I2Cwrite (uint8_t data) {
+  TWDR = data;
+  TWCR = 1<<TWINT | 1 << TWEN;
+  while (!(TWCR & 1<<TWINT));
+  return (TWSR & 0xF8) == TWSR_MTX_DATA_ACK;
+}
+
+bool I2Cstart (uint8_t address, uint8_t read) {
+  uint8_t addressRW = address<<1 | read;
+  TWCR = 1<<TWINT | 1<<TWSTA | 1<<TWEN;    // Send START condition
+  while (!(TWCR & 1<<TWINT));
+  if ((TWSR & 0xF8) != TWSR_START && (TWSR & 0xF8) != TWSR_REP_START) return false;
+  TWDR = addressRW;  // send device address and direction
+  TWCR = 1<<TWINT | 1<<TWEN;
+  while (!(TWCR & 1<<TWINT));
+  if (addressRW & I2C_READ) return (TWSR & 0xF8) == TWSR_MRX_ADR_ACK;
+  else return (TWSR & 0xF8) == TWSR_MTX_ADR_ACK;
+}
+
+bool I2Crestart (uint8_t address, uint8_t read) {
+  return I2Cstart(address, read);
+}
+
+void I2Cstop (uint8_t read) {
+  (void) read;
+  TWCR = 1<<TWINT | 1<<TWEN | 1<<TWSTO;
+  while (TWCR & 1<<TWSTO); // wait until stop and bus released
 }"#))
         

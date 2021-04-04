@@ -99,7 +99,7 @@
 
 (defparameter *tests*
 
-#"; Printing floats
+#"#| Printing floats |#
 
 (aeq 'print t (string= (princ-to-string 101.0) "101.0"))
 (aeq 'print t (string= (princ-to-string 1010.0) "1010.0"))
@@ -174,7 +174,7 @@
 (aeq 'print t (string= (princ-to-string 0.0012345678) "0.00123457"))
 (aeq 'print t (string= (princ-to-string 1.2345679E-4) "1.23457e-4"))
 
-; Arithmetic
+#| Arithmetic |#
 
 (aeq '= t (= (- 4 2 1 1) 0))
 (aeq '* 9 (* -3 -3))
@@ -194,7 +194,7 @@
 (aeq '1- -2147483648 (1- -2147483647))
 (aeq '1- t (string= "-2.14748e9" (princ-to-string (1- -2147483648))))
 
-; Arithmetic
+#| Arithmetic |#
 
 (aeq '/ 1.75 (/ 3.5 2))
 (aeq '/ 1.75 (/ 3.5 2.0))
@@ -212,7 +212,7 @@
 (aeq '* 1.0 (* 0.0625 16))
 (aeq '* 1.0 (* 0.0625 16.0))
 
-; Comparisons
+#| Comparisons |#
 
 (aeq '< t (< 1 2 3 4))
 (aeq '< nil (< 1 2 3 2))
@@ -222,7 +222,7 @@
 (aeq '< nil (< 1.001 1.0 3 4))
 (aeq '< t (< 1.001 1.002 1.003 1.004))
 
-; Transcendental
+#| Transcendental |#
 
 (aeq 'sin 0.84147096 (sin 1))
 (aeq 'sin 0.0 (sin 0))
@@ -253,7 +253,7 @@
 (aeq 'tanh 0.7615942 (tanh 1))
 (aeq 'tanh 0.7615942 (tanh 1.0))
 
-; Rounding
+#| Rounding |#
 
 (aeq 'truncate 3 (truncate 10 3))
 (aeq 'truncate 3 (truncate 3.3333333))
@@ -283,7 +283,7 @@
 (aeq 'mod 1.0 (mod -12.5 1.5))
 (aeq 'mod 0.5 (mod 12.5 1.5))
 
-; Log and exp
+#| Log and exp |#
 
 (aeq 'exp 2.7182818 (exp 1))
 (aeq 'exp 2.7182818 (exp 1.0))
@@ -307,7 +307,7 @@
 (aeq 'expt 1024 (expt -2 10))
 (aeq 'expt -2048 (expt -2 11))
 
-; Tests
+#| Tests |#
 
 (aeq 'floatp nil (floatp 1))
 (aeq 'floatp nil (floatp nil))

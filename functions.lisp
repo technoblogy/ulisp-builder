@@ -824,10 +824,119 @@ object *sp_withclient (object *args, object *env) {
   return result;
 }"#)) "sp")
 
-    #+(or arm stm32 riscv)
+    #+(or avr arm stm32 riscv)
     ("Assembler"
      
      (
+      #+avr
+      (DEFCODE nil 0 127 #"
+object *sp_defcode (object *args, object *env) {
+#if defined(CODESIZE)
+  setflag(NOESC);
+  checkargs(DEFCODE, args);
+  object *var = first(args);
+  object *params = second(args);
+  if (!symbolp(var)) error(DEFCODE, PSTR("not a symbol"), var);
+  
+  // Make *p* a local variable for program counter
+  object *pcpair = cons(newsymbol(pack40((char*)"*p*")), number(0));
+  push(pcpair,env);
+  args = cdr(args);
+  
+  // Make labels into local variables
+  object *entries = cdr(args);
+  while (entries != NULL) {
+    object *arg = first(entries);
+    if (symbolp(arg)) {
+      object *pair = cons(arg,number(0));
+      push(pair,env);
+    }
+    entries = cdr(entries);
+  } 
+
+  // First pass
+  int origin = 0;
+  int codesize = assemble(1, origin, cdr(args), env, pcpair);
+
+  // See if it will fit
+  object *globals = GlobalEnv;
+  while (globals != NULL) {
+    object *pair = car(globals);
+    if (pair != NULL && car(pair) != var) { // Exclude me if I already exist
+      object *codeid = second(pair);
+      if (codeid->type == CODE) {
+        codesize = codesize + endblock(codeid) - startblock(codeid);
+      }
+    }
+    globals = cdr(globals);
+  }
+  if (codesize > CODESIZE) error(DEFCODE, PSTR("not enough room for code"), var);
+  
+  // Compact the code block, removing gaps
+  origin = 0;
+  object *block;
+  int smallest;
+
+  do {
+    smallest = CODESIZE;
+    globals = GlobalEnv;
+    while (globals != NULL) {
+      object *pair = car(globals);
+      if (pair != NULL && car(pair) != var) { // Exclude me if I already exist
+        object *codeid = second(pair);
+        if (codeid->type == CODE) {
+          if (startblock(codeid) < smallest && startblock(codeid) >= origin) {
+            smallest = startblock(codeid);
+            block = codeid;
+          }        
+        }
+      }
+      globals = cdr(globals);
+    }
+
+    // Compact fragmentation if necessary
+    if (smallest == origin) origin = endblock(block); // No gap
+    else if (smallest < CODESIZE) { // Slide block down
+      int target = origin;
+      for (int i=startblock(block); i<endblock(block); i++) {
+        MyCode[target] = MyCode[i];
+        target++;
+      }
+      block->integer = target<<8 | origin;
+      origin = target;
+    }
+    
+  } while (smallest < CODESIZE);
+
+  // Second pass - origin is first free location
+  codesize = assemble(2, origin, cdr(args), env, pcpair);
+
+  object *val = cons(codehead((origin+codesize)<<8 | origin), args);
+  object *pair = value(var->name, GlobalEnv);
+  if (pair != NULL) cdr(pair) = val;
+  else push(cons(var, val), GlobalEnv);
+
+
+  #if defined(CPU_ATmega1284P)
+  // Use Optiboot Flasher in MightyCore with 256 byte page from CODE_ADDRESS 0x1bb00 to 0x1bbff
+  optiboot_page_erase(CODE_ADDRESS);
+  for (unsigned int i=0; i<CODESIZE/2; i++) optiboot_page_fill(CODE_ADDRESS + i*2, MyCode[i*2] | MyCode[i*2+1]<<8);
+  optiboot_page_write(CODE_ADDRESS);
+  #elif defined (CPU_AVR128DX48)
+  // Use Flash Writer in DxCore with 512 byte page from CODE_ADDRESS 0x1be00 to 0x1c000
+  if (Flash.checkWritable()) error2(DEFCODE, PSTR("flash write not supported"));
+  if (Flash.erasePage(CODE_ADDRESS, 1)) error2(DEFCODE, PSTR("problem erasing flash"));
+  Flash.writeBytes(CODE_ADDRESS, MyCode, CODESIZE);
+  #endif
+  
+  clrflag(NOESC);
+  return var;
+#else
+  (void) args, (void) env;
+  return nil;
+#endif
+}"#)
+
       #+arm
       (DEFCODE nil 0 127 #"
 object *sp_defcode (object *args, object *env) {
@@ -872,7 +981,7 @@ object *sp_defcode (object *args, object *env) {
   object *globals = GlobalEnv;
   while (globals != NULL) {
     object *pair = car(globals);
-    if (pair != NULL && car(pair) != var) { // Exclude me if I already exist
+    if (pair != NULL && car(pair) != var && consp(cdr(pair))) { // Exclude me if I already exist
       object *codeid = second(pair);
       if (codeid->type == CODE) {
         codesize = codesize + endblock(codeid) - startblock(codeid);
@@ -892,7 +1001,7 @@ object *sp_defcode (object *args, object *env) {
     globals = GlobalEnv;
     while (globals != NULL) {
       object *pair = car(globals);
-      if (pair != NULL && car(pair) != var) { // Exclude me if I already exist
+      if (pair != NULL && car(pair) != var && consp(cdr(pair))) { // Exclude me if I already exist
         object *codeid = second(pair);
         if (codeid->type == CODE) {
           if (startblock(codeid) < smallest && startblock(codeid) >= origin) {
@@ -976,7 +1085,7 @@ object *sp_defcode (object *args, object *env) {
   object *globals = GlobalEnv;
   while (globals != NULL) {
     object *pair = car(globals);
-    if (pair != NULL && car(pair) != var) { // Exclude me if I already exist
+    if (pair != NULL && car(pair) != var && consp(cdr(pair))) { // Exclude me if I already exist
       object *codeid = second(pair);
       if (codeid->type == CODE) {
         codesize = codesize + endblock(codeid) - startblock(codeid);
@@ -996,7 +1105,7 @@ object *sp_defcode (object *args, object *env) {
     globals = GlobalEnv;
     while (globals != NULL) {
       object *pair = car(globals);
-      if (pair != NULL && car(pair) != var) { // Exclude me if I already exist
+      if (pair != NULL && car(pair) != var && consp(cdr(pair))) { // Exclude me if I already exist
         object *codeid = second(pair);
         if (codeid->type == CODE) {
           if (startblock(codeid) < smallest && startblock(codeid) >= origin) {
@@ -2627,7 +2736,7 @@ object *fn_pinmode (object *args, object *env) {
   int pin = checkinteger(PINMODE, first(args));
   PinMode pm = INPUT;
   object *arg = second(args);
-  if (keywordp(arg)) pm = checkkeyword(PINMODE, arg);
+  if (keywordp(arg)) pm = (PinMode)checkkeyword(PINMODE, arg);
   else if (integerp(arg)) {
     int mode = arg->integer;
     if (mode == 1) pm = OUTPUT; else if (mode == 2) pm = INPUT_PULLUP;
@@ -2721,7 +2830,7 @@ object *fn_analogreadresolution (object *args, object *env) {
   uint8_t res = checkinteger(ANALOGREADRESOLUTION, arg);
   if (res == 10) analogReadResolution(10);
   else if (res == 12) analogReadResolution(12);
-  else error(ANALOGREADRESOLUTION, PSTR("invalid resolution"), res);
+  else error(ANALOGREADRESOLUTION, PSTR("invalid resolution"), arg);
   #else
   error2(ANALOGREADRESOLUTION, PSTR("not supported"));
   #endif
@@ -2941,7 +3050,7 @@ object *fn_pprint (object *args, object *env) {
   return symbol(NOTHING);
 }"#)
 
-      #+(and (not gfx) (not code))
+      #+avr
     (PPRINTALL nil 0 1 #"
 object *fn_pprintall (object *args, object *env) {
   (void) env;
@@ -2954,6 +3063,10 @@ object *fn_pprintall (object *args, object *env) {
     pln(pfun);
     if (consp(val) && symbolp(car(val)) && car(val)->name == LAMBDA) {
       superprint(cons(symbol(DEFUN), cons(var, cdr(val))), 0, pfun);
+    #if defined(CODESIZE)
+    } else if (consp(val) && car(val)->type == CODE) {
+      superprint(cons(symbol(DEFCODE), cons(var, cdr(val))), 0, pfun);
+    #endif
     } else {
       superprint(cons(symbol(DEFVAR), cons(var, cons(quote(val), NULL))), 0, pserial);
     }
@@ -2964,7 +3077,7 @@ object *fn_pprintall (object *args, object *env) {
   return symbol(NOTHING);
 }"#)
 
-    #+(and (not gfx) code)
+    #+ignore
     (PPRINTALL nil 0 1 #"
 object *fn_pprintall (object *args, object *env) {
   (void) env;
@@ -2989,7 +3102,7 @@ object *fn_pprintall (object *args, object *env) {
   return symbol(NOTHING);
 }"#)
 
-    #+(and gfx (not code))
+    #+esp
     (PPRINTALL nil 0 1 #"
 object *fn_pprintall (object *args, object *env) {
   (void) env;
@@ -3016,7 +3129,7 @@ object *fn_pprintall (object *args, object *env) {
   return symbol(NOTHING);
 }"#)
 
-    #+(and gfx code)
+    #+(or riscv arm)
     (PPRINTALL nil 0 1 #"
 object *fn_pprintall (object *args, object *env) {
   (void) env;
@@ -3977,13 +4090,13 @@ object *fn_xorsprite (object *args, object *env) {
      
      ((PLOT nil 0 6 #"
 void plotsub (uint8_t x, uint8_t y, uint8_t n, int ys[5]) {
-  if (y>=0 && y<64) {
+  if (y<64) {
     uint8_t grey = 0x0F-n*3;
     uint8_t blob = grey;
     if ((x&1) == 0) { blob = grey<<4; ys[n] = y; }
     else {
       for (int i=0; i<5; i++) {
-        if (y == ys[i]) blob = (0x0F-i*3)<<4 | grey; 
+        if (y == ys[i]) blob = (0x0F-i*3)<<4 | grey;
       }
     }
     PlotByte(x>>1, y, blob);
@@ -3994,7 +4107,7 @@ object *fn_plot (object *args, object *env) {
   int ys[5] = {-1, -1, -1, -1, -1};
   int xaxis = -1, yaxis = -1;
   delay(20);
-  ClearDisplay(); // Clear display
+  ClearDisplay(0); // Clear display
   if (args != NULL && integerp(first(args))) { xaxis = checkinteger(PLOT, first(args)); args = cdr(args); }
   if (args != NULL && integerp(first(args))) { yaxis = checkinteger(PLOT, first(args)); args = cdr(args); }
   int nargs = min(listlength(PLOT, args),4);
@@ -4019,14 +4132,14 @@ object *fn_plot3d (object *args, object *env) {
   int xaxis = -1, yaxis = -1;
   uint8_t blob;
   delay(20);
-  ClearDisplay(); // Clear display
+  ClearDisplay(0); // Clear display
   if (args != NULL && integerp(first(args))) { xaxis = checkinteger(PLOT3D, first(args)); args = cdr(args); }
   if (args != NULL && integerp(first(args))) { yaxis = checkinteger(PLOT3D, first(args)); args = cdr(args); }
   if (args != NULL) {
     object *function = first(args);
     for (int y=0; y<64; y++) {
       for (int x=0; x<256; x++) {
-        int z = checkinteger(PLOT3D, apply(PLOT3D, function, cons(number(x), cons(number(y), NULL)), env));        
+        int z = checkinteger(PLOT3D, apply(PLOT3D, function, cons(number(x), cons(number(y), NULL)), env));
         if (x == xaxis || y == yaxis) z = 0xF;
         if ((x&1) == 0) blob = z<<4; else blob = blob | (z&0xF);
         PlotByte(x>>1, y, blob);
@@ -4035,6 +4148,40 @@ object *fn_plot3d (object *args, object *env) {
   }
   while (!tstflag(ESCAPE)); clrflag(ESCAPE);
   return symbol(NOTHING);
+}"#)
+
+     (GLYPHPIXEL "glyph-pixel" 3 3 #"
+extern const uint8_t CharMap[96][6] PROGMEM;
+
+object *fn_glyphpixel (object *args, object *env) {
+  (void) env;
+  uint8_t c = 0, x = 6, y = 8;
+  c = checkchar(GLYPHPIXEL, first(args));
+  x = checkinteger(GLYPHPIXEL, second(args));
+  y = checkinteger(GLYPHPIXEL, third(args));
+  if (x > 5 || y > 7) return number(0);
+  return pgm_read_byte(&CharMap[(c & 0x7f) - 32][x]) & 1 << (7 - y) ? number(15) : number(0);
+}"#)
+
+     (PLOTPIXEL "plot-pixel" 2 3 #"
+object *fn_plotpixel (object *args, object *env) {
+  (void) env;
+  int x = checkinteger(PLOTPIXEL, first(args));
+  int y = checkinteger(PLOTPIXEL, second(args));
+  args = cddr(args);
+  uint8_t grey = 0xff;
+  if (args != NULL) grey = checkinteger(PLOTPIXEL, first(args));
+  PlotByte(x, y, grey);
+  return nil;
+}"#)
+
+     (FILLSCREEN "fill-screen" 0 1 #"
+object *fn_fillscreen (object *args, object *env) {
+  (void) env;
+  uint8_t grey = 0;
+  if (args != NULL) grey = checkinteger(FILLSCREEN, first(args));
+  ClearDisplay(grey);
+  return nil;
 }"#)))
 
     (nil

@@ -1,7 +1,7 @@
 ;; Options: :avr :arm :msp430 :esp :stm32 :badge :zero :riscv
 
-(push :riscv *features*)
-
+(push :esp *features*)
+ 
 ;***************************************
 
 ;(push :interrupts *features*)

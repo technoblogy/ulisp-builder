@@ -5,8 +5,8 @@
 ; ESP
 
 (defparameter *header-esp*
-#"/* uLisp ESP Version 3.5 - www.ulisp.com
-   David Johnson-Davies - www.technoblogy.com - Unreleased
+#"/* uLisp ESP Version 3.6 - www.ulisp.com
+   David Johnson-Davies - www.technoblogy.com - unreleased
 
    Licensed under the MIT license: https://opensource.org/licenses/MIT
 */

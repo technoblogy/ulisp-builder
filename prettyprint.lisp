@@ -113,7 +113,7 @@ void supersub (object *form, int lm, int super, pfun_t pfun) {
   pfun(')'); return;
 }"#
 
-#+(or avr badge)
+#+(and avr (not badge))
 #"
 const int ppspecials = 15;
 const uint8_t ppspecial[ppspecials] PROGMEM = 
@@ -124,13 +124,49 @@ void supersub (object *form, int lm, int super, pfun_t pfun) {
   object *arg = car(form);
   if (symbolp(arg)) {
     int name = arg->name;
+    #if defined(CODESIZE)
+    if (name == DEFUN || name == DEFCODE) special = 2;
+    #else
     if (name == DEFUN) special = 2;
+    #endif
     else for (int i=0; i<ppspecials; i++) {
       #if defined(CPU_ATmega4809)
       if (name == ppspecial[i]) { special = 1; break; }    
       #else
       if (name == pgm_read_byte(&ppspecial[i])) { special = 1; break; }
       #endif   
+    } 
+  }
+  while (form != NULL) {
+    if (atom(form)) { pfstring(PSTR(" . "), pfun); printobject(form, pfun); pfun(')'); return; }
+    else if (separate) { pfun('('); separate = 0; }
+    else if (special) { pfun(' '); special--; }
+    else if (!super) pfun(' ');
+    else { pln(pfun); indent(lm, ' ', pfun); }
+    superprint(car(form), lm, pfun);
+    form = cdr(form);
+  }
+  pfun(')'); return;
+}"#
+
+#+badge
+#"
+const int ppspecials = 15;
+const uint8_t ppspecial[ppspecials] PROGMEM = 
+  { DOTIMES, DOLIST, IF, SETQ, TEE, LET, LETSTAR, LAMBDA, WHEN, UNLESS, WITHI2C, WITHSERIAL, WITHSPI, WITHSDCARD, FORMILLIS };
+
+void supersub (object *form, int lm, int super, pfun_t pfun) {
+  int special = 0, separate = 1;
+  object *arg = car(form);
+  if (symbolp(arg)) {
+    int name = arg->name;
+    #if defined(CODESIZE)
+    if (name == DEFUN || name == DEFCODE) special = 2;
+    #else
+    if (name == DEFUN) special = 2;
+    #endif
+    else for (int i=0; i<ppspecials; i++) {
+      if (name == pgm_read_byte(&ppspecial[i])) { special = 1; break; }
     } 
   }
   while (form != NULL) {

@@ -242,6 +242,14 @@ intptr_t lookupfn (symbol_t name) {
 }
 
 /*
+  getminmax - gets the byte from lookup_table[] whose nibbles specify the minimum and maximum number of arguments for name
+*/
+uint8_t getminmax (symbol_t name) {
+  uint8_t minmax = pgm_read_byte(&lookup_table[name].minmax);
+  return minmax;
+}
+
+/*
   checkminmax - checks that the number of arguments nargs for name is within the range specified in lookup_table[]
 */
 void checkminmax (symbol_t name, int nargs) {
@@ -286,7 +294,7 @@ void testescape () {
     #"
 void testescape () {
 #if defined serialmonitor
-  if (Serial.read() == '~') error(PSTR("Escape!"));
+  if (Serial.read() == '~') error2(0, PSTR("escape!"));
 #endif
 }"#))
 
@@ -342,7 +350,7 @@ object *eval (object *form, object *env) {
   if (tstflag(ESCAPE)) { clrflag(ESCAPE); error2(0, PSTR("Escape!"));}
   if (!tstflag(NOESC)) testescape();"#
 
-#+avr
+#+(and avr (not badge))
 #"
 object *eval (object *form, object *env) {
   uint8_t sp[0];
@@ -355,6 +363,22 @@ object *eval (object *form, object *env) {
   // Escape
   if (tstflag(ESCAPE)) { clrflag(ESCAPE); error2(0, PSTR("escape!"));}
   if (!tstflag(NOESC)) testescape();"#
+
+#+badge
+#"
+object *eval (object *form, object *env) {
+  uint8_t sp[0];
+  int TC=0;
+  EVAL:
+  // Enough space?
+  // Serial.println((uint16_t)sp - (uint16_t)__bss_end); // Find best STACKDIFF value
+  if ((uint16_t)sp - (uint16_t)__bss_end < STACKDIFF) error2(0, PSTR("stack overflow"));
+  if (Freespace <= WORKSPACESIZE>>4) gc(form, env);      // GC when 1/16 of workspace left
+  // Escape
+  if (tstflag(ESCAPE)) { clrflag(ESCAPE); error2(0, PSTR("escape!"));}
+  #if defined (serialmonitor)
+  if (!tstflag(NOESC)) testescape();
+  #endif"#
 
 #+esp
 #"
@@ -383,9 +407,11 @@ object *eval (object *form, object *env) {
     error(0, PSTR("undefined"), form);
   }"#
 
-#+(or arm riscv)
+#+(or avr arm riscv)
 #"
-  if (form->type == CODE) error2(0, PSTR("can't evaluate CODE header"));"#
+  #if defined(CODESIZE)
+  if (form->type == CODE) error2(0, PSTR("can't evaluate CODE header"));
+  #endif"#
   
 #"
   // It's a list
@@ -505,6 +531,19 @@ object *eval (object *form, object *env) {
       TC = 1;
       goto EVAL;
     }"#
+
+#+avr
+#"
+    #if defined(CODESIZE)
+    if (car(function)->type == CODE) {
+      int n = listlength(DEFCODE, second(function));
+      if (nargs<n) error2(fname->name, toofewargs);
+      if (nargs>n) error2(fname->name, toomanyargs);
+      uint32_t entry = startblock(car(function));
+      pop(GCStack);
+      return call(entry, n, args, env);
+    }
+    #endif"#
 
 #+arm
 #"
@@ -713,7 +752,7 @@ void pserial (char c) {
   #endif
 }"#
 
-    #+avr
+    #+(and avr (not badge))
     #"
 const char ControlCodes[] PROGMEM = "Null\0SOH\0STX\0ETX\0EOT\0ENQ\0ACK\0Bell\0Backspace\0Tab\0Newline\0VT\0"
 "Page\0Return\0SO\0SI\0DLE\0DC1\0DC2\0DC3\0DC4\0NAK\0SYN\0ETB\0CAN\0EM\0SUB\0Escape\0FS\0GS\0RS\0US\0Space\0";
@@ -729,6 +768,24 @@ void pcharacter (uint8_t c, pfun_t pfun) {
       #else
       while (c > 0) {p = p + strlen_P(p) + 1; c--; }
       #endif
+      pfstring(p, pfun);
+    } else if (c < 127) pfun(c);
+    else pint(c, pfun);
+  }
+}"#
+
+    #+badge
+    #"
+const char ControlCodes[] PROGMEM = "Null\0SOH\0STX\0ETX\0EOT\0ENQ\0ACK\0Bell\0Backspace\0Tab\0Newline\0VT\0"
+"Page\0Return\0SO\0SI\0DLE\0DC1\0DC2\0DC3\0DC4\0NAK\0SYN\0ETB\0CAN\0EM\0SUB\0Escape\0FS\0GS\0RS\0US\0Space\0";
+
+void pcharacter (uint8_t c, pfun_t pfun) {
+  if (!tstflag(PRINTREADABLY)) pfun(c);
+  else {
+    pfun('#'); pfun('\\');
+    if (c <= 32) {
+      PGM_P p = ControlCodes;
+      while (c > 0) {p = p + strlen_P(p) + 1; c--; }
       pfstring(p, pfun);
     } else if (c < 127) pfun(c);
     else pint(c, pfun);
@@ -901,7 +958,20 @@ void pintbase (uint16_t i, uint8_t power2, pfun_t pfun) {
   }
 }"#
 
-    #+code
+    #+avr
+    #"
+/*
+  pinthex2 - prints a two-digit hexadecimal number with leading zeros
+*/
+void printhex2 (int i, pfun_t pfun) {
+  for (unsigned int d=0x10; d>0; d=d>>4) {
+    unsigned int j = i/d;
+    pfun((j<10) ? j+'0' : j+'W'); 
+    i = i - j*d;
+  }
+}"#
+
+    #+(or riscv arm)
     #"
 /*
   pinthex4 - prints a four-digit hexadecimal number with leading zeros
@@ -1012,6 +1082,9 @@ void printobject (object *form, pfun_t pfun) {
   else if (symbolp(form)) { if (form->name != NOTHING) pstring(symbolname(form->name), pfun); }
   else if (characterp(form)) pcharacter(form->chars, pfun);
   else if (stringp(form)) printstring(form, pfun);
+  #if defined(CODESIZE)
+  else if (form->type == CODE) pfstring(PSTR("code"), pfun);
+  #endif
   else if (streamp(form)) pstream(form, pfun);
   else error2(0, PSTR("error in print"));
 }
@@ -1363,8 +1436,42 @@ void processkey (char c) {
   }
 #endif
   return;
-}
+}"#
 
+ #+(and avr (not badge))
+ #"
+int gserial () {
+  if (LastChar) {
+    char temp = LastChar;
+    LastChar = 0;
+    return temp;
+  }
+#if defined(lineeditor)
+  while (!KybdAvailable) {
+    while (!Serial.available());
+    char temp = Serial.read();
+    processkey(temp);
+  }
+  if (ReadPtr != WritePtr) return KybdBuf[ReadPtr++];
+  KybdAvailable = 0;
+  WritePtr = 0;
+  return '\n';
+#elif defined(CPU_ATmega328P)
+  while (!Serial.available());
+  char temp = Serial.read();
+  if (temp != '\n') pserial(temp);
+  return temp;
+#else
+  unsigned long start = millis();
+  while (!Serial.available()) if (millis() - start > 1000) clrflag(NOECHO);
+  char temp = Serial.read();
+  if (temp != '\n' && !tstflag(NOECHO)) pserial(temp);
+  return temp;
+#endif
+}"#
+
+ #-(or avr badge)
+ #"
 int gserial () {
   if (LastChar) {
     char temp = LastChar;
@@ -1382,9 +1489,10 @@ int gserial () {
   WritePtr = 0;
   return '\n';
 #else
-  while (!Serial.available());
+  unsigned long start = millis();
+  while (!Serial.available()) if (millis() - start > 1000) clrflag(NOECHO);
   char temp = Serial.read();
-  if (temp != '\n') pserial(temp);
+  if (temp != '\n' && !tstflag(NOECHO)) pserial(temp);
   return temp;
 #endif
 }"#
@@ -1422,15 +1530,88 @@ int gserial () {
   #endif
 }"#
 
-  #+(or avr msp430)
+  #+(and avr (not badge))
+  #"
+object *nextitem (gfun_t gfun) {
+  int ch = gfun();
+  while(issp(ch)) ch = gfun();
+
+  #if defined(CPU_ATmega328P)
+  if (ch == ';') {
+    while(ch != '(') ch = gfun();
+  }
+  #else
+  if (ch == ';') {
+    do { ch = gfun(); if (ch == ';' || ch == '(') setflag(NOECHO); }
+    while(ch != '(');
+  }
+  #endif
+  if (ch == '\n') ch = gfun();
+  if (ch == -1) return nil;
+  if (ch == ')') return (object *)KET;
+  if (ch == '(') return (object *)BRA;
+  if (ch == '\'') return (object *)QUO;
+  if (ch == '.') return (object *)DOT;
+
+  // Parse string
+  if (ch == '"') return readstring('"', gfun);
+
+  // Parse symbol, character, or number
+  int index = 0, base = 10, sign = 1;
+  char *buffer = SymbolTop;
+  int bufmax = maxbuffer(buffer); // Max index
+  unsigned int result = 0;
+  if (ch == '+' || ch == '-') {
+    buffer[index++] = ch;
+    if (ch == '-') sign = -1;
+    ch = gfun();
+  }
+
+  // Parse reader macros
+  else if (ch == '#') {
+    ch = gfun();
+    char ch2 = ch & ~0x20; // force to upper case
+    if (ch == '\\') { // Character
+      base = 0; ch = gfun();
+      if (issp(ch) || ch == ')' || ch == '(') return character(ch);
+      else LastChar = ch;
+    } else if (ch == '|') {
+      do { while (gfun() != '|'); }
+      while (gfun() != '#');
+      return nextitem(gfun);
+    } else if (ch2 == 'B') base = 2;
+    else if (ch2 == 'O') base = 8;
+    else if (ch2 == 'X') base = 16;
+    else if (ch == '\'') return nextitem(gfun);
+    else if (ch == '.') {
+      setflag(NOESC);
+      object *result = eval(read(gfun), NULL);
+      clrflag(NOESC);
+      return result;
+    } else error2(0, PSTR("illegal character after #"));
+    ch = gfun();
+  }
+
+  int isnumber = (digitvalue(ch)<base);
+  buffer[2] = '\0'; // In case symbol is one letter
+
+  while(!issp(ch) && ch != ')' && ch != '(' && index < bufmax) {
+    buffer[index++] = ch;
+    int temp = digitvalue(ch);
+    result = result * base + temp;
+    isnumber = isnumber && (digitvalue(ch)<base);
+    ch = gfun();
+  }"#
+
+  #+badge
   #"
 object *nextitem (gfun_t gfun) {
   int ch = gfun();
   while(issp(ch)) ch = gfun();
 
   if (ch == ';') {
-    while(ch != '(') ch = gfun();
-    ch = '(';
+    do { ch = gfun(); if (ch == ';' || ch == '(') setflag(NOECHO); }
+    while(ch != '(');
   }
   if (ch == '\n') ch = gfun();
   if (ch == -1) return nil;
@@ -1489,7 +1670,7 @@ object *nextitem (gfun_t gfun) {
     ch = gfun();
   }"#
 
-  #+avr
+  #+(and avr (not badge))
   #"
   buffer[index] = '\0';
   if (ch == ')' || ch == '(') LastChar = ch;
@@ -1509,6 +1690,33 @@ object *nextitem (gfun_t gfun) {
       if (strcasecmp_P(buffer, p) == 0) return character(c);
       p = p + strlen_P(p) + 1; c++;
       #endif
+    }
+    if (index == 3) return character((buffer[0]*10+buffer[1])*10+buffer[2]-5328);
+    error2(0, PSTR("unknown character"));
+  }
+  
+  int x = builtin(buffer);
+  if (x == NIL) return nil;
+  if (x < ENDFUNCTIONS) return newsymbol(x);
+  else if (index < 4 && valid40(buffer)) return newsymbol(pack40(buffer));
+  else return newsymbol(longsymbol(buffer));
+}"#
+
+  #+badge
+  #"
+  buffer[index] = '\0';
+  if (ch == ')' || ch == '(') LastChar = ch;
+
+  if (isnumber) {
+    if (base == 10 && result > ((unsigned int)INT_MAX+(1-sign)/2)) 
+      error2(0, PSTR("Number out of range"));
+    return number(result*sign);
+  } else if (base == 0) {
+    if (index == 1) return character(buffer[0]);
+    PGM_P p = ControlCodes; char c = 0;
+    while (c < 33) {
+      if (strcasecmp_P(buffer, p) == 0) return character(c);
+      p = p + strlen_P(p) + 1; c++;
     }
     if (index == 3) return character((buffer[0]*10+buffer[1])*10+buffer[2]-5328);
     error2(0, PSTR("unknown character"));
@@ -1555,8 +1763,8 @@ object *nextitem (gfun_t gfun) {
   while(issp(ch)) ch = gfun();
 
   if (ch == ';') {
-    while(ch != '(') ch = gfun();
-    ch = '(';
+    do { ch = gfun(); if (ch == ';' || ch == '(') setflag(NOECHO); }
+    while(ch != '(');
   }
   if (ch == '\n') ch = gfun();
   if (ch == -1) return nil;
@@ -1750,7 +1958,7 @@ object *read (gfun_t gfun) {
 #"
 // Setup"#
 
-#+avr
+#+(and avr (not badge))
 #"
 /*
   initenv - initialises the uLisp environment
@@ -1767,7 +1975,32 @@ void setup () {
   initworkspace();
   initenv();
   initsleep();
-  pfstring(PSTR("uLisp 3.5 "), pserial); pln(pserial);
+  pfstring(PSTR("uLisp 3.6 "), pserial); pln(pserial);
+}"#
+
+#+badge
+#"
+/*
+  initenv - initialises the uLisp environment
+*/
+void initenv () {
+  GlobalEnv = NULL;
+  tee = symbol(TEE);
+}
+
+void setup () {
+  InitDisplay();
+  InitKybd();
+  #if defined (serialmonitor)
+  pinMode(8, INPUT_PULLUP); // RX0
+  Serial.begin(9600);
+  int start = millis();
+  while (millis() - start < 5000) { if (Serial) break; }
+  #endif
+  initworkspace();
+  initenv();
+  initsleep();
+  pfstring(PSTR("uLisp 3.6 "), pserial); pln(pserial);
 }"#
 
 #+esp
@@ -1800,7 +2033,7 @@ void setup () {
   initenv();
   initsleep();
   initgfx();
-  pfstring(PSTR("uLisp 3.5 "), pserial); pln(pserial);
+  pfstring(PSTR("uLisp 3.6 "), pserial); pln(pserial);
 }"#
 
 #+riscv
@@ -1831,7 +2064,7 @@ void setup () {
   initenv();
   initsleep();
   initgfx();
-  pfstring(PSTR("uLisp 3.5 "), pserial); pln(pserial);
+  pfstring(PSTR("uLisp 3.6 "), pserial); pln(pserial);
 }"#
 
 #+arm
@@ -1865,7 +2098,7 @@ void setup () {
   initenv();
   initsleep();
   initgfx();
-  pfstring(PSTR("uLisp 3.5 "), pserial); pln(pserial);
+  pfstring(PSTR("uLisp 3.6 "), pserial); pln(pserial);
 }"#))
 
 (defparameter *repl* #"
@@ -1899,7 +2132,7 @@ void repl (object *env) {
 
 (defparameter *loop* '(
 
-#+avr
+#+(and avr (not badge))
 #"
 void loop () {
   if (!setjmp(exception)) {
@@ -1913,6 +2146,30 @@ void loop () {
   // Come here after error
   delay(100); while (Serial.available()) Serial.read();
   clrflag(NOESC); BreakLevel = 0;
+  for (int i=0; i<TRACEMAX; i++) TraceDepth[i] = 0;
+  #if defined(sdcardsupport)
+  SDpfile.close(); SDgfile.close();
+  #endif
+  #if defined(lisplibrary)
+  if (!tstflag(LIBRARYLOADED)) { setflag(LIBRARYLOADED); loadfromlibrary(NULL); }
+  #endif
+  repl(NULL);
+}"#
+
+#+badge
+#"
+void loop () {
+  if (!setjmp(exception)) {
+    #if defined(resetautorun)
+    volatile int autorun = 12; // Fudge to keep code size the same
+    #else
+    volatile int autorun = 13;
+    #endif
+    if (autorun == 12) autorunimage();
+  }
+  // Come here after error
+  delay(100); while (Serial.available()) Serial.read();
+  clrflag(NOESC); BreakLevel = 0; nonote(4);
   for (int i=0; i<TRACEMAX; i++) TraceDepth[i] = 0;
   #if defined(sdcardsupport)
   SDpfile.close(); SDgfile.close();
@@ -1948,7 +2205,7 @@ void loop () {
   repl(NULL);
 }"#
 
-#-(or esp avr)
+#-(or esp avr badge)
 #"
 void loop () {
   if (!setjmp(exception)) {

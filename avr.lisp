@@ -5,7 +5,7 @@
 ; AVR
 
 (defparameter *header-avr*
-#"/* uLisp AVR Version 3.5 - www.ulisp.com
+#"/* uLisp AVR Version 3.6 - www.ulisp.com
    David Johnson-Davies - www.technoblogy.com - unreleased
 
    Licensed under the MIT license: https://opensource.org/licenses/MIT
@@ -22,6 +22,7 @@ const char LispLibrary[] PROGMEM = "";
 // #define printgcs
 // #define sdcardsupport
 // #define lisplibrary
+#define assemblerlist
 // #define lineeditor
 // #define vt100
 
@@ -62,14 +63,17 @@ const char LispLibrary[] PROGMEM = "";
   #define CPU_ATmega2560
 
 #elif defined(__AVR_ATmega1284P__)
+  #include "optiboot.h"
   #define WORKSPACESIZE (2816-SDSIZE)     /* Objects (4*bytes) */
-  #define EEPROMSIZE 4096                 /* Bytes */
+//  #define EEPROMSIZE 4096                 /* Bytes */
+  #define FLASHWRITESIZE 16384            /* Bytes */
   #define SYMBOLTABLESIZE 512             /* Bytes */
+  #define CODESIZE 96                     /* Bytes <= 256 */
   #define STACKDIFF 320
   #define CPU_ATmega1284P
 
 #elif defined(ARDUINO_AVR_NANO_EVERY)
-  #define WORKSPACESIZE (1065-SDSIZE)     /* Objects (4*bytes) */
+  #define WORKSPACESIZE (1060-SDSIZE)     /* Objects (4*bytes) */
   #define EEPROMSIZE 256                  /* Bytes */
   #define SYMBOLTABLESIZE BUFFERSIZE      /* Bytes - no long symbols */
   #define STACKDIFF 320
@@ -91,18 +95,22 @@ const char LispLibrary[] PROGMEM = "";
   #define CPU_ATmega4809
 
 #elif defined(__AVR_AVR128DA48__)
+  #include <Flash.h>
   #define Serial Serial1
-  #define WORKSPACESIZE 2800-SDSIZE       /* Objects (4*bytes) */
-  #define EEPROMSIZE 256                  /* Bytes */
-  #define SYMBOLTABLESIZE 256             /* Bytes */
+  #define WORKSPACESIZE (2800-SDSIZE)     /* Objects (4*bytes) */
+  #define FLASHWRITESIZE 16384            /* Bytes */
+  #define SYMBOLTABLESIZE 480             /* Bytes */
+  #define CODESIZE 96                     /* Bytes <= 512 */
   #define STACKDIFF 320
   #define CPU_AVR128DX48
 
 #elif defined(__AVR_AVR128DB48__)
+  #include <Flash.h>
   #define Serial Serial3
-  #define WORKSPACESIZE 2800-SDSIZE       /* Objects (4*bytes) */
-  #define EEPROMSIZE 256                  /* Bytes */
-  #define SYMBOLTABLESIZE 256             /* Bytes */
+  #define WORKSPACESIZE (2750-SDSIZE)     /* Objects (4*bytes) */
+  #define FLASHWRITESIZE 16384            /* Bytes */
+  #define SYMBOLTABLESIZE 480             /* Bytes */
+  #define CODESIZE 96                     /* Bytes <= 512 */
   #define STACKDIFF 320
   #define CPU_AVR128DX48
   
@@ -114,9 +122,9 @@ const char LispLibrary[] PROGMEM = "";
 // Streams
 
 inline int spiread () { return SPI.transfer(0); }
-#if defined(CPU_ATmega1284P)
+#if defined(CPU_ATmega1284P) || defined(CPU_AVR128DX48)
 inline int serial1read () { while (!Serial1.available()) testescape(); return Serial1.read(); }
-#elif defined(CPU_ATmega2560) || defined(CPU_AVR128DX48)
+#elif defined(CPU_ATmega2560)
 inline int serial1read () { while (!Serial1.available()) testescape(); return Serial1.read(); }
 inline int serial2read () { while (!Serial2.available()) testescape(); return Serial2.read(); }
 inline int serial3read () { while (!Serial3.available()) testescape(); return Serial3.read(); }
@@ -136,10 +144,10 @@ inline int SDread () {
 void serialbegin (int address, int baud) {
   #if defined(CPU_ATmega328P)
   (void) address; (void) baud;
-  #elif defined(CPU_ATmega1284P)
+  #elif defined(CPU_ATmega1284P) || defined(CPU_AVR128DX48)
   if (address == 1) Serial1.begin((long)baud*100);
   else error(WITHSERIAL, PSTR("port not supported"), number(address));
-  #elif defined(CPU_ATmega2560) || defined(CPU_AVR128DX48)
+  #elif defined(CPU_ATmega2560)
   if (address == 1) Serial1.begin((long)baud*100);
   else if (address == 2) Serial2.begin((long)baud*100);
   else if (address == 3) Serial3.begin((long)baud*100);
@@ -150,9 +158,9 @@ void serialbegin (int address, int baud) {
 void serialend (int address) {
   #if defined(CPU_ATmega328P)
   (void) address;
-  #elif defined(CPU_ATmega1284P)
+  #elif defined(CPU_ATmega1284P) || defined(CPU_AVR128DX48)
   if (address == 1) {Serial1.flush(); Serial1.end(); }
-  #elif defined(CPU_ATmega2560) || defined(CPU_AVR128DX48)
+  #elif defined(CPU_ATmega2560)
   if (address == 1) {Serial1.flush(); Serial1.end(); }
   else if (address == 2) {Serial2.flush(); Serial2.end(); }
   else if (address == 3) {Serial3.flush(); Serial3.end(); }
@@ -171,9 +179,9 @@ gfun_t gstreamfun (object *args) {
   else if (streamtype == SPISTREAM) gfun = spiread;
   else if (streamtype == SERIALSTREAM) {
     if (address == 0) gfun = gserial;
-    #if defined(CPU_ATmega1284P)
+    #if defined(CPU_ATmega1284P) || defined(CPU_AVR128DX48)
     else if (address == 1) gfun = serial1read;
-    #elif defined(CPU_ATmega2560) || defined(CPU_AVR128DX48)
+    #elif defined(CPU_ATmega2560)
     else if (address == 1) gfun = serial1read;
     else if (address == 2) gfun = serial2read;
     else if (address == 3) gfun = serial3read;
@@ -187,9 +195,9 @@ gfun_t gstreamfun (object *args) {
 }
 
 inline void spiwrite (char c) { SPI.transfer(c); }
-#if defined(CPU_ATmega1284P)
+#if defined(CPU_ATmega1284P) || defined(CPU_AVR128DX48)
 inline void serial1write (char c) { Serial1.write(c); }
-#elif defined(CPU_ATmega2560) || defined(CPU_AVR128DX48)
+#elif defined(CPU_ATmega2560)
 inline void serial1write (char c) { Serial1.write(c); }
 inline void serial2write (char c) { Serial2.write(c); }
 inline void serial3write (char c) { Serial3.write(c); }
@@ -210,9 +218,9 @@ pfun_t pstreamfun (object *args) {
   else if (streamtype == SPISTREAM) pfun = spiwrite;
   else if (streamtype == SERIALSTREAM) {
     if (address == 0) pfun = pserial;
-    #if defined(CPU_ATmega1284P)
+    #if defined(CPU_ATmega1284P) || defined(CPU_AVR128DX48)
     else if (address == 1) pfun = serial1write;
-    #elif defined(CPU_ATmega2560) || defined(CPU_AVR128DX48)
+    #elif defined(CPU_ATmega2560)
     else if (address == 1) pfun = serial1write;
     else if (address == 2) pfun = serial2write;
     else if (address == 3) pfun = serial3write;
@@ -456,6 +464,10 @@ ISR(INT7_vect) { interrupt(7); }
      ((DIGITALWRITE HIGH LOW)
       (PINMODE INPUT INPUT_PULLUP OUTPUT)
       (ANALOGREFERENCE DEFAULT INTERNAL EXTERNAL)))
+    ("CPU_ATmega1284P"
+     ((DIGITALWRITE HIGH LOW)
+      (PINMODE INPUT INPUT_PULLUP OUTPUT)
+      (ANALOGREFERENCE DEFAULT INTERNAL1V1 INTERNAL2V56 EXTERNAL)))
     ("CPU_ATmega2560"
      ((DIGITALWRITE HIGH LOW)
       (PINMODE INPUT INPUT_PULLUP OUTPUT)

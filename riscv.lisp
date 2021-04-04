@@ -5,7 +5,7 @@
 ; RISC-V
 
 (defparameter *header-riscv*
-#"/* uLisp RISC-V Version 3.5 - www.ulisp.com
+#"/* uLisp RISC-V Version 3.6 - www.ulisp.com
    David Johnson-Davies - www.technoblogy.com - unreleased
 
    Licensed under the MIT license: https://opensource.org/licenses/MIT

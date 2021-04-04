@@ -99,7 +99,7 @@
 
 (defparameter *tests*
 
-#"; Arithmetic
+#"#| Arithmetic |#
 
 (aeq '* 9 (* -3 -3))
 (aeq '* 32580 (* 180 181))
@@ -114,7 +114,7 @@
 (aeq '1+ 0 (1+ -1))
 (aeq '1- 0 (1- 1))
 
-; Comparisons
+#| Comparisons |#
 
 (aeq '< t (< -32768 32767))
 (aeq '< t (< -1 0))
@@ -147,7 +147,7 @@
 (aeq 'oddp nil (oddp 0))
 (aeq 'oddp t (oddp -1))
 
-; Maths functions
+#| Maths functions |#
 
 (aeq 'abs 10 (abs 10))
 (aeq 'abs 10 (abs -10))
@@ -162,7 +162,7 @@
 (aeq 'mod -3 (mod 13 -4))
 (aeq 'mod -1 (mod -13 -4))
 
-; Number entry
+#| Number entry |#
 
 (aeq 'hex -1 #xFFFFFFFF)
 (aeq 'hex 1 #x0001)
@@ -176,7 +176,7 @@
 (aeq 'hash 12 #'12)
 (aeq 'hash 6 (funcall #'(lambda (x) (+ x 2)) 4))
 
-; Boolean
+#| Boolean |#
 
 (aeq 'and 7 (and t t 7))
 (aeq 'and nil (and t nil 7))
@@ -186,7 +186,7 @@
 (aeq 'or 'a (or 'a 'b 'c))
 (aeq 'or 1 (let ((x 0)) (or (incf x)) x))
 
-; Bitwise
+#| Bitwise |#
 
 (aeq 'logand -1 (logand))
 (aeq 'logand 170 (logand #xAA))
@@ -207,7 +207,7 @@
 (aeq 'logbitp t (logbitp 1000 -1))
 (aeq 'logbitp nil (logbitp 1000 0))
 
-; Tests
+#| Tests |#
 
 (aeq 'atom t (atom nil))
 (aeq 'atom t (atom t))
@@ -229,7 +229,7 @@
 (aeq 'boundp t (let (x) (boundp 'x)))
 (aeq 'boundp nil (let (x) (boundp 'y)))
 
-; cxr operations
+#| cxr operations |#
 
 (aeq 'car 'a (car '(a b c)))
 (aeq 'car nil (car nil))
@@ -272,7 +272,7 @@
 (aeq 'cddr 'c (car (cddr '(a b c))))
 (aeq 'cddr 'nil (cddr '(a)))
 
-; List operations
+#| List operations |#
 
 (aeq 'cons 'a (car (cons 'a 'b)))
 (aeq 'cons nil (car (cons nil 'b)))
@@ -302,7 +302,7 @@
 (aeq 'mapcan '(1 2 3 . 4) (mapcan (lambda (x) x) '((1) (2) (3 . 4))))
 (aeq 'mapcan '(2 3 . 4) (mapcan (lambda (x) x) '(nil (2) (3 . 4))))
 
-; let/let*/lambda
+#| let/let*/lambda |#
 
 (aeq 'let 7 (let ((x 7)) (let ((x 6) (y x)) y)))
 (aeq 'let* 6 (let* ((x 7)) (let* ((x 6) (y x)) y)))
@@ -315,7 +315,7 @@
 (aeq 'lambda 6 ((lambda (x &optional y) (* x y)) 2 3))
 (aeq 'lambda 123 ((lambda (list) list) 123))
 
-; loops and control
+#| loops and control |#
 
 (aeq 'progn 8 (let ((x 6)) (progn (incf x) (incf x))))
 (aeq 'dotimes 21 (let ((x 6)) (dotimes (y 6 x) (setq x (+ x y)))))
@@ -327,7 +327,7 @@
 (aeq 'loop 6 (let ((x 0)) (loop (when (= x 6) (return x)) (incf x))))
 (aeq 'loop 6 (let ((x 0)) (loop (unless (< x 6) (return x)) (incf x))))
 
-; conditions
+#| conditions |#
 
 (aeq 'if 3 (let ((a 2)) (if (= a 2) 3 4)))
 (aeq 'if 4 (let ((a 2)) (if (= a 3) 3 4)))
@@ -345,7 +345,7 @@
 (aeq 'case 333 (let ((j t)) (case j ((0 1) 111 222) ((t) 333) (t 444))))
 (aeq 'case 444 (let ((j 2)) (case j ((0 1) 111 222) ((t) 333) (t 444))))
 
-; eval/funcall/apply
+#| eval/funcall/apply |#
 
 (aeq 'funcall 10 (funcall + 1 2 3 4))
 (aeq 'funcall 'a (funcall car '(a b c d)))
@@ -359,7 +359,7 @@
 (aeq 'funcall 4 (let ((x2 (lambda (fun) (lambda (x) (fun (fun x)))))) ((x2 '1+) 2)))
 (aeq 'apply 5 (let* ((my (lambda (x y) (+ x y))) (han '(my))) (apply (first han) '(2 3))))
 
-; in-place operations
+#| in-place operations |#
 
 (aeq 'incf 6 (let ((x 0)) (+ (incf x) (incf x) (incf x))))
 (aeq 'incf 12 (let ((x 0)) (+ (incf x 2) (incf x 2) (incf x 2))))
@@ -369,25 +369,25 @@
 (aeq 'setf 12 (let ((a '(2 3))) (setf (cdr a) '(6)) (apply * a)))
 (aeq 'setf 220 (let ((a '(2 3 4))) (setf (nth 1 a) 11 (nth 2 a) 10) (apply * a)))
 
-; recursion
+#| recursion |#
 
 (aeq 'lambda 55 (let ((fib (lambda (n) (if (< n 3) 1 (+ (fib (- n 1)) (fib (- n 2))))))) (fib 10)))
 (aeq 'lambda 5040 (let ((f (lambda (n) (if (= n 0) 1 (* n (f (- n 1))))))) (f 7)))
 (aeq 'lambda 10 (let ((a 0)) (let ((f (lambda (n) (incf a n) (when (> n 0) (f (1- n)))))) (f 4)) a))
 
-; streams
+#| streams |#
 
 (aeq 'stream "<string-stream 0>" (with-output-to-string (s) (princ s s)))
 (aeq 'stream "12 23 34" (with-output-to-string (st) (format st "~a ~a ~a" 12 23 34)))
 
-; printing
+#| printing |#
 
 (aeq 'princ "hello" (princ-to-string "hello"))
 (aeq 'princ "hello \"David\"" (princ-to-string "hello \"David\""))
 (aeq 'prin1 "\"hello\"" (prin1-to-string "hello"))
 (aeq 'prin1 "\"hello \\\"David\\\"\"" (prin1-to-string "hello \"David\""))
 
-; format
+#| format |#
 
 (aeq 'format "hello" (format nil "hello"))
 (aeq 'format "Hello23Goodbye" (format nil "Hello~aGoodbye" 23))
@@ -401,7 +401,7 @@
 (aeq 'format "0003.14159" (format nil "~10,'0g" 3.14159))
 (aeq 'format "nil  nil" (format nil "~a ~{ ~a ~} ~a" nil nil nil))
 
-; strings
+#| strings |#
 
 (aeq 'stringp t (stringp "hello"))
 (aeq 'stringp nil (stringp 5))
@@ -428,7 +428,7 @@
 (aeq 'string> nil (string> "cat" "cat"))
 (aeq 'string> t (string> "cat " "cat"))
 
-; characters
+#| characters |#
 
 (aeq 'char-code 97 (char-code #\a))
 (aeq 'char-code 13 (char-code #\return))
@@ -448,14 +448,14 @@
 (aeq 'char "[#\\127]" (format nil "[~s]" #\127))
 (aeq 'char "[#\\255]" (format nil "[~s]" #\255))
 
-; read-from-string
+#| read-from-string |#
 
 (aeq 'read-from-string 123 (read-from-string "123"))
 (aeq 'read-from-string 144 (eval (read-from-string "((lambda (x) (* x x)) 12)")))
 (aeq 'read-from-string t (eval (read-from-string "(eq (+ 2 3) 5)")))
 (aeq 'read-from-string nil (read-from-string "()"))
 
-; closures
+#| closures |#
 
 (aeq 'closure 'lex (let ((lex nil)) (funcall (let ((lex t)) (lambda () (if lex 'lex 'dyn))))))
 (aeq 'closure 103 (let* ((c 100) (two (lambda (d) (+ c d))) (one (lambda (c) (funcall two 3)))) (funcall one 1)))
@@ -464,7 +464,7 @@
 (aeq 'closure '(8 10 13 17) (let ((x 0) (clo (lambda () (let ((x 7)) (lambda (y) (incf x y)))))) (mapcar (funcall clo) '(1 2 3 4))))
 (aeq 'closure 3 (let ((y 0) (test (lambda (x) (+ x 1)))) (dotimes (x 3 y) (progn (test (+ x 2))) (incf y x))))
 
-; arrays
+#| arrays |#
 
 (aeq 'array '(0 0) (array-dimensions #2a()))
 (aeq 'array '(1 0) (array-dimensions #2a(())))
@@ -477,7 +477,7 @@
 (aeq 'array 1 (let ((a (make-array '(2 3 2 2) :initial-element 0))) (incf (aref a 1 (+ 1 1) 1 1)) (aref a 1 2 1 1)))
 (aeq 'array 10 (length (make-array 10 :initial-element 1)))
 
-; bit arrays
+#| bit arrays |#
 
 (aeq 'array '(0) (array-dimensions (make-array '(0) :element-type 'bit)))
 (aeq 'array '(1 1) (array-dimensions (make-array '(1 1) :element-type 'bit)))

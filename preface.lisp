@@ -21,7 +21,6 @@
 #define pop(y)             ((y) = cdr(y))
 
 #define integerp(x)        ((x) != NULL && (x)->type == NUMBER)
-#define floatp(x)          ((x) != NULL && (x)->type == FLOAT)
 #define symbolp(x)         ((x) != NULL && (x)->type == SYMBOL)
 #define stringp(x)         ((x) != NULL && (x)->type == STRING)
 #define characterp(x)      ((x) != NULL && (x)->type == CHARACTER)
@@ -37,6 +36,10 @@
 #define tstflag(x)         (Flags & 1<<(x))
 
 #define issp(x)            (x == ' ' || x == '\n' || x == '\r' || x == '\t')
+
+// Code marker stores start and end of code block (max 256 bytes)
+#define startblock(x)      ((x->integer) & 0xFF)
+#define endblock(x)        ((x->integer) >> 8 & 0xFF)
 
 #define SDCARD_SS_PIN 10
 
@@ -93,7 +96,7 @@
 // Constants
 
 const int TRACEMAX = 3; // Number of traced functions
-enum type { ZZERO=0, SYMBOL=2, NUMBER=4, STREAM=6, CHARACTER=8, FLOAT=10, STRING=12, PAIR=14 };  // STRING and PAIR must be last
+enum type { ZZERO=0, SYMBOL=2, CODE=4, NUMBER=6, STREAM=8, CHARACTER=10, STRING=12, PAIR=14 };  // STRING and PAIR must be last
 enum token { UNUSED, BRA, KET, QUO, DOT };
 enum stream { SERIALSTREAM, I2CSTREAM, SPISTREAM, SDSTREAM, STRINGSTREAM };
 
