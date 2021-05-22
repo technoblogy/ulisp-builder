@@ -1,5 +1,6 @@
 ;; Options: :avr :arm :msp430 :esp :stm32 :badge :zero :riscv
 
+#+lispworks
 (push :esp *features*)
  
 ;***************************************
@@ -25,6 +26,14 @@
 (push :code *features*)
 
 
-(load "/Users/david/Projects/Builder/builder defsys.lisp")
+#+lispworks
+(progn
+  (load "/Users/david/Projects/Builder/builder defsys.lisp")
+  (compile-system "builder" :load t))
 
-(compile-system "builder" :load t) 
+#-lispworks
+(progn
+  (require "asdf")
+  (defvar *this-directory* (uiop:pathname-directory-pathname *load-pathname*))
+  (pushnew *this-directory* asdf:*central-registry* :test 'equal)
+  (asdf:load-system "ulisp-builder"))
