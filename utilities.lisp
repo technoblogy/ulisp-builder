@@ -2,391 +2,20 @@
 
 (in-package :cl-user)
 
-#+(and avr (not badge))
-(defparameter *typedefs* #"
-// Typedefs
+(defparameter *error-handling*
 
-typedef unsigned int symbol_t;
-
-typedef struct sobject {
-  union {
-    struct {
-      sobject *car;
-      sobject *cdr;
-    };
-    struct {
-      unsigned int type;
-      union {
-        symbol_t name;
-        int integer;
-        int chars; // For strings
-      };
-    };
-  };
-} object;
-
-typedef object *(*fn_ptr_type)(object *, object *);
-typedef void (*mapfun_t)(object *, object **);
-typedef int (*intfn_ptr_type)(int w, int x, int y, int z);
-
-typedef struct {
-  PGM_P string;
-  fn_ptr_type fptr;
-  uint8_t minmax;
-} tbl_entry_t;
-
-typedef int (*gfun_t)();
-typedef void (*pfun_t)(char);
-#if defined(CPU_ATmega328P) || defined(CPU_ATmega2560) || defined(CPU_ATmega1284P) || defined(CPU_AVR128DX48)
-typedef int BitOrder;
-typedef int PinMode;
-#endif"#)
-
-#+badge
-(defparameter *typedefs* #"
-// Typedefs
-
-typedef unsigned int symbol_t;
-
-typedef struct sobject {
-  union {
-    struct {
-      sobject *car;
-      sobject *cdr;
-    };
-    struct {
-      unsigned int type;
-      union {
-        symbol_t name;
-        int integer;
-        int chars; // For strings
-      };
-    };
-  };
-} object;
-
-typedef object *(*fn_ptr_type)(object *, object *);
-typedef void (*mapfun_t)(object *, object **);
-typedef int (*intfn_ptr_type)(int w, int x, int y, int z);
-
-typedef struct {
-  PGM_P string;
-  fn_ptr_type fptr;
-  uint8_t minmax;
-} tbl_entry_t;
-
-typedef int (*gfun_t)();
-typedef void (*pfun_t)(char);
-typedef int BitOrder;
-typedef int PinMode;"#)
-
-#+msp430
-(defparameter *typedefs* #"
-// Typedefs
-
-typedef unsigned int symbol_t;
-
-typedef struct sobject {
-  union {
-    struct {
-      sobject *car;
-      sobject *cdr;
-    };
-    struct {
-      unsigned int type;
-      union {
-        symbol_t name;
-        int integer;
-        int chars; // For strings
-      };
-    };
-  };
-} object;
-
-typedef object *(*fn_ptr_type)(object *, object *);
-typedef void (*mapfun_t)(object *, object **);
-
-typedef struct {
-  const char *string;
-  fn_ptr_type fptr;
-  uint8_t minmax;
-} tbl_entry_t;
-
-typedef int (*gfun_t)();
-typedef void (*pfun_t)(char);"#)
-
-#+arm
-(defparameter *typedefs* #"
-// Typedefs
-
-typedef unsigned int symbol_t;
-
-typedef struct sobject {
-  union {
-    struct {
-      sobject *car;
-      sobject *cdr;
-    };
-    struct {
-      unsigned int type;
-      union {
-        symbol_t name;
-        int integer;
-        int chars; // For strings
-        float single_float;
-      };
-    };
-  };
-} object;
-
-typedef object *(*fn_ptr_type)(object *, object *);
-typedef void (*mapfun_t)(object *, object **);
-typedef int (*intfn_ptr_type)(int w, int x, int y, int z);
-
-typedef struct {
-  const char *string;
-  fn_ptr_type fptr;
-  uint8_t minmax;
-} tbl_entry_t;
-
-typedef int (*gfun_t)();
-typedef void (*pfun_t)(char);
-typedef int PinMode;"#)
-
-#+riscv
-(defparameter *typedefs* #"
-// Typedefs
-
-typedef unsigned int symbol_t;
-
-typedef struct sobject {
-  union {
-    struct {
-      sobject *car;
-      sobject *cdr;
-    };
-    struct {
-      uintptr_t type;
-      union {
-        symbol_t name;
-        int integer;
-        int chars; // For strings
-        float single_float;
-      };
-    };
-  };
-} object;
-
-typedef object *(*fn_ptr_type)(object *, object *);
-typedef void (*mapfun_t)(object *, object **);
-typedef int (*intfn_ptr_type)(int w, int x, int y, int z);
-
-typedef struct {
-  const char *string;
-  fn_ptr_type fptr;
-  uint8_t minmax;
-} tbl_entry_t;
-
-typedef int (*gfun_t)();
-typedef void (*pfun_t)(char);
-typedef int PinMode;"#)
-
-#+esp
-(defparameter *typedefs* #"
-// Typedefs
-
-typedef unsigned int symbol_t;
-
-typedef struct sobject {
-  union {
-    struct {
-      sobject *car;
-      sobject *cdr;
-    };
-    struct {
-      unsigned int type;
-      union {
-        symbol_t name;
-        int integer;
-        int chars; // For strings
-        float single_float;
-      };
-    };
-  };
-} object;
-
-typedef object *(*fn_ptr_type)(object *, object *);
-typedef void (*mapfun_t)(object *, object **);
-
-typedef struct {
-  PGM_P string;
-  fn_ptr_type fptr;
-  uint8_t minmax;
-} tbl_entry_t;
-
-typedef int (*gfun_t)();
-typedef void (*pfun_t)(char);
-typedef int PinMode;
-typedef int BitOrder;"#)
-
-#+stm32
-(defparameter *typedefs* #"
-// Typedefs
-
-typedef unsigned int symbol_t;
-
-typedef struct sobject {
-  union {
-    struct {
-      sobject *car;
-      sobject *cdr;
-    };
-    struct {
-      unsigned int type;
-      union {
-        symbol_t name;
-        int integer;
-        int chars; // For strings
-        float single_float;
-      };
-    };
-  };
-} object;
-
-typedef object *(*fn_ptr_type)(object *, object *);
-typedef void (*mapfun_t)(object *, object **);
-
-typedef struct {
-  const char *string;
-  fn_ptr_type fptr;
-  uint8_t minmax;
-} tbl_entry_t;
-
-typedef int (*gfun_t)();
-typedef void (*pfun_t)(char);
-typedef int PinMode;
-typedef int BitOrder;"#)
-
-(defparameter *global-variables* 
-  '(
-
-#+avr
-#"
-// Global variables
-
-object Workspace[WORKSPACESIZE] WORDALIGNED;
-char SymbolTable[SYMBOLTABLESIZE];    // Must be even
-#if defined(CODESIZE)
-uint8_t MyCode[CODESIZE] WORDALIGNED; // Must be even
-#endif"#
-
-#+arm
-#"
-// Global variables
-
-object Workspace[WORKSPACESIZE] WORDALIGNED MEMBANK;
-char SymbolTable[SYMBOLTABLESIZE];
-#if defined(CODESIZE)
-RAMFUNC uint8_t MyCode[CODESIZE] WORDALIGNED;
-#endif"#
-
-#+esp
-#"
-// Global variables
-
-object Workspace[WORKSPACESIZE] WORDALIGNED;
-char SymbolTable[SYMBOLTABLESIZE];"#
-
-#+riscv
-#"
-// Global variables
-
-object Workspace[WORKSPACESIZE] WORDALIGNED;
-char SymbolTable[SYMBOLTABLESIZE];
-uint8_t MyCode[CODESIZE] WORDALIGNED;"#
-
-#"
-jmp_buf exception;
-unsigned int Freespace = 0;
-object *Freelist;
-char *SymbolTop = SymbolTable;
-unsigned int I2CCount;
-unsigned int TraceFn[TRACEMAX];
-unsigned int TraceDepth[TRACEMAX];
-
-object *GlobalEnv;
-object *GCStack = NULL;
-object *GlobalString;
-int GlobalStringIndex = 0;
-uint8_t PrintCount = 0;
-uint8_t BreakLevel = 0;
-char LastChar = 0;
-char LastPrint = 0;"#
-
-#"
-// Flags
-enum flag { PRINTREADABLY, RETURNFLAG, ESCAPE, EXITEDITOR, LIBRARYLOADED, NOESC, NOECHO };
-volatile uint8_t Flags = 0b00001; // PRINTREADABLY set by default"#
-
-#+(or msp430 avr badge)
-#"
-// Forward references
-object *tee;
-object *tf_progn (object *form, object *env);
-object *eval (object *form, object *env);
-object *read (gfun_t gfun);
-void repl (object *env);
-void printobject (object *form, pfun_t pfun);
-char *lookupbuiltin (symbol_t name);
-intptr_t lookupfn (symbol_t name);
-int builtin (char* n);
-void pfstring (PGM_P s, pfun_t pfun);"#
-
-#+esp
-#"
-// Forward references
-object *tee;
-object *tf_progn (object *form, object *env);
-object *eval (object *form, object *env);
-object *read (gfun_t gfun);
-void repl (object *env);
-void printobject (object *form, pfun_t pfun);
-char *lookupbuiltin (symbol_t name);
-intptr_t lookupfn (symbol_t name);
-int builtin (char* n);
-char *symbolname (symbol_t x);
-object *apply (symbol_t name, object *function, object *args, object *env);
-char *lookupsymbol (symbol_t name);
-char *cstring (object *form, char *buffer, int buflen);
-object *edit (object *fun);"#
-
-#+(or arm stm32 riscv)
-#"
-// Forward references
-object *tee;
-object *tf_progn (object *form, object *env);
-object *eval (object *form, object *env);
-object *read (gfun_t gfun);
-void repl (object *env);
-void printobject (object *form, pfun_t pfun);
-char *lookupbuiltin (symbol_t name);
-intptr_t lookupfn (symbol_t name);
-int builtin (char* n);"#))
-
-(defparameter *error-handling* '(
-
-#"
+  '(#"
 // Error handling
 
 /*
-  errorsub - used by both the error routines.
+  errorsub - used by all the error routines.
   Prints: "Error: 'fname' string", where fname is the name of the Lisp function in which the error occurred.
 */
 void errorsub (symbol_t fname, PGM_P string) {
   pfl(pserial); pfstring(PSTR("Error: "), pserial);
-  if (fname) {
+  if (fname != sym(NIL)) {
     pserial('\'');
-    pstring(symbolname(fname), pserial);
+    psymbol(fname, pserial);
     pserial('\''); pserial(' ');
   }
   pfstring(string, pserial);
@@ -394,27 +23,43 @@ void errorsub (symbol_t fname, PGM_P string) {
 
 /*
   error - prints an error message and reenters the REPL.
-  Prints: "Error: 'fname' string: symbol", where symbol should be the object generating the error.
+  Prints: "Error: 'fname' string: symbol", where fname is the name of the user Lisp function in which the error occurred,
+  and symbol is the object generating the error.
 */
-void error (symbol_t fname, PGM_P string, object *symbol) {
+void errorsym (symbol_t fname, PGM_P string, object *symbol) {
   errorsub(fname, string);
   pserial(':'); pserial(' ');
   printobject(symbol, pserial);
-  pln(pserial);
-  GCStack = NULL;
-  longjmp(exception, 1);
+  errorend();
 }
 
 /*
   error - prints an error message and reenters the REPL.
-  Prints: "Error: 'fname' string"
+  Prints: "Error: 'fname' string", where fname is the name of the user Lisp function in which the error occurred.
 */
-void error2 (symbol_t fname, PGM_P string) {
+void errorsym2 (symbol_t fname, PGM_P string) {
   errorsub(fname, string);
-  pln(pserial);
-  GCStack = NULL;
-  longjmp(exception, 1);
+  errorend();
 }
+
+/*
+  error - prints an error message and reenters the REPL.
+  Prints: "Error: 'fname' string: symbol", where fname is the name of the built-in Lisp function in which the error occurred,
+  and symbol is the object generating the error.
+*/
+void error (builtin_t fname, PGM_P string, object *symbol) {
+  errorsym(sym(fname), string, symbol);
+}
+
+/*
+  error - prints an error message and reenters the REPL.
+  Prints: "Error: 'fname' string", where fname is the name of the built-in Lisp function in which the error occurred.
+*/
+void error2 (builtin_t fname, PGM_P string) {
+  errorsym2(sym(fname), string);
+}
+
+void errorend () { pln(pserial); GCStack = NULL; longjmp(exception, 1); }
 
 // Save space as these are used multiple times
 const char notanumber[] PROGMEM = "argument is not a number";
@@ -432,7 +77,11 @@ const char indexnegative[] PROGMEM = "index can't be negative";
 const char invalidarg[] PROGMEM = "invalid argument";
 const char invalidkey[] PROGMEM = "invalid keyword";
 const char invalidpin[] PROGMEM = "invalid pin";
-const char oddargs[] PROGMEM = "odd number of arguments";"#))
+const char oddargs[] PROGMEM = "odd number of arguments";
+const char indexrange[] PROGMEM = "index out of range";
+const char canttakecar[] PROGMEM = "can't take car";
+const char canttakecdr[] PROGMEM = "can't take cdr";
+const char unknownstreamtype[] PROGMEM = "unknown stream type";"#))
 
 (defparameter *setup-workspace* #"
 // Set up workspace
@@ -455,7 +104,7 @@ void initworkspace () {
   myalloc - returns the first object from the linked list of free objects
 */
 object *myalloc () {
-  if (Freespace == 0) error2(0, PSTR("no room"));
+  if (Freespace == 0) error2(NIL, PSTR("no room"));
   object *temp = Freelist;
   Freelist = cdr(Freelist);
   Freespace--;
@@ -475,7 +124,7 @@ inline void myfree (object *obj) {
 
 (defparameter *make-objects* 
  
- '(#"
+  '(#"
 // Make each type of object
 
 /*
@@ -502,7 +151,7 @@ object *makefloat (float f) {
 
  #"
 /*
-  makefloat - make a character object with value c and return it
+  character - make a character object with value c and return it
 */
 object *character (uint8_t c) {
   object *ptr = myalloc();
@@ -533,7 +182,15 @@ object *symbol (symbol_t name) {
   return ptr;
 }"#
 
-#+(or avr arm riscv)
+ #"
+/*
+  bsymbol - make a built-in symbol
+*/
+inline object *bsymbol (builtin_t name) {
+  return intern(twist(name+BUILTINS));
+}"#
+
+ #+(or avr arm riscv)
  #"
 /*
   codehead - make a code header object with value entry and return it
@@ -547,15 +204,63 @@ object *codehead (int entry) {
 
  #"
 /*
-  newsymbol - looks through the workspace for an existing occurrence of symbol name and returns it,
+  intern - looks through the workspace for an existing occurrence of symbol name and returns it,
   otherwise calls symbol(name) to create a new symbol.
 */
-object *newsymbol (symbol_t name) {
+object *intern (symbol_t name) {
   for (int i=0; i<WORKSPACESIZE; i++) {
     object *obj = &Workspace[i];
-    if (symbolp(obj) && obj->name == name) return obj;
+    if (obj->type == SYMBOL && obj->name == name) return obj;
   }
   return symbol(name);
+}"#
+
+ #+avr
+ #"
+/*
+  eqsymbols - compares the long string/symbol obj with the string in buffer.
+*/
+bool eqsymbols (object *obj, char *buffer) {
+  object *arg = cdr(obj);
+  int i = 0;
+  while (!(arg == NULL && buffer[i] == 0)) {
+    if (arg == NULL || buffer[i] == 0 || arg->chars != (buffer[i]<<8 | buffer[i+1])) return false;
+    arg = car(arg);
+    i = i + 2;
+  }
+  return true;
+}"#
+
+ #+(or arm esp riscv)
+ #"
+/*
+  eqsymbols - compares the long string/symbol obj with the string in buffer.
+*/
+bool eqsymbols (object *obj, char *buffer) {
+  object *arg = cdr(obj);
+  int i = 0;
+  while (!(arg == NULL && buffer[i] == 0)) {
+    if (arg == NULL || buffer[i] == 0 ||
+      arg->chars != (buffer[i]<<24 | buffer[i+1]<<16 | buffer[i+2]<<8 | buffer[i+3])) return false;
+    arg = car(arg);
+    i = i + 4;
+  }
+  return true;
+}"#
+
+ #"
+/*
+  internlong - looks through the workspace for an existing occurrence of the long symbol in buffer and returns it,
+  otherwise calls lispstring(buffer) to create a new symbol.
+*/
+object *internlong (char *buffer) {
+  for (int i=0; i<WORKSPACESIZE; i++) {
+    object *obj = &Workspace[i];
+    if (obj->type == SYMBOL && longsymbolp(obj) && eqsymbols(obj, buffer)) return obj;
+  }
+  object *obj = lispstring(buffer);
+  obj->type = SYMBOL;
+  return obj;
 }"#
 
  #"
@@ -566,6 +271,17 @@ object *stream (uint8_t streamtype, uint8_t address) {
   object *ptr = myalloc();
   ptr->type = STREAM;
   ptr->integer = streamtype<<8 | address;
+  return ptr;
+}"#
+
+ #"
+/*
+  newstring - make an empty string object and return it
+*/
+object *newstring () {
+  object *ptr = myalloc();
+  ptr->type = STRING;
+  ptr->chars = 0;
   return ptr;
 }"#))
 
@@ -594,7 +310,7 @@ void markobject (object *obj) {
     goto MARK;
   }
 
-  if (type == STRING) {
+  if ((type == STRING) || (type == SYMBOL && longsymbolp(obj))) {
     obj = cdr(obj);
     while (obj != NULL) {
       arg = car(obj);
@@ -629,7 +345,7 @@ void markobject (object *obj) {
     goto MARK;
   }
 
-  if (type == STRING) {
+  if ((type == STRING) || (type == SYMBOL && longsymbolp(obj))) {
     obj = cdr(obj);
     while (obj != NULL) {
       arg = car(obj);
@@ -678,7 +394,7 @@ void gc (object *form, object *env) {
 /*
   tracing - returns a number between 1 and TRACEMAX if name is being traced, or 0 otherwise
 */
-bool tracing (symbol_t name) {
+int tracing (symbol_t name) {
   int i = 0;
   while (i < TRACEMAX) {
     if (TraceFn[i] == name) return i+1;
@@ -712,9 +428,9 @@ void untrace (symbol_t name) {
   error(UNTRACE, PSTR("not tracing"), symbol(name));
 }"#)
 
-(defparameter *helper-functions* 
+(defparameter *helper-functions* '(
 
-  '(#"
+ #"
 // Helper functions
 
 bool consp (object *x) {
@@ -734,41 +450,81 @@ bool listp (object *x) {
 #define improperp(x) (!listp(x))
 
 object *quote (object *arg) {
-  return cons(symbol(QUOTE), cons(arg,NULL));
+  return cons(bsymbol(QUOTE), cons(arg,NULL));
 }"#
 
-#+(or arm stm32 esp riscv)
-    #"
+ #+avr
+ #"
+uint16_t pseudoRandom (int range) {
+  if (RandomSeed == 0) RandomSeed++;
+  uint16_t l = RandomSeed & 1;
+  RandomSeed = RandomSeed >> 1;
+  if (l == 1) RandomSeed = RandomSeed ^ 0xD295;
+  int dummy; if (RandomSeed == 0) Serial.print((int)&dummy); // Do not remove!
+  return RandomSeed % range;
+}"#
+
+  #"
 // Radix 40 encoding
 
-#define MAXSYMBOL 4096000000
+/*
+  builtin - converts a symbol name to builtin
+*/
+builtin_t builtin (symbol_t name) {
+  return (builtin_t)(untwist(name) - BUILTINS);
+}
+
+/*
+ sym - converts a builtin to a symbol name
+*/
+symbol_t sym (builtin_t x) {
+  return twist(x + BUILTINS);
+}
 
 /*
   toradix40 - returns a number from 0 to 39 if the character can be encoded, or -1 otherwise.
 */
-int toradix40 (char ch) {
+int8_t toradix40 (char ch) {
   if (ch == 0) return 0;
-  if (ch >= '0' && ch <= '9') return ch-'0'+30;
-  if (ch == '$') return 27; if (ch == '*') return 28; if (ch == '-') return 29;
+  if (ch >= '0' && ch <= '9') return ch-'0'+1;
+  if (ch == '-') return 37; if (ch == '*') return 38; if (ch == '$') return 39;
   ch = ch | 0x20;
-  if (ch >= 'a' && ch <= 'z') return ch-'a'+1;
+  if (ch >= 'a' && ch <= 'z') return ch-'a'+11;
   return -1; // Invalid
 }
 
 /*
   fromradix40 - returns the character encoded by the number n.
 */
-int fromradix40 (int n) {
-  if (n >= 1 && n <= 26) return 'a'+n-1;
-  if (n == 27) return '$'; if (n == 28) return '*'; if (n == 29) return '-';
-  if (n >= 30 && n <= 39) return '0'+n-30;
+char fromradix40 (char n) {
+  if (n >= 1 && n <= 9) return '0'+n-1;
+  if (n >= 11 && n <= 36) return 'a'+n-11;
+  if (n == 37) return '-'; if (n == 38) return '*'; if (n == 39) return '$';
   return 0;
+}"#
+
+  #+(or avr msp430 badge)
+  #"
+/*
+  pack40 - packs three radix40-encoded characters from buffer and returns a 16 bit number.
+*/
+uint16_t pack40 (char *buffer) {
+  return (((toradix40(buffer[0]) * 40) + toradix40(buffer[1])) * 40 + toradix40(buffer[2]));
 }
 
 /*
+  valid40 - returns true if the symbol in buffer can be encoded as three radix40-encoded characters.
+*/
+bool valid40 (char *buffer) {
+ return (toradix40(buffer[0]) >= 11 && toradix40(buffer[1]) >= 0 && toradix40(buffer[2]) >= 0);
+}"#
+
+  #+(or arm stm32 esp riscv)
+  #"
+/*
   pack40 - packs six radix40-encoded characters from buffer and returns a 32 bit number.
 */
-int pack40 (char *buffer) {
+uint32_t pack40 (char *buffer) {
   int x = 0;
   for (int i=0; i<6; i++) x = x * 40 + toradix40(buffer[i]);
   return x;
@@ -778,78 +534,16 @@ int pack40 (char *buffer) {
   valid40 - returns true if the symbol in buffer can be encoded as six radix40-encoded characters.
 */
 bool valid40 (char *buffer) {
-  for (int i=0; i<6; i++) if (toradix40(buffer[i]) == -1) return false;
+  if (toradix40(buffer[0]) < 11) return false;
+  for (int i=1; i<6; i++) if (toradix40(buffer[i]) < 0) return false;
   return true;
-}
-
-char *symbolname (symbol_t x) {
-  if (x < ENDFUNCTIONS) return lookupbuiltin(x);
-  else if (x >= MAXSYMBOL) return lookupsymbol(x);
-  char *buffer = SymbolTop;
-  buffer[3] = '\0'; buffer[4] = '\0'; buffer[5] = '\0'; buffer[6] = '\0';
-  for (int n=5; n>=0; n--) {
-    buffer[n] = fromradix40(x % 40);
-    x = x / 40;
-  }
-  return buffer;
-}"#
-
-#+(or avr msp430 badge)
-    #"
-// Radix 40 encoding
-
-#define MAXSYMBOL 64000
-
-/*
-  toradix40 - returns a number from 0 to 39 if the character can be encoded, or -1 otherwise.
-*/
-int toradix40 (char ch) {
-  if (ch == 0) return 0;
-  if (ch >= '0' && ch <= '9') return ch-'0'+30;
-  if (ch == '$') return 27; if (ch == '*') return 28; if (ch == '-') return 29;
-  ch = ch | 0x20;
-  if (ch >= 'a' && ch <= 'z') return ch-'a'+1;
-  return -1; // Invalid
-}
-
-/*
-  fromradix40 - returns the character encoded by the number n.
-*/
-int fromradix40 (int n) {
-  if (n >= 1 && n <= 26) return 'a'+n-1;
-  if (n == 27) return '$'; if (n == 28) return '*'; if (n == 29) return '-';
-  if (n >= 30 && n <= 39) return '0'+n-30;
-  return 0;
-}
-
-/*
-  pack40 - packs three radix40-encoded characters from buffer and returns a 16 bit number.
-*/
-int pack40 (char *buffer) {
-  return (((toradix40(buffer[0]) * 40) + toradix40(buffer[1])) * 40 + toradix40(buffer[2]));
-}
-
-/*
-  valid40 - returns true if the symbol in buffer can be encoded as three radix40-encoded characters.
-*/
-bool valid40 (char *buffer) {
- return (toradix40(buffer[0]) >= 0 && toradix40(buffer[1]) >= 0 && toradix40(buffer[2]) >= 0);
-}
-
-char *symbolname (symbol_t x) {
-  if (x < ENDFUNCTIONS) return lookupbuiltin(x);
-  else if (x >= MAXSYMBOL) return lookupsymbol(x);
-  char *buffer = SymbolTop;
-  buffer[3] = '\0';
-  for (int n=2; n>=0; n--) {
-    buffer[n] = fromradix40(x % 40);
-    x = x / 40;
-  }
-  return buffer;
 }"#
 
    #"
-int digitvalue (char d) {
+/*
+  digitvalue - returns the numerical value of a hexadecimal digit, or 16 if invalid.
+*/
+int8_t digitvalue (char d) {
   if (d>='0' && d<='9') return d-'0';
   d = d | 0x20;
   if (d>='a' && d<='f') return d-'a'+10;
@@ -857,14 +551,14 @@ int digitvalue (char d) {
 }"#
 
     #"
-int checkinteger (symbol_t name, object *obj) {
+int checkinteger (builtin_t name, object *obj) {
   if (!integerp(obj)) error(name, notaninteger, obj);
   return obj->integer;
 }"#
 
     #-(or avr badge)
     #"
-int checkbitvalue (symbol_t name, object *obj) {
+int checkbitvalue (builtin_t name, object *obj) {
   if (!integerp(obj)) error(name, notaninteger, obj);
   int n = obj->integer;
   if (n & ~1) error(name, PSTR("argument is not a bit value"), obj);
@@ -873,49 +567,52 @@ int checkbitvalue (symbol_t name, object *obj) {
 
     #+float
     #"
-float checkintfloat (symbol_t name, object *obj){
+float checkintfloat (builtin_t name, object *obj){
   if (integerp(obj)) return obj->integer;
   if (!floatp(obj)) error(name, notanumber, obj);
   return obj->single_float;
 }"#
 
     #"
-int checkchar (symbol_t name, object *obj) {
+int checkchar (builtin_t name, object *obj) {
   if (!characterp(obj)) error(name, PSTR("argument is not a character"), obj);
   return obj->chars;
-}"#
+}
 
-    #"
+object *checkstring (builtin_t name, object *obj) {
+  if (!stringp(obj)) error(name, notastring, obj);
+  return obj;
+}
+
 int isstream (object *obj){
-  if (!streamp(obj)) error(0, PSTR("not a stream"), obj);
+  if (!streamp(obj)) error(NIL, PSTR("not a stream"), obj);
   return obj->integer;
-}"#
+}
 
-    #"
-int issymbol (object *obj, symbol_t n) {
-  return symbolp(obj) && obj->name == n;
-}"#
+int isbuiltin (object *obj, builtin_t n) {
+  return symbolp(obj) && obj->name == sym(n);
+}
 
-    #"
+bool builtinp (symbol_t name) {
+  return (untwist(name) > BUILTINS && untwist(name) < ENDFUNCTIONS+BUILTINS);
+}
+
 int keywordp (object *obj) {
   if (!symbolp(obj)) return false;
-  symbol_t name = obj->name;
+  builtin_t name = builtin(obj->name);
   return ((name > KEYWORDS) && (name < USERFUNCTIONS));
-}"#
+}
 
-    #"
-int checkkeyword (symbol_t name, object *obj) {
+int checkkeyword (builtin_t name, object *obj) {
   if (!keywordp(obj)) error(name, PSTR("argument is not a keyword"), obj);
-  symbol_t kname = obj->name;
+  builtin_t kname = builtin(obj->name);
   uint8_t context = getminmax(kname);
   if (context != 0 && context != name) error(name, invalidkey, obj);
   return ((int)lookupfn(kname));
-}"#
+}
 
-    #"
-void checkargs (symbol_t name, object *args) {
+void checkargs (builtin_t name, object *args) {
   int nargs = listlength(name, args);
-  if (name >= ENDFUNCTIONS) error(0, PSTR("not valid here"), symbol(name));
   checkminmax(name, nargs);
 }"#
 
@@ -945,7 +642,7 @@ int eq (object *arg1, object *arg2) {
 }"#
 
     #"
-int listlength (symbol_t name, object *list) {
+int listlength (builtin_t name, object *list) {
   int length = 0;
   while (list != NULL) {
     if (improperp(list)) error2(name, notproper);
@@ -1014,7 +711,7 @@ object *buildarray (int n, int s, object *def) {
   else return cons(buildarray(n, s2, def), nil);
 }
 
-object *makearray (symbol_t name, object *dims, object *def, bool bitp) {
+object *makearray (builtin_t name, object *dims, object *def, bool bitp) {
   int size = 1;
   object *dimensions = dims;
   while (dims != NULL) {
@@ -1050,7 +747,7 @@ object **arrayref (object *array, int index, int size) {
   getarray - gets a pointer to an element in a multi-dimensional array, given a list of the subscripts subs
   If the first subscript is negative it's a bit array and bit is set to the bit number
 */
-object **getarray (symbol_t name, object *array, object *subs, object *env, int *bit) {
+object **getarray (builtin_t name, object *array, object *subs, object *env, int *bit) {
   int index = 0, size = 1, s;
   *bit = -1;
   bool bitp = false;
@@ -1080,7 +777,7 @@ void rslice (object *array, int size, int slice, object *dims, object *args) {
   int d = first(dims)->integer;
   for (int i = 0; i < d; i++) {
     int index = slice * d + i;
-    if (!consp(args)) error2(0, PSTR("initial contents don't match array type"));
+    if (!consp(args)) error2(NIL, PSTR("initial contents don't match array type"));
     if (cdr(dims) == NULL) {
       object **p = arrayref(array, index, size);
       *p = car(args);
@@ -1098,14 +795,14 @@ object *readarray (int d, object *args) {
   object *dims = NULL; object *head = NULL;
   int size = 1;
   for (int i = 0; i < d; i++) {
-    if (!listp(list)) error2(0, PSTR("initial contents don't match array type"));
-    int l = listlength(0, list);
+    if (!listp(list)) error2(NIL, PSTR("initial contents don't match array type"));
+    int l = listlength(NIL, list);
     if (dims == NULL) { dims = cons(number(l), NULL); head = dims; }
     else { cdr(dims) = cons(number(l), NULL); dims = cdr(dims); }
     size = size * l;
     if (list != NULL) list = car(list); 
   }
-  object *array = makearray(0, head, NULL, false);
+  object *array = makearray(NIL, head, NULL, false);
   rslice(array, size, 0, head, args);
   return array;
 }
@@ -1119,7 +816,7 @@ object *readbitarray (gfun_t gfun) {
   object *head = NULL;
   object *tail = NULL;
   while (!issp(ch) && ch != ')' && ch != '(') {
-    if (ch != '0' && ch != '1') error2(0, PSTR("illegal character in bit array"));
+    if (ch != '0' && ch != '1') error2(NIL, PSTR("illegal character in bit array"));
     object *cell = cons(number(ch - '0'), NULL);
     if (head == NULL) head = cell;
     else tail->cdr = cell;
@@ -1127,8 +824,8 @@ object *readbitarray (gfun_t gfun) {
     ch = gfun();
   }
   LastChar = ch;
-  int size = listlength(0, head);
-  object *array = makearray(0, cons(number(size), NULL), 0, true);
+  int size = listlength(NIL, head);
+  object *array = makearray(NIL, cons(number(size), NULL), 0, true);
   size = (size + 31) / 32;
   int index = 0;
   while (head != NULL) {
@@ -1182,38 +879,77 @@ void printarray (object *array, pfun_t pfun) {
   }
 }"#))
 
-(defparameter *string-utilities* #"
+(defparameter *string-utilities*
+
+  '(#"
 // String utilities
 
 void indent (uint8_t spaces, char ch, pfun_t pfun) {
   for (uint8_t i=0; i<spaces; i++) pfun(ch);
 }
 
-object *startstring (symbol_t name) {
-  object *string = myalloc();
-  string->type = STRING;
-  GlobalString = NULL;
-  GlobalStringIndex = 0;
+object *startstring (builtin_t name) {
+  object *string = newstring();
+  GlobalString = string;
+  GlobalStringTail = string;
   return string;
-}
+}"#
 
-void buildstring (uint8_t ch, int *chars, object **head) {
-  static object* tail;
-  static uint8_t shift;
-  if (*chars == 0) {
-    shift = (sizeof(int)-1)*8;
-    *chars = ch<<shift;
-    object *cell = myalloc();
-    if (*head == NULL) *head = cell; else tail->car = cell;
-    cell->car = NULL;
-    cell->chars = *chars;
-    tail = cell;
+  #+(or avr msp430 badge)
+  #"
+/*
+  buildstring - adds a character on the end of a string
+*/
+void buildstring (char ch, object **tail) {
+  object *cell;
+  if (cdr(*tail) == NULL) {
+    cell = myalloc(); cdr(*tail) = cell;
+  } else if (((*tail)->chars & 0xFF) == 0) {
+    (*tail)->chars = (*tail)->chars | ch; return;
   } else {
-    shift = shift - 8;
-    *chars = *chars | ch<<shift;
-    tail->chars = *chars;
-    if (shift == 0) *chars = 0;
+    cell = myalloc(); car(*tail) = cell;
+  } 
+  car(cell) = NULL; cell->chars = ch<<8; *tail = cell;
+}"#
+
+
+  #+(or arm esp riscv)
+  #"
+/*
+  buildstring - adds a character on the end of a string
+*/
+void buildstring (char ch, object **tail) {
+  object *cell;
+  if (cdr(*tail) == NULL) {
+    cell = myalloc(); cdr(*tail) = cell;
+  } else if (((*tail)->chars & 0xFFFFFF) == 0) {
+    (*tail)->chars = (*tail)->chars | ch<<16; return;
+  } else if (((*tail)->chars & 0xFFFF) == 0) {
+    (*tail)->chars = (*tail)->chars | ch<<8; return;
+  } else if (((*tail)->chars & 0xFF) == 0) {
+    (*tail)->chars = (*tail)->chars | ch; return;
+  } else {
+    cell = myalloc(); car(*tail) = cell;
+  } 
+  car(cell) = NULL; cell->chars = ch<<24; *tail = cell;
+}"#
+
+  #"
+/*
+  copystring - copies a Lisp string
+*/
+object *copystring (object *arg) {
+  object *obj = newstring();
+  object *ptr = obj;
+  arg = cdr(arg);
+  while (arg != NULL) {
+    object *cell =  myalloc(); car(cell) = NULL;
+    if (cdr(obj) == NULL) cdr(obj) = cell; else car(ptr) = cell;
+    ptr = cell;
+    ptr->chars = arg->chars;
+    arg = car(arg);
   }
+  return obj;
 }
 
 /*
@@ -1221,18 +957,15 @@ void buildstring (uint8_t ch, int *chars, object **head) {
   and returns a Lisp string
 */
 object *readstring (uint8_t delim, gfun_t gfun) {
-  object *obj = myalloc();
-  obj->type = STRING;
+  object *obj = newstring();
+  object *tail = obj;
   int ch = gfun();
   if (ch == -1) return nil;
-  object *head = NULL;
-  int chars = 0;
   while ((ch != delim) && (ch != -1)) {
     if (ch == '\\') ch = gfun();
-    buildstring(ch, &chars, &head);
+    buildstring(ch, &tail);
     ch = gfun();
   }
-  obj->cdr = head;
   return obj;
 }
 
@@ -1268,6 +1001,9 @@ uint8_t nthchar (object *string, int n) {
   return (arg->chars)>>(n*8) & 0xFF;
 }
 
+/*
+  gstr - reads a character from a string stream
+*/
 int gstr () {
   if (LastChar) {
     char temp = LastChar;
@@ -1279,17 +1015,30 @@ int gstr () {
   return '\n'; // -1?
 }
 
+/*
+  pstr - prints a character to a string stream
+*/
 void pstr (char c) {
-  buildstring(c, &GlobalStringIndex, &GlobalString);
-}"#)
-
-#+ethernet
-(defparameter *string-utilities2* #"
-char *cstringbuf (object *arg) {
-  cstring(arg, SymbolTop, SYMBOLTABLESIZE-(SymbolTop-SymbolTable));
-  return SymbolTop;
+  buildstring(c, &GlobalStringTail);
 }
 
+/*
+  lispstring - converts a C string to a Lisp string
+*/
+object *lispstring (char *s) {
+  object *obj = newstring();
+  object *tail = obj;
+  char ch = *s++;
+  while (ch) {
+    if (ch == '\\') ch = *s++;
+    buildstring(ch, &tail);
+    ch = *s++;
+  }
+  return obj;
+}"#
+
+  #+ethernet
+  #"
 char *cstring (object *form, char *buffer, int buflen) {
   int index = 0;
   form = cdr(form);
@@ -1298,7 +1047,7 @@ char *cstring (object *form, char *buffer, int buflen) {
     for (int i=(sizeof(int)-1)*8; i>=0; i=i-8) {
       char ch = chars>>i & 0xFF;
       if (ch) {
-        if (index >= buflen-1) error2(0, PSTR("no room for string"));
+        if (index >= buflen-1) error2(NIL, PSTR("no room for string"));
         buffer[index++] = ch;
       }
     }
@@ -1306,22 +1055,7 @@ char *cstring (object *form, char *buffer, int buflen) {
   }
   buffer[index] = '\0';
   return buffer;
-}
-
-object *lispstring (char *s) {
-  object *obj = myalloc();
-  obj->type = STRING;
-  char ch = *s++;
-  object *head = NULL;
-  int chars = 0;
-  while (ch) {
-    if (ch == '\\') ch = *s++;
-    buildstring(ch, &chars, &head);
-    ch = *s++;
-  }
-  obj->cdr = head;
-  return obj;
-}"#)
+}"#))
 
 (defparameter *closures* #"
 // Lookup variable in environment
@@ -1346,22 +1080,24 @@ object *findvalue (object *var, object *env) {
   symbol_t varname = var->name;
   object *pair = value(varname, env);
   if (pair == NULL) pair = value(varname, GlobalEnv);
-  if (pair == NULL) error(0, PSTR("unknown variable"), var);
+  if (pair == NULL) error(NIL, PSTR("unknown variable"), var);
   return pair;
 }
 
 // Handling closures
 
-object *closure (int tc, symbol_t name, object *state, object *function, object *args, object **env) {
+object *closure (int tc, symbol_t name, object *function, object *args, object **env) {
+  object *state = car(function);
+  function = cdr(function);
   int trace = 0;
   if (name) trace = tracing(name);
   if (trace) {
     indent(TraceDepth[trace-1]<<1, ' ', pserial);
     pint(TraceDepth[trace-1]++, pserial);
-    pserial(':'); pserial(' '); pserial('('); pstring(symbolname(name), pserial);
+    pserial(':'); pserial(' '); pserial('('); printsymbol(symbol(name), pserial);
   }
   object *params = first(function);
-  if (!listp(params)) error(name, notalist, params);
+  if (!listp(params)) errorsym(name, notalist, params);
   function = cdr(function);
   // Dropframe
   if (tc) {
@@ -1371,7 +1107,7 @@ object *closure (int tc, symbol_t name, object *state, object *function, object 
     } else push(nil, *env);
   }
   // Push state
-  while (state != NULL) {
+  while (consp(state)) {
     object *pair = first(state);
     push(pair, *env);
     state = cdr(state);
@@ -1381,17 +1117,17 @@ object *closure (int tc, symbol_t name, object *state, object *function, object 
   while (params != NULL) {
     object *value;
     object *var = first(params);
-    if (symbolp(var) && var->name == OPTIONAL) optional = true;
+    if (isbuiltin(var, OPTIONAL)) optional = true;
     else {
       if (consp(var)) {
-        if (!optional) error(name, PSTR("invalid default value"), var);
+        if (!optional) errorsym(name, PSTR("invalid default value"), var);
         if (args == NULL) value = eval(second(var), *env);
         else { value = first(args); args = cdr(args); }
         var = first(var);
-        if (!symbolp(var)) error(name, PSTR("illegal optional parameter"), var);
+        if (!symbolp(var)) errorsym(name, PSTR("illegal optional parameter"), var);
       } else if (!symbolp(var)) {
-        error2(name, PSTR("illegal function parameter"));
-      } else if (var->name == AMPREST) {
+        errorsym(name, PSTR("illegal function parameter"), var);
+      } else if (isbuiltin(var, AMPREST)) {
         params = cdr(params);
         var = first(params);
         value = args;
@@ -1399,7 +1135,7 @@ object *closure (int tc, symbol_t name, object *state, object *function, object 
       } else {
         if (args == NULL) {
           if (optional) value = nil; 
-          else error2(name, toofewargs);
+          else errorsym2(name, toofewargs);
         } else { value = first(args); args = cdr(args); }
       }
       push(cons(var,value), *env);
@@ -1407,7 +1143,7 @@ object *closure (int tc, symbol_t name, object *state, object *function, object 
     }
     params = cdr(params);
   }
-  if (args != NULL) error2(name, toomanyargs);
+  if (args != NULL) errorsym2(name, toomanyargs);
   if (trace) { pserial(')'); pln(pserial); }
   // Do an implicit progn
   if (tc) push(nil, *env);
@@ -1416,23 +1152,22 @@ object *closure (int tc, symbol_t name, object *state, object *function, object 
 
 object *apply (symbol_t name, object *function, object *args, object *env) {
   if (symbolp(function)) {
-    symbol_t fname = function->name;
+    builtin_t fname = builtin(function->name);
     if ((fname > FUNCTIONS) && (fname < KEYWORDS)) {
       checkargs(fname, args);
       return ((fn_ptr_type)lookupfn(fname))(args, env);
     } else function = eval(function, env);
   }
-  if (consp(function) && issymbol(car(function), LAMBDA)) {
-    function = cdr(function);
-    object *result = closure(0, name, NULL, function, args, &env);
+  if (consp(function) && isbuiltin(car(function), LAMBDA)) {
+    object *result = closure(0, name, function, args, &env);
     return eval(result, env);
   }
-  if (consp(function) && issymbol(car(function), CLOSURE)) {
+  if (consp(function) && isbuiltin(car(function), CLOSURE)) {
     function = cdr(function);
-    object *result = closure(0, name, car(function), cdr(function), args, &env);
+    object *result = closure(0, name, function, args, &env);
     return eval(result, env);
   }
-  error(name, PSTR("illegal function"), function);
+  errorsym(name, PSTR("illegal function"), function);
   return NULL;
 }"#)
 
@@ -1447,22 +1182,22 @@ object *apply (symbol_t name, object *function, object *args, object *env) {
   place - returns a pointer to an object referenced in the second argument of an
   in-place operation such as setf.
 */
-object **place (symbol_t name, object *args, object *env) {
+object **place (builtin_t name, object *args, object *env) {
   if (atom(args)) return &cdr(findvalue(args, env));
   object* function = first(args);
   if (symbolp(function)) {
-    symbol_t fname = function->name;
-    if (fname == CAR || fname == FIRST) {
+    symbol_t sname = function->name;
+    if (sname == sym(CAR) || sname == sym(FIRST)) {
       object *value = eval(second(args), env);
-      if (!listp(value)) error(name, PSTR("can't take car"), value);
+      if (!listp(value)) error(name, canttakecar, value);
       return &car(value);
     }
-    if (fname == CDR || fname == REST) {
+    if (sname == sym(CDR) || sname == sym(REST)) {
       object *value = eval(second(args), env);
-      if (!listp(value)) error(name, PSTR("can't take cdr"), value);
+      if (!listp(value)) error(name, canttakecdr, value);
       return &cdr(value);
     }
-    if (fname == NTH) {
+    if (sname == sym(NTH)) {
       int index = checkinteger(NTH, eval(second(args), env));
       object *list = eval(third(args), env);
       if (atom(list)) error(name, PSTR("second argument to nth is not a list"), list);
@@ -1484,23 +1219,23 @@ object **place (symbol_t name, object *args, object *env) {
   place - returns a pointer to an object referenced in the second argument of an
   in-place operation such as setf. bit is used to indicate the bit position in a bit array
 */
-object **place (symbol_t name, object *args, object *env, int *bit) {
+object **place (builtin_t name, object *args, object *env, int *bit) {
   *bit = -1;
   if (atom(args)) return &cdr(findvalue(args, env));
   object* function = first(args);
   if (symbolp(function)) {
-    symbol_t fname = function->name;
-    if (fname == CAR || fname == FIRST) {
+    symbol_t sname = function->name;
+    if (sname == sym(CAR) || sname == sym(FIRST)) {
       object *value = eval(second(args), env);
-      if (!listp(value)) error(name, PSTR("can't take car"), value);
+      if (!listp(value)) error(name, canttakecar, value);
       return &car(value);
     }
-    if (fname == CDR || fname == REST) {
+    if (sname == sym(CDR) || sname == sym(REST)) {
       object *value = eval(second(args), env);
-      if (!listp(value)) error(name, PSTR("can't take cdr"), value);
+      if (!listp(value)) error(name, canttakecdr, value);
       return &cdr(value);
     }
-    if (fname == NTH) {
+    if (sname == sym(NTH)) {
       int index = checkinteger(NTH, eval(second(args), env));
       object *list = eval(third(args), env);
       if (atom(list)) error(name, PSTR("second argument to nth is not a list"), list);
@@ -1511,7 +1246,7 @@ object **place (symbol_t name, object *args, object *env, int *bit) {
       }
       return &car(list);
     }
-    if (fname == AREF) {
+    if (sname == sym(AREF)) {
       object *array = eval(second(args), env);
       if (!arrayp(array)) error(AREF, PSTR("first argument is not an array"), array);
       return getarray(AREF, array, cddr(args), env, bit);
@@ -1525,97 +1260,19 @@ object **place (symbol_t name, object *args, object *env, int *bit) {
 // Checked car and cdr
 
 object *carx (object *arg) {
-  if (!listp(arg)) error(0, PSTR("can't take car"), arg);
+  if (!listp(arg)) error(NIL, canttakecar, arg);
   if (arg == nil) return nil;
   return car(arg);
 }
 
 object *cdrx (object *arg) {
-  if (!listp(arg)) error(0, PSTR("can't take cdr"), arg);
+  if (!listp(arg)) error(NIL, canttakecdr, arg);
   if (arg == nil) return nil;
   return cdr(arg);
 }"#))
 
 
 (defparameter *i2c-interface* '(
-
-#-(or avr badge arm)
-#"
-// I2C interface
-
-void I2Cinit (bool enablePullup) {
-  (void) enablePullup;
-  Wire.begin();
-}
-
-int I2Cread () {
-  return Wire.read();
-}
-
-void I2Cwrite (uint8_t data) {
-  Wire.write(data);
-}
-
-bool I2Cstart (uint8_t address, uint8_t read) {
- int ok = true;
- if (read == 0) {
-   Wire.beginTransmission(address);
-   ok = (Wire.endTransmission(true) == 0);
-   Wire.beginTransmission(address);
- }
- else Wire.requestFrom(address, I2CCount);
- return ok;
-}
-
-bool I2Crestart (uint8_t address, uint8_t read) {
-  int error = (Wire.endTransmission(false) != 0);
-  if (read == 0) Wire.beginTransmission(address);
-  else Wire.requestFrom(address, I2CCount);
-  return error ? false : true;
-}
-
-void I2Cstop (uint8_t read) {
-  if (read == 0) Wire.endTransmission(); // Check for error?
-}"#
-
-#+arm
-#"
-// I2C interface for two ports
-
-void I2Cinit (TwoWire *port, bool enablePullup) {
-  (void) enablePullup;
-  port->begin();
-}
-
-int I2Cread (TwoWire *port) {
-  return port->read();
-}
-
-void I2Cwrite (TwoWire *port, uint8_t data) {
-  port->write(data);
-}
-
-bool I2Cstart (TwoWire *port, uint8_t address, uint8_t read) {
- int ok = true;
- if (read == 0) {
-   port->beginTransmission(address);
-   ok = (port->endTransmission(true) == 0);
-   port->beginTransmission(address);
- }
- else port->requestFrom(address, I2CCount);
- return ok;
-}
-
-bool I2Crestart (TwoWire *port, uint8_t address, uint8_t read) {
-  int error = (port->endTransmission(false) != 0);
-  if (read == 0) port->beginTransmission(address);
-  else port->requestFrom(address, I2CCount);
-  return error ? false : true;
-}
-
-void I2Cstop (TwoWire *port, uint8_t read) {
-  if (read == 0) port->endTransmission(); // Check for error?
-}"#
 
 #+(and avr (not badge))
 #"
@@ -1732,6 +1389,84 @@ void I2Cstop (uint8_t read) {
   TWCR = 1<<TWINT | 1<<TWEN | 1<<TWSTO;
   while (TWCR & 1<<TWSTO); // wait until stop and bus released
 #endif
+}"#
+
+#+arm
+#"
+// I2C interface for two ports
+
+void I2Cinit (TwoWire *port, bool enablePullup) {
+  (void) enablePullup;
+  port->begin();
+}
+
+int I2Cread (TwoWire *port) {
+  return port->read();
+}
+
+void I2Cwrite (TwoWire *port, uint8_t data) {
+  port->write(data);
+}
+
+bool I2Cstart (TwoWire *port, uint8_t address, uint8_t read) {
+ int ok = true;
+ if (read == 0) {
+   port->beginTransmission(address);
+   ok = (port->endTransmission(true) == 0);
+   port->beginTransmission(address);
+ }
+ else port->requestFrom(address, I2CCount);
+ return ok;
+}
+
+bool I2Crestart (TwoWire *port, uint8_t address, uint8_t read) {
+  int error = (port->endTransmission(false) != 0);
+  if (read == 0) port->beginTransmission(address);
+  else port->requestFrom(address, I2CCount);
+  return error ? false : true;
+}
+
+void I2Cstop (TwoWire *port, uint8_t read) {
+  if (read == 0) port->endTransmission(); // Check for error?
+}"#
+
+#-(or avr badge arm)
+#"
+// I2C interface
+
+void I2Cinit (bool enablePullup) {
+  (void) enablePullup;
+  Wire.begin();
+}
+
+int I2Cread () {
+  return Wire.read();
+}
+
+void I2Cwrite (uint8_t data) {
+  Wire.write(data);
+}
+
+bool I2Cstart (uint8_t address, uint8_t read) {
+ int ok = true;
+ if (read == 0) {
+   Wire.beginTransmission(address);
+   ok = (Wire.endTransmission(true) == 0);
+   Wire.beginTransmission(address);
+ }
+ else Wire.requestFrom(address, I2CCount);
+ return ok;
+}
+
+bool I2Crestart (uint8_t address, uint8_t read) {
+  int error = (Wire.endTransmission(false) != 0);
+  if (read == 0) Wire.beginTransmission(address);
+  else Wire.requestFrom(address, I2CCount);
+  return error ? false : true;
+}
+
+void I2Cstop (uint8_t read) {
+  if (read == 0) Wire.endTransmission(); // Check for error?
 }"#
 
 #+badge

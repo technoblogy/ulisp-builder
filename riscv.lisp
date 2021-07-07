@@ -5,8 +5,8 @@
 ; RISC-V
 
 (defparameter *header-riscv*
-#"/* uLisp RISC-V Version 3.6 - www.ulisp.com
-   David Johnson-Davies - www.technoblogy.com - unreleased
+#"/* uLisp RISC-V Version 4.0 - www.ulisp.com
+   David Johnson-Davies - www.technoblogy.com - 7th July 2021
 
    Licensed under the MIT license: https://opensource.org/licenses/MIT
 */
@@ -51,12 +51,11 @@ Sipeed_ST7789 tft(320, 240, spi_);
 // Platform specific settings
 
 #define WORDALIGNED __attribute__((aligned (8)))
-#define BUFFERSIZE 34  // Number of bits+2
+#define BUFFERSIZE 36  // Number of bits+4
 #define RAMFUNC __attribute__ ((section (".ramfunctions")))
 
 #if defined(BOARD_SIPEED_MAIX_DUINO)
   #define WORKSPACESIZE 80000             /* Objects (16*bytes) */
-  #define SYMBOLTABLESIZE 1024            /* Bytes */
   #define CODESIZE 512                    /* Bytes */
   #define SDCARD_SS_PIN 29
   #define STACKDIFF 4096
@@ -64,7 +63,6 @@ Sipeed_ST7789 tft(320, 240, spi_);
 
 #elif defined(BOARD_SIPEED_MAIX_BIT)
   #define WORKSPACESIZE 80000             /* Objects (16*bytes) */
-  #define SYMBOLTABLESIZE 1024            /* Bytes */
   #define CODESIZE 512                    /* Bytes */
   #define SDCARD_SS_PIN 29
   #define STACKDIFF 4096
@@ -72,7 +70,6 @@ Sipeed_ST7789 tft(320, 240, spi_);
 
 #elif defined(BOARD_SIPEED_MAIX_ONE_DOCK)
   #define WORKSPACESIZE 80000             /* Objects (16*bytes) */
-  #define SYMBOLTABLESIZE 1024            /* Bytes */
   #define CODESIZE 512                    /* Bytes */
   #define SDCARD_SS_PIN 29
   #define STACKDIFF 4096
@@ -143,7 +140,7 @@ gfun_t gstreamfun (object *args) {
   #if defined(sdcardsupport)
   else if (streamtype == SDSTREAM) gfun = (gfun_t)SDread;
   #endif
-  else error2(0, PSTR("unknown stream type"));
+  else error2(NIL, PSTR("unknown stream type"));
   return gfun;
 }
 
@@ -189,7 +186,7 @@ pfun_t pstreamfun (object *args) {
   #if defined(gfxsupport)
   else if (streamtype == GFXSTREAM) pfun = (pfun_t)gfxwrite;
   #endif
-  else error2(0, PSTR("unknown stream type"));
+  else error2(NIL, PSTR("unknown stream type"));
   return pfun;
 }"#)
 
@@ -243,5 +240,6 @@ void sleep (int secs) {
 
 (defparameter *keywords-riscv*
   '((nil
-     ((DIGITALWRITE HIGH LOW)
+     ((NIL LED_BUILTIN)
+      (DIGITALWRITE HIGH LOW)
       (PINMODE INPUT INPUT_PULLUP INPUT_PULLDOWN OUTPUT)))))

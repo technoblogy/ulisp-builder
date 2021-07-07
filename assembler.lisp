@@ -107,7 +107,7 @@ int assemble (int pass, int origin, object *entries, object *env, object *pcpair
       if (pass == 2) {
         #if defined(assemblerlist)
         printhex2(pc>>8, pserial); printhex2(pc, pserial);
-        pfstring(PSTR("       "), pserial);
+        indent(7, ' ', pserial);
         printobject(arg, pserial); pln(pserial);
         #endif
       } else {
@@ -159,7 +159,7 @@ int assemble (int pass, int origin, object *entries, object *env, object *pcpair
       if (pass == 2) {
         #if defined(assemblerlist)
         printhex4(pc, pserial);
-        pfstring(PSTR("     "), pserial);
+        indent(5, ' ', pserial);
         printobject(arg, pserial); pln(pserial);
         #endif
       } else {

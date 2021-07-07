@@ -99,7 +99,16 @@
 
 (defparameter *tests*
 
-#"#| Arithmetic |#
+#"#| Symbols |#
+
+(aeq 'let 123 (let ((cat 123)) cat))
+(aeq 'let 79 (let ((ca% 79)) ca%))
+(aeq 'let 83 (let ((1- 83)) 1-))
+(aeq 'let 13 (let ((12a 13)) 12a))
+(aeq 'let 17 (let ((-1- 17)) -1-))
+(aeq 'let 23 (let ((abracadabra 23)) abracadabra))
+
+#| Arithmetic |#
 
 (aeq '* 9 (* -3 -3))
 (aeq '* 32580 (* 180 181))
@@ -118,7 +127,14 @@
 
 (aeq '< t (< -32768 32767))
 (aeq '< t (< -1 0))
-(aeq '< t (< 1 2 3))
+(aeq '< t (< 1 2 3 4))
+(aeq '< nil (< 1 2 2 4))
+(aeq '< t (<= 1 2 2 4))
+(aeq '< nil (<= 1 3 2 4))
+(aeq '< t (> 4 3 2 1))
+(aeq '< nil (> 4 2 2 1))
+(aeq '< t (>= 4 2 2 1))
+(aeq '< nil (>= 4 2 3 1))
 (aeq '< t (< 1))
 (aeq '< nil (< 1 3 2))
 (aeq '< nil (< -1 -2))
@@ -427,6 +443,10 @@
 (aeq 'string< t (string< "fish" "fish "))
 (aeq 'string> nil (string> "cat" "cat"))
 (aeq 'string> t (string> "cat " "cat"))
+(aeq 'string "albatross" (string "albatross"))
+(aeq 'string "x" (string #\x))
+(aeq 'string "cat" (string 'cat))
+(aeq 'string "albatross" (string 'albatross))
 
 #| characters |#
 

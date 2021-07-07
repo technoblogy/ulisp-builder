@@ -107,10 +107,10 @@
     ;; Write enum declarations
     (let ((enums
            (split-into-lines (format nil "~{~a, ~}" (map 'list #'car (apply #'append (mapcar #'cadr definitions)))) 16)))
-      (format str "~%enum function { ~{~a~%~}" enums)
+      (format str "~%enum builtin_t { ~{~a~%~}" enums)
       ; Do keywords
       (do-keyword-enums str keywords)
-      (format str "USERFUNCTIONS, ENDFUNCTIONS };~%"))
+      (format str "USERFUNCTIONS, ENDFUNCTIONS, SET_SIZE = INT_MAX };~%"))
     ;;
     (include :global-variables str)
     (include :error-handling str)
@@ -126,7 +126,6 @@
     (include :association-lists str)
     (include :array-utilities str)
     (include :string-utilities str)
-    (include :string-utilities2 str)
     (include :closures str)
     (include :in-place str)
     (include :i2c-interface str)

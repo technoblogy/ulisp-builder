@@ -5,9 +5,9 @@
 ; AVR
 
 (defparameter *header-avr*
-#"/* uLisp AVR Version 3.6 - www.ulisp.com
-   David Johnson-Davies - www.technoblogy.com - unreleased
-
+#"/* uLisp AVR Version 4.0 - www.ulisp.com
+   David Johnson-Davies - www.technoblogy.com - 7th July 2021
+   
    Licensed under the MIT license: https://opensource.org/licenses/MIT
 */
 
@@ -46,19 +46,18 @@ const char LispLibrary[] PROGMEM = "";
 // Platform specific settings
 
 #define WORDALIGNED __attribute__((aligned (2)))
+#define OBJECTALIGNED __attribute__((aligned (4)))
 #define BUFFERSIZE 21                     /* longest builtin name + 1 */
 
 #if defined(__AVR_ATmega328P__)
-  #define WORKSPACESIZE (314-SDSIZE)      /* Objects (4*bytes) */
+  #define WORKSPACESIZE (318-SDSIZE)      /* Objects (4*bytes) */
   #define EEPROMSIZE 1024                 /* Bytes */
-  #define SYMBOLTABLESIZE BUFFERSIZE      /* Bytes - no long symbols */
   #define STACKDIFF 0
   #define CPU_ATmega328P
 
 #elif defined(__AVR_ATmega2560__)
-  #define WORKSPACESIZE (1214-SDSIZE)     /* Objects (4*bytes) */
+  #define WORKSPACESIZE (1344-SDSIZE)     /* Objects (4*bytes) */
   #define EEPROMSIZE 4096                 /* Bytes */
-  #define SYMBOLTABLESIZE 512             /* Bytes */
   #define STACKDIFF 320
   #define CPU_ATmega2560
 
@@ -67,7 +66,6 @@ const char LispLibrary[] PROGMEM = "";
   #define WORKSPACESIZE (2816-SDSIZE)     /* Objects (4*bytes) */
 //  #define EEPROMSIZE 4096                 /* Bytes */
   #define FLASHWRITESIZE 16384            /* Bytes */
-  #define SYMBOLTABLESIZE 512             /* Bytes */
   #define CODESIZE 96                     /* Bytes <= 256 */
   #define STACKDIFF 320
   #define CPU_ATmega1284P
@@ -75,44 +73,41 @@ const char LispLibrary[] PROGMEM = "";
 #elif defined(ARDUINO_AVR_NANO_EVERY)
   #define WORKSPACESIZE (1060-SDSIZE)     /* Objects (4*bytes) */
   #define EEPROMSIZE 256                  /* Bytes */
-  #define SYMBOLTABLESIZE BUFFERSIZE      /* Bytes - no long symbols */
-  #define STACKDIFF 320
+  #define STACKDIFF 160
   #define CPU_ATmega4809
   
 #elif defined(ARDUINO_AVR_ATmega4809)     /* Curiosity Nano using MegaCoreX */
   #define Serial Serial3
   #define WORKSPACESIZE (1065-SDSIZE)     /* Objects (4*bytes) */
   #define EEPROMSIZE 256                  /* Bytes */
-  #define SYMBOLTABLESIZE BUFFERSIZE      /* Bytes - no long symbols */
   #define STACKDIFF 320
   #define CPU_ATmega4809
 
 #elif defined(__AVR_ATmega4809__)
   #define WORKSPACESIZE (1065-SDSIZE)     /* Objects (4*bytes) */
   #define EEPROMSIZE 256                  /* Bytes */
-  #define SYMBOLTABLESIZE BUFFERSIZE      /* Bytes - no long symbols */
   #define STACKDIFF 320
   #define CPU_ATmega4809
 
 #elif defined(__AVR_AVR128DA48__)
   #include <Flash.h>
   #define Serial Serial1
-  #define WORKSPACESIZE (2800-SDSIZE)     /* Objects (4*bytes) */
+  #define WORKSPACESIZE (2920-SDSIZE)     /* Objects (4*bytes) */
   #define FLASHWRITESIZE 16384            /* Bytes */
-  #define SYMBOLTABLESIZE 480             /* Bytes */
   #define CODESIZE 96                     /* Bytes <= 512 */
   #define STACKDIFF 320
   #define CPU_AVR128DX48
+  #define LED_BUILTIN 20
 
 #elif defined(__AVR_AVR128DB48__)
   #include <Flash.h>
   #define Serial Serial3
-  #define WORKSPACESIZE (2750-SDSIZE)     /* Objects (4*bytes) */
+  #define WORKSPACESIZE (2920-SDSIZE)     /* Objects (4*bytes) */
   #define FLASHWRITESIZE 16384            /* Bytes */
-  #define SYMBOLTABLESIZE 480             /* Bytes */
   #define CODESIZE 96                     /* Bytes <= 512 */
   #define STACKDIFF 320
   #define CPU_AVR128DX48
+  #define LED_BUILTIN 20
   
 #else
 #error "Board not supported!"
@@ -190,7 +185,7 @@ gfun_t gstreamfun (object *args) {
   #if defined(sdcardsupport)
   else if (streamtype == SDSTREAM) gfun = (gfun_t)SDread;
   #endif
-  else error2(0, PSTR("Unknown stream type"));
+  else error2(NIL, unknownstreamtype);
   return gfun;
 }
 
@@ -232,7 +227,7 @@ pfun_t pstreamfun (object *args) {
   #if defined(sdcardsupport)
   else if (streamtype == SDSTREAM) pfun = (pfun_t)SDwrite;
   #endif
-  else error2(0, PSTR("unknown stream type"));
+  else error2(NIL, unknownstreamtype);
   return pfun;
 }"#)
 
@@ -273,13 +268,13 @@ void checkanalogread (int pin) {
 
 void checkanalogwrite (int pin) {
 #if defined(__AVR_ATmega328P__)
-  if (!((pin>=2 && pin<=13) || pin==4 || pin==7 || pin==8)) error(ANALOGWRITE, invalidpin, number(pin));
+  if (!(pin==3 || pin==5 || pin==6 || (pin>=9 && pin<=11))) error(ANALOGWRITE, invalidpin, number(pin));
 #elif defined(__AVR_ATmega2560__)
   if (!((pin>=2 && pin<=13) || (pin>=44 && pin<=46))) error(ANALOGWRITE, invalidpin, number(pin));
 #elif defined(__AVR_ATmega1284P__)
   if (!(pin==3 || pin==4 || pin==6 || pin==7 || (pin>=12 && pin<=15))) error(ANALOGWRITE, invalidpin, number(pin));
 #elif defined(ARDUINO_AVR_NANO_EVERY)
-  if (!(pin==3 || (pin>=5 && pin<=6) || (pin>=9 && pin<=11))) error(ANALOGWRITE, invalidpin, number(pin));
+  if (!(pin==3 || pin==5 || pin==6 || (pin>=9 && pin<=11))) error(ANALOGWRITE, invalidpin, number(pin));
 #elif defined(ARDUINO_AVR_ATmega4809)  /* MegaCoreX core */
   if (!((pin>=16 && pin<=19) || (pin>=38 && pin<=39))) error(ANALOGWRITE, invalidpin, number(pin));
 #elif defined(__AVR_ATmega4809__)
@@ -288,7 +283,6 @@ void checkanalogwrite (int pin) {
   if (!((pin>=4 && pin<=5) || (pin>=8 && pin<=19) || (pin>=38 && pin<=39))) error(ANALOGREAD, invalidpin, number(pin));
 #endif
 }"#)
-
 
 (defparameter *note-avr* #"
 // Note
@@ -460,24 +454,41 @@ ISR(INT7_vect) { interrupt(7); }
 #endif"#)
 
 (defparameter *keywords-avr*
-  '(("CPU_ATmega328P"
-     ((DIGITALWRITE HIGH LOW)
-      (PINMODE INPUT INPUT_PULLUP OUTPUT)
-      (ANALOGREFERENCE DEFAULT INTERNAL EXTERNAL)))
+  '((nil
+     ((NIL LED_BUILTIN)
+      (DIGITALWRITE HIGH LOW)))
+    ("CPU_ATmega328P"
+     ((PINMODE INPUT INPUT_PULLUP OUTPUT)
+      (ANALOGREFERENCE DEFAULT INTERNAL EXTERNAL)
+      #+ignore
+      (REGISTER PORTB DDRB PINB PORTC DDRC PINC PORTD DDRD PIND)
+      ))
     ("CPU_ATmega1284P"
-     ((DIGITALWRITE HIGH LOW)
-      (PINMODE INPUT INPUT_PULLUP OUTPUT)
-      (ANALOGREFERENCE DEFAULT INTERNAL1V1 INTERNAL2V56 EXTERNAL)))
+     ((PINMODE INPUT INPUT_PULLUP OUTPUT)
+      (ANALOGREFERENCE DEFAULT INTERNAL1V1 INTERNAL2V56 EXTERNAL)
+      #+ignore
+      (REGISTER PORTA DDRA PINA PORTB DDRB PINB PORTC DDRC PINC PORTD DDRD PIND)
+      ))
     ("CPU_ATmega2560"
-     ((DIGITALWRITE HIGH LOW)
-      (PINMODE INPUT INPUT_PULLUP OUTPUT)
-      (ANALOGREFERENCE DEFAULT INTERNAL1V1 INTERNAL2V56 EXTERNAL)))
+     ((PINMODE INPUT INPUT_PULLUP OUTPUT)
+      (ANALOGREFERENCE DEFAULT INTERNAL1V1 INTERNAL2V56 EXTERNAL)
+      #+ignore
+      (REGISTER PORTA DDRA PINA PORTB DDRB PINB PORTC DDRC PINC PORTD DDRD PIND 
+                PORTE DDRE PINE PORTF DDRF PINF PORTG DDRG PING PORTJ DDRJ PINJ)
+      ))
     ("CPU_ATmega4809"
-     ((DIGITALWRITE HIGH LOW)
-      (PINMODE INPUT INPUT_PULLUP OUTPUT)
-      (ANALOGREFERENCE DEFAULT INTERNAL VDD INTERNAL0V55 INTERNAL1V1 INTERNAL1V5 INTERNAL2V5 INTERNAL4V3 EXTERNAL)))
+     ((PINMODE INPUT INPUT_PULLUP OUTPUT)
+      (ANALOGREFERENCE DEFAULT INTERNAL VDD INTERNAL0V55 INTERNAL1V1 INTERNAL1V5 INTERNAL2V5 INTERNAL4V3 EXTERNAL)
+      #+ignore
+      (REGISTER  PORTA_DIR PORTA_OUT PORTA_IN PORTB_DIR PORTB_OUT PORTB_IN PORTC_DIR PORTC_OUT PORTC_IN
+                 PORTD_DIR PORTD_OUT PORTD_IN PORTE_DIR PORTE_OUT PORTE_IN PORTF_DIR PORTF_OUT PORTF_IN)
+      ))
     ("CPU_AVR128DX48"
-     ((DIGITALWRITE HIGH LOW)
-      (PINMODE INPUT INPUT_PULLUP OUTPUT)
+     ((PINMODE INPUT INPUT_PULLUP OUTPUT)
       (ANALOGREFERENCE DEFAULT VDD INTERNAL1V024 INTERNAL2V048 INTERNAL4V096 INTERNAL2V5 EXTERNAL)
-      (ANALOGREAD ADC_DAC0 ADC_TEMPERATURE)))))
+      (ANALOGREAD ADC_DAC0 ADC_TEMPERATURE)
+      #+ignore
+      (REGISTER  PORTA_DIR PORTA_OUT PORTA_IN PORTB_DIR PORTB_OUT PORTB_IN PORTC_DIR PORTC_OUT PORTC_IN
+                 PORTD_DIR PORTD_OUT PORTD_IN PORTE_DIR PORTE_OUT PORTE_IN PORTF_DIR PORTF_OUT PORTF_IN
+                 PORTG_DIR PORTG_OUT PORTG_IN)
+      ))))

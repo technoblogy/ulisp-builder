@@ -25,7 +25,15 @@
       (LAMBDA nil 0 127 nil)
       (LET "let" 0 127 nil)
       (LETSTAR "let*" 0 127 nil)
-      (CLOSURE nil 0 127 nil)))
+      (CLOSURE nil 0 127 nil)
+
+      #+avr
+      (PSTAR "*p*" 0 127 nil)
+
+      #-avr
+      (PSTAR "*pc*" 0 127 nil)
+
+      ))
 
     ("Special forms"
      ((SPECIAL_FORMS "" 0 0 nil)
@@ -58,14 +66,14 @@ object *sp_defun (object *args, object *env) {
   checkargs(DEFUN, args);
   object *var = first(args);
   if (!symbolp(var)) error(DEFUN, notasymbol, var);
-  object *val = cons(symbol(LAMBDA), cdr(args));
+  object *val = cons(bsymbol(LAMBDA), cdr(args));
   object *pair = value(var->name,GlobalEnv);
   if (pair != NULL) cdr(pair) = val;
   else push(cons(var, val), GlobalEnv);
   return var;
 }"#)
 
-      (DEFVAR nil 1 2 #"
+      (DEFVAR nil 1 3 #"
 object *sp_defvar (object *args, object *env) {
   checkargs(DEFVAR, args);
   object *var = first(args);
@@ -185,7 +193,7 @@ object *sp_pop (object *args, object *env) {
   incfdecf() - Increments/decrements a place by 'increment', and returns the result.
   Calls place() to get a pointer to the numeric value.
 */
-object *incfdecf (symbol_t name, object *args, int increment, object *env) {
+object *incfdecf (builtin_t name, object *args, int increment, object *env) {
   checkargs(name, args); 
   object **loc = place(name, first(args), env);
   int result = checkinteger(name, *loc);
@@ -207,7 +215,7 @@ object *incfdecf (symbol_t name, object *args, int increment, object *env) {
   Calls incfdecf().
 */
 object *sp_incf (object *args, object *env) {
-  incfdecf(INCF, args, 1, env);
+  return incfdecf(INCF, args, 1, env);
 }"#)
 
        #+float
@@ -270,7 +278,7 @@ object *sp_incf (object *args, object *env) {
   Calls incfdecf().
 */
 object *sp_decf (object *args, object *env) {
-  incfdecf(DECF, args, -1, env);
+  return incfdecf(DECF, args, -1, env);
 }"#)
 
     #+float
@@ -471,6 +479,25 @@ object *sp_formillis (object *args, object *env) {
   return nil;
 }")
 
+      (TIME nil 1 1 #"
+object *sp_time (object *args, object *env) {
+  unsigned long start = millis();
+  object *result = eval(first(args), env);
+  unsigned long elapsed = millis() - start;
+  printobject(result, pserial);
+  pfstring(PSTR("\nTime: "), pserial);
+  if (elapsed < 1000) {
+    pint(elapsed, pserial);
+    pfstring(PSTR(" ms\n"), pserial);
+  } else {
+    elapsed = elapsed+50;
+    pint(elapsed/1000, pserial);
+    pserial('.'); pint((elapsed/100)%10, pserial);
+    pfstring(PSTR(" s\n"), pserial);
+  }
+  return bsymbol(NOTHING);
+}"#)
+
       #-avr
       (WITHOUTPUTTOSTRING "with-output-to-string" 1 127 "
 object *sp_withoutputtostring (object *args, object *env) {
@@ -481,10 +508,10 @@ object *sp_withoutputtostring (object *args, object *env) {
   object *pair = cons(var, stream(STRINGSTREAM, 0));
   push(pair,env);
   object *string = startstring(WITHOUTPUTTOSTRING);
+  push(string, GCStack);
   object *forms = cdr(args);
   eval(tf_progn(forms,env), env);
-  string->cdr = GlobalString;
-  GlobalString = NULL;
+  pop(GCStack);
   return string;
 }")
 
@@ -506,8 +533,33 @@ object *sp_withserial (object *args, object *env) {
   return result;
 }")
 
-      #+arm
-      (WITHI2C "with-i2c" 1 127 "
+      #-arm
+     (WITHI2C "with-i2c" 1 127 "
+object *sp_withi2c (object *args, object *env) {
+  object *params = first(args);
+  if (params == NULL) error2(WITHI2C, nostream);
+  object *var = first(params);
+  int address = checkinteger(WITHI2C, eval(second(params), env));
+  params = cddr(params);
+  if (address == 0 && params != NULL) params = cdr(params); // Ignore port
+  int read = 0; // Write
+  I2CCount = 0;
+  if (params != NULL) {
+    object *rw = eval(first(params), env);
+    if (integerp(rw)) I2CCount = rw->integer;
+    read = (rw != NULL);
+  }
+  I2Cinit(1); // Pullups
+  object *pair = cons(var, (I2Cstart(address, read)) ? stream(I2CSTREAM, address) : nil);
+  push(pair,env);
+  object *forms = cdr(args);
+  object *result = eval(tf_progn(forms,env), env);
+  I2Cstop(read);
+  return result;
+}")
+
+     #+arm
+     (WITHI2C "with-i2c" 1 127 "
 object *sp_withi2c (object *args, object *env) {
   object *params = first(args);
   if (params == NULL) error2(WITHI2C, nostream);
@@ -539,30 +591,7 @@ object *sp_withi2c (object *args, object *env) {
   return result;
 }")
 
-      #-arm
-      (WITHI2C "with-i2c" 1 127 "
-object *sp_withi2c (object *args, object *env) {
-  object *params = first(args);
-  if (params == NULL) error2(WITHI2C, nostream);
-  object *var = first(params);
-  int address = checkinteger(WITHI2C, eval(second(params), env));
-  params = cddr(params);
-  if (address == 0) params = cdr(params); // Ignore port
-  int read = 0; // Write
-  I2CCount = 0;
-  if (params != NULL) {
-    object *rw = eval(first(params), env);
-    if (integerp(rw)) I2CCount = rw->integer;
-    read = (rw != NULL);
-  }
-  I2Cinit(1); // Pullups
-  object *pair = cons(var, (I2Cstart(address, read)) ? stream(I2CSTREAM, address) : nil);
-  push(pair,env);
-  object *forms = cdr(args);
-  object *result = eval(tf_progn(forms,env), env);
-  I2Cstop(read);
-  return result;
-}")
+      
 
       #+(or avr esp)
       (WITHSPI "with-spi" 1 127 #"
@@ -577,7 +606,7 @@ object *sp_withspi (object *args, object *env) {
   digitalWrite(pin, HIGH);
   params = cdr(params);
   int clock = 4000, mode = SPI_MODE0; // Defaults
-  BitOrder bitorder = MSBFIRST;
+  int bitorder = MSBFIRST;
   if (params != NULL) {
     clock = checkinteger(WITHSPI, eval(car(params), env));
     params = cdr(params);
@@ -706,11 +735,13 @@ object *sp_withsdcard (object *args, object *env) {
   int oflag = O_READ;
   if (mode == 1) oflag = O_RDWR | O_CREAT | O_APPEND; else if (mode == 2) oflag = O_RDWR | O_CREAT | O_TRUNC;
   if (mode >= 1) {
-    SDpfile = SD.open(MakeFilename(filename), oflag);
-    if (!SDpfile) error2(WITHSDCARD, PSTR("problem writing to SD card"));
+    char buffer[BUFFERSIZE];
+    SDpfile = SD.open(MakeFilename(filename, buffer), oflag);
+    if (!SDpfile) error2(WITHSDCARD, PSTR("problem writing to SD card or invalid filename"));
   } else {
-    SDgfile = SD.open(MakeFilename(filename), oflag);
-    if (!SDgfile) error2(WITHSDCARD, PSTR("problem reading from SD card"));
+    char buffer[BUFFERSIZE];
+    SDgfile = SD.open(MakeFilename(filename, buffer), oflag);
+    if (!SDgfile) error2(WITHSDCARD, PSTR("problem reading from SD card or invalid filename"));
   }
   object *pair = cons(var, stream(SDSTREAM, 1));
   push(pair,env);
@@ -739,11 +770,13 @@ object *sp_withsdcard (object *args, object *env) {
   const char *oflag = FILE_READ;
   if (mode == 1) oflag = FILE_APPEND; else if (mode == 2) oflag = FILE_WRITE;
   if (mode >= 1) {
-    SDpfile = SD.open(MakeFilename(filename), oflag);
-    if (!SDpfile) error2(WITHSDCARD, PSTR("problem writing to SD card"));
+    char buffer[BUFFERSIZE];
+    SDpfile = SD.open(MakeFilename(filename, buffer), oflag);
+    if (!SDpfile) error2(WITHSDCARD, PSTR("problem writing to SD card or invalid filename"));
   } else {
-    SDgfile = SD.open(MakeFilename(filename), oflag);
-    if (!SDgfile) error2(WITHSDCARD, PSTR("problem reading from SD card"));
+    char buffer[BUFFERSIZE];
+    SDgfile = SD.open(MakeFilename(filename, buffer), oflag);
+    if (!SDgfile) error2(WITHSDCARD, PSTR("problem reading from SD card or invalid filename"));
   }
   object *pair = cons(var, stream(SDSTREAM, 1));
   push(pair,env);
@@ -800,6 +833,7 @@ object *sp_withlcd (object *args, object *env) {
 object *sp_withclient (object *args, object *env) {
   object *params = first(args);
   object *var = first(params);
+  char buffer[BUFFERSIZE];
   params = cdr(params);
   int n;
   if (params == NULL) {
@@ -810,7 +844,7 @@ object *sp_withclient (object *args, object *env) {
     object *address = eval(first(params), env);
     object *port = eval(second(params), env);
     int success;
-    if (stringp(address)) success = client.connect(cstringbuf(address), checkinteger(WITHCLIENT, port));
+    if (stringp(address)) success = client.connect(cstring(address, buffer, BUFFERSIZE), checkinteger(WITHCLIENT, port));
     else if (integerp(address)) success = client.connect(address->integer, checkinteger(WITHCLIENT, port));
     else error2(WITHCLIENT, PSTR("invalid address"));
     if (!success) return nil;
@@ -835,11 +869,10 @@ object *sp_defcode (object *args, object *env) {
   setflag(NOESC);
   checkargs(DEFCODE, args);
   object *var = first(args);
-  object *params = second(args);
   if (!symbolp(var)) error(DEFCODE, PSTR("not a symbol"), var);
   
   // Make *p* a local variable for program counter
-  object *pcpair = cons(newsymbol(pack40((char*)"*p*")), number(0));
+  object *pcpair = cons(bsymbol(PSTAR), number(0));
   push(pcpair,env);
   args = cdr(args);
   
@@ -862,7 +895,7 @@ object *sp_defcode (object *args, object *env) {
   object *globals = GlobalEnv;
   while (globals != NULL) {
     object *pair = car(globals);
-    if (pair != NULL && car(pair) != var) { // Exclude me if I already exist
+    if (pair != NULL && car(pair) != var && consp(cdr(pair))) { // Exclude me if I already exist
       object *codeid = second(pair);
       if (codeid->type == CODE) {
         codesize = codesize + endblock(codeid) - startblock(codeid);
@@ -882,7 +915,7 @@ object *sp_defcode (object *args, object *env) {
     globals = GlobalEnv;
     while (globals != NULL) {
       object *pair = car(globals);
-      if (pair != NULL && car(pair) != var) { // Exclude me if I already exist
+      if (pair != NULL && car(pair) != var && consp(cdr(pair))) { // Exclude me if I already exist
         object *codeid = second(pair);
         if (codeid->type == CODE) {
           if (startblock(codeid) < smallest && startblock(codeid) >= origin) {
@@ -951,15 +984,17 @@ object *sp_defcode (object *args, object *env) {
   int regn = 0;
   while (params != NULL) {
     if (regn > 3) error(DEFCODE, PSTR("more than 4 parameters"), var);
-    object *regpair = cons(car(params), newsymbol((18*40+30+regn)*2560000)); // Symbol for r0 etc
+    object *regpair = cons(car(params), bsymbol((builtin_t)((toradix40('r')*40+toradix40('0')+regn)*2560000))); // Symbol for r0 etc
     push(regpair,env);
     regn++;
     params = cdr(params);
   }
-  
-  // Make *pc* a local variable
-  object *pcpair = cons(newsymbol(pack40((char*)"*pc*\0\0")), number(0));
+
+  // Make *pc* a local variable for program counter
+  object *pcpair = cons(bsymbol(PSTAR), number(0));
   push(pcpair,env);
+
+
   args = cdr(args);
   
   // Make labels into local variables
@@ -1055,14 +1090,14 @@ object *sp_defcode (object *args, object *env) {
   int regn = 0;
   while (params != NULL) {
     if (regn > 3) error(DEFCODE, PSTR("more than 4 parameters"), var);
-    object *regpair = cons(car(params), newsymbol((1*40+30+regn)*2560000)); // Symbol for a0 etc
+    object *regpair = cons(car(params), bsymbol((builtin_t)((toradix40('a')*40+toradix40('0')+regn)*2560000))); // Symbol for a0 etc
     push(regpair,env);
     regn++;
     params = cdr(params);
   }
   
   // Make *pc* a local variable
-  object *pcpair = cons(newsymbol(pack40((char*)"*pc*\0\0")), number(0));
+  object *pcpair = cons(bsymbol(PSTAR), number(0));
   push(pcpair,env);
   args = cdr(args);
   
@@ -1142,7 +1177,7 @@ object *sp_defcode (object *args, object *env) {
   return var;
 }"#)) "sp")
 
-("Tail-recursive forms"
+    ("Tail-recursive forms"
      ((TAIL_FORMS "" 0 0 nil)
       (PROGN nil 0 127 "
 object *tf_progn (object *args, object *env) {
@@ -1309,24 +1344,107 @@ object *fn_eq (object *args, object *env) {
 }")))
 
     ("List functions"
-     ((CAR nil 1 1 cxr)
+
+     ((CAR nil 1 1 #"
+object *fn_car (object *args, object *env) {
+  (void) env;
+  return carx(first(args));
+}"#)
+
       (FIRST nil 1 1 (car))
-      (CDR nil 1 1 cxr)
+
+      (CDR nil 1 1 #"
+object *fn_cdr (object *args, object *env) {
+  (void) env;
+  return cdrx(first(args));
+}"#)
+
       (REST nil 1 1 (cdr))
-      (CAAR nil 1 1 cxr)
-      (CADR nil 1 1 cxr)
+
+      (CAAR nil 1 1 #"
+object *cxxxr (object *args, uint8_t pattern) {
+  object *arg = first(args);
+  while (pattern != 1) {
+    if ((pattern & 1) == 0) arg = carx(arg); else arg = cdrx(arg);
+    pattern = pattern>>1;
+  }
+  return arg;
+}
+
+object *fn_caar (object *args, object *env) {
+  (void) env;
+  return cxxxr(args, 0b100);
+}"#)
+
+      (CADR nil 1 1 #"
+object *fn_cadr (object *args, object *env) {
+  (void) env;
+  return cxxxr(args, 0b101);
+}"#)
+
       (SECOND nil 1 1 (cadr))
-      (CDAR nil 1 1 cxr)
-      (CDDR nil 1 1 cxr)
-      (CAAAR nil 1 1 cxr)
-      (CAADR nil 1 1 cxr)
-      (CADAR nil 1 1 cxr)
-      (CADDR nil 1 1 cxr)
+
+      (CDAR nil 1 1 #"
+object *fn_cdar (object *args, object *env) {
+  (void) env;
+  return cxxxr(args, 0b110);
+}"#)
+
+      (CDDR nil 1 1 #"
+object *fn_cddr (object *args, object *env) {
+  (void) env;
+  return cxxxr(args, 0b111);
+}"#)
+
+      (CAAAR nil 1 1 #"
+object *fn_caaar (object *args, object *env) {
+  (void) env;
+  return cxxxr(args, 0b1000);
+}"#)
+
+      (CAADR nil 1 1 #"
+object *fn_caadr (object *args, object *env) {
+  (void) env;
+  return cxxxr(args, 0b1001);;
+}"#)
+
+      (CADAR nil 1 1 #"
+object *fn_cadar (object *args, object *env) {
+  (void) env;
+  return cxxxr(args, 0b1010);
+}"#)
+
+      (CADDR nil 1 1 #"
+object *fn_caddr (object *args, object *env) {
+  (void) env;
+  return cxxxr(args, 0b1011);
+}"#)
+
       (THIRD nil 1 1 (caddr))
-      (CDAAR nil 1 1 cxr)
-      (CDADR nil 1 1 cxr)
-      (CDDAR nil 1 1 cxr)
-      (CDDDR nil 1 1 cxr)
+
+      (CDAAR nil 1 1 #"
+object *fn_cdaar (object *args, object *env) {
+  (void) env;
+  return cxxxr(args, 0b1100);
+}"#)
+
+      (CDADR nil 1 1 #"
+object *fn_cdadr (object *args, object *env) {
+  (void) env;
+  return cxxxr(args, 0b1101);
+}"#)
+
+      (CDDAR nil 1 1 #"
+object *fn_cddar (object *args, object *env) {
+  (void) env;
+  return cxxxr(args, 0b1110);
+}"#)
+
+      (CDDDR nil 1 1 #"
+object *fn_cdddr (object *args, object *env) {
+  (void) env;
+  return cxxxr(args, 0b1111);
+}"#)
 
       #+avr
       (LENGTH nil 1 1 #"
@@ -1376,8 +1494,8 @@ object *fn_makearray (object *args, object *env) {
   args = cdr(args);
   while (args != NULL && cdr(args) != NULL) {
     object *var = first(args);
-    if (issymbol(first(args), INITIALELEMENT)) def = second(args);
-    else if (issymbol(first(args), ELEMENTTYPE) && issymbol(second(args), BIT)) bitp = true;
+    if (isbuiltin(first(args), INITIALELEMENT)) def = second(args);
+    else if (isbuiltin(first(args), ELEMENTTYPE) && isbuiltin(second(args), BIT)) bitp = true;
     else error(MAKEARRAY, PSTR("argument not recognised"), var); 
     args = cddr(args);
   }
@@ -1529,7 +1647,7 @@ void mapcanfun (object *result, object **tail) {
   }
 }
 
-object *mapcarcan (symbol_t name, object *args, object *env, mapfun_t fun) {
+object *mapcarcan (builtin_t name, object *args, object *env, mapfun_t fun) {
   object *function = first(args);
   args = cdr(args);
   object *params = cons(NULL, NULL);
@@ -1914,7 +2032,12 @@ object *fn_abs (object *args, object *env) {
 }"#)
 
       #-float
-      (RANDOM nil 1 1 numeric1)
+      (RANDOM nil 1 1 #"
+object *fn_random (object *args, object *env) {
+  (void) env;
+  int arg = checkinteger(RANDOM, first(args));
+  return number(pseudoRandom(arg));
+}"#)
 
       #+float
       (RANDOM nil 1 1 #"
@@ -1992,7 +2115,10 @@ object *fn_minfn (object *args, object *env) {
      (
 
       #-float
-      (NOTEQ "/=" 1 127 "
+      (NOTEQ "/=" 1 127 #"
+/*
+  fn_noteq - this one is a special case because every element has to be compared with every other element
+*/
 object *fn_noteq (object *args, object *env) {
   (void) env;
   while (args != NULL) {   
@@ -2007,10 +2133,27 @@ object *fn_noteq (object *args, object *env) {
     args = cdr(args);
   }
   return tee;
-}")
+}
+
+object *compare (builtin_t name, object *args, bool lt, bool gt, bool eq) {
+  int arg1 = checkinteger(name, first(args));
+  args = cdr(args);
+  while (args != NULL) {
+    int arg2 = checkinteger(name, first(args));
+    if (!lt && (arg1 < arg2)) return nil;
+    if (!eq && (arg1 == arg2)) return nil;
+    if (!gt && (arg1 > arg2)) return nil;
+    arg1 = arg2;
+    args = cdr(args);
+  }
+  return tee;
+}"#)
 
       #+float
       (NOTEQ "/=" 1 127 #"
+/*
+  fn_noteq - this one is a special case because every element has to be compared with every other element
+*/
 object *fn_noteq (object *args, object *env) {
   (void) env;
   while (args != NULL) {
@@ -2027,13 +2170,52 @@ object *fn_noteq (object *args, object *env) {
     args = cdr(args);
   }
   return tee;
+}
+
+object *compare (builtin_t name, object *args, bool lt, bool gt, bool eq) {
+  object *arg1 = first(args);
+  args = cdr(args);
+  while (args != NULL) {
+    object *arg2 = first(args);
+    if (integerp(arg1) && integerp(arg2)) {
+      if (!lt && ((arg1->integer) < (arg2->integer))) return nil;
+      if (!eq && ((arg1->integer) == (arg2->integer))) return nil;
+      if (!gt && ((arg1->integer) > (arg2->integer))) return nil;
+    } else {
+      if (!lt && (checkintfloat(name, arg1) < checkintfloat(name, arg2))) return nil;
+      if (!eq && (checkintfloat(name, arg1) == checkintfloat(name, arg2))) return nil;
+      if (!gt && (checkintfloat(name, arg1) > checkintfloat(name, arg2))) return nil;
+    }
+    arg1 = arg2;
+    args = cdr(args);
+  }
+  return tee;
 }"#)
 
-      (NUMEQ "=" 1 127 comparison)
-      (LESS "<" 1 127 comparison)
-      (LESSEQ "<=" 1 127 comparison)
-      (GREATER ">" 1 127 comparison)
-      (GREATEREQ ">=" 1 127 comparison)
+      (NUMEQ "=" 1 127 #"
+object *fn_numeq (object *args, object *env) {
+  return compare(NUMEQ, args, false, false, true);
+}"#)
+
+      (LESS "<" 1 127 #"
+object *fn_less (object *args, object *env) {
+  return compare(LESS, args, true, false, false);
+}"#)
+
+      (LESSEQ "<=" 1 127 #"
+object *fn_lesseq (object *args, object *env) {
+  return compare(LESSEQ, args, true, false, true);
+}"#)
+
+      (GREATER ">" 1 127 #"
+object *fn_greater (object *args, object *env) {
+  return compare(GREATER, args, false, true, false);
+}"#)
+
+      (GREATEREQ ">=" 1 127 #"
+object *fn_greatereq (object *args, object *env) {
+  return compare(GREATEREQ, args, false, true, true);
+}"#)
 
       #-float
       (PLUSP nil 1 1 "
@@ -2231,7 +2413,7 @@ object *fn_char (object *args, object *env) {
   object *arg = first(args);
   if (!stringp(arg)) error(CHAR, notastring, arg);
   char c = nthchar(arg, checkinteger(CHAR, second(args)));
-  if (c == 0) error2(CHAR, PSTR("index out of range"));
+  if (c == 0) error2(CHAR, indexrange);
   return character(c);
 }"#)
 
@@ -2262,9 +2444,9 @@ object *fn_stringp (object *args, object *env) {
 }")
 
       (STRINGEQ "string=" 2 2 #"
-bool stringcompare (symbol_t name, object *args, bool lt, bool gt, bool eq) {
-  object *arg1 = first(args); if (!stringp(arg1)) error(name, notastring, arg1);
-  object *arg2 = second(args); if (!stringp(arg2)) error(name, notastring, arg2);
+bool stringcompare (builtin_t name, object *args, bool lt, bool gt, bool eq) {
+  object *arg1 = checkstring(name, first(args));
+  object *arg2 = checkstring(name, second(args));
   arg1 = cdr(arg1);
   arg2 = cdr(arg2);
   while ((arg1 != NULL) || (arg2 != NULL)) {
@@ -2325,90 +2507,57 @@ object *fn_sort (object *args, object *env) {
 
       (STRINGFN "string" 1 1 #"
 object *fn_stringfn (object *args, object *env) {
-  (void) env;
-  object *arg = first(args);
-  int type = arg->type;
-  if (type == STRING) return arg;
-  object *obj = myalloc();
-  obj->type = STRING;
-  if (type == CHARACTER) {
-    object *cell = myalloc();
-    cell->car = NULL;
-    uint8_t shift = (sizeof(int)-1)*8;
-    cell->chars = (arg->chars)<<shift;
-    obj->cdr = cell;
-  } else if (type == SYMBOL) {
-    char *s = symbolname(arg->name);
-    char ch = *s++;
-    object *head = NULL;
-    int chars = 0;
-    while (ch) {
-      if (ch == '\\') ch = *s++;
-      buildstring(ch, &chars, &head);
-      ch = *s++;
-    }
-    obj->cdr = head;
-  } else error(STRINGFN, PSTR("can't convert to string"), arg);
-  return obj;
+  return fn_princtostring(args, env);
 }"#)
 
     (CONCATENATE nil 1 127 #"
 object *fn_concatenate (object *args, object *env) {
   (void) env;
   object *arg = first(args);
-  if (arg->name != STRINGFN) error2(CONCATENATE, PSTR("only supports strings"));
+  if (builtin(arg->name) != STRINGFN) error2(CONCATENATE, PSTR("only supports strings"));
   args = cdr(args);
-  object *result = myalloc();
-  result->type = STRING;
-  object *head = NULL;
-  int chars = 0;
+  object *result = newstring();
+  object *tail = result;
   while (args != NULL) {
-    object *obj = first(args);
-    if (!stringp(obj)) error(CONCATENATE, notastring, obj);
+    object *obj = checkstring(CONCATENATE, first(args));
     obj = cdr(obj);
     while (obj != NULL) {
       int quad = obj->chars;
       while (quad != 0) {
          char ch = quad>>((sizeof(int)-1)*8) & 0xFF;
-         buildstring(ch, &chars, &head);
+         buildstring(ch, &tail);
          quad = quad<<8;
       }
       obj = car(obj);
     }
     args = cdr(args);
   }
-  result->cdr = head;
   return result;
 }"#)
 
     (SUBSEQ nil 2 3 #"
 object *fn_subseq (object *args, object *env) {
   (void) env;
-  object *arg = first(args);
-  if (!stringp(arg)) error(SUBSEQ, notastring, arg);
+  object *arg = checkstring(SUBSEQ, first(args));
   int start = checkinteger(SUBSEQ, second(args));
   if (start < 0) error(SUBSEQ, indexnegative, second(args));
   int end;
   args = cddr(args);
   if (args != NULL) end = checkinteger(SUBSEQ, car(args)); else end = stringlength(arg);
-  object *result = myalloc();
-  result->type = STRING;
-  object *head = NULL;
-  int chars = 0;
+  object *result = newstring();
+  object *tail = result;
   for (int i=start; i<end; i++) {
     char ch = nthchar(arg, i);
-    if (ch == 0) error2(SUBSEQ, PSTR("index out of range"));
-    buildstring(ch, &chars, &head);
+    if (ch == 0) error2(SUBSEQ, indexrange);
+    buildstring(ch, &tail);
   }
-  result->cdr = head;
   return result;
 }"#)
 
     (READFROMSTRING "read-from-string" 1 1 #"
 object *fn_readfromstring (object *args, object *env) {
   (void) env;
-  object *arg = first(args);
-  if (!stringp(arg)) error(READFROMSTRING, notastring, arg);
+  object *arg = checkstring(READFROMSTRING, first(args));
   GlobalString = arg;
   GlobalStringIndex = 0;
   return read(gstr);
@@ -2420,7 +2569,6 @@ object *fn_princtostring (object *args, object *env) {
   object *arg = first(args);
   object *obj = startstring(PRINCTOSTRING);
   prin1object(arg, pstr);
-  obj->cdr = GlobalString;
   return obj;
 }"#)
 
@@ -2430,7 +2578,6 @@ object *fn_prin1tostring (object *args, object *env) {
   object *arg = first(args);
   object *obj = startstring(PRIN1TOSTRING);
   printobject(arg, pstr);
-  obj->cdr = GlobalString;
   return obj;
 }"#)))
 
@@ -2478,7 +2625,7 @@ object *fn_eval (object *args, object *env) {
 object *fn_globals (object *args, object *env) {
   (void) args;
   if (GlobalEnv == NULL) return nil;
-  return fn_mapcar(cons(symbol(CAR),cons(GlobalEnv,nil)), env);
+  return fn_mapcar(cons(bsymbol(CAR),cons(GlobalEnv,nil)), env);
 }")
 
       (LOCALS nil 0 0 "
@@ -2495,8 +2642,6 @@ object *fn_locals (object *args, object *env) {
 /*
   (makunbound symbol)
   Removes the value of the symbol from GlobalEnv and returns the symbol.
-  Note: doesn't remove the symbol from the symbol table, because this would cause problems
-  if there are references to the symbol elsewhere in the code.
 */
 object *fn_makunbound (object *args, object *env) {
   (void) env;
@@ -2732,11 +2877,13 @@ object *fn_watchdog (object *args, object *env) {
       #+(or avr arm esp riscv)
       (PINMODE nil 2 2 "
 object *fn_pinmode (object *args, object *env) {
-  (void) env;
-  int pin = checkinteger(PINMODE, first(args));
-  PinMode pm = INPUT;
-  object *arg = second(args);
-  if (keywordp(arg)) pm = (PinMode)checkkeyword(PINMODE, arg);
+  (void) env; int pin;
+  object *arg = first(args);
+  if (keywordp(arg)) pin = checkkeyword(NIL, arg);
+  else pin = checkinteger(PINMODE, first(args));
+  int pm = INPUT;
+  arg = second(args);
+  if (keywordp(arg)) pm = checkkeyword(PINMODE, arg);
   else if (integerp(arg)) {
     int mode = arg->integer;
     if (mode == 1) pm = OUTPUT; else if (mode == 2) pm = INPUT_PULLUP;
@@ -2776,8 +2923,11 @@ object *fn_digitalread (object *args, object *env) {
       (DIGITALWRITE nil 2 2 "
 object *fn_digitalwrite (object *args, object *env) {
   (void) env;
-  int pin = checkinteger(DIGITALWRITE, first(args));
-  object *arg = second(args);
+  int pin;
+  object *arg = first(args);
+  if (keywordp(arg)) pin = checkkeyword(NIL, arg);
+  else pin = checkinteger(DIGITALWRITE, arg);
+  arg = second(args);
   int mode;
   if (keywordp(arg)) mode = checkkeyword(DIGITALWRITE, arg);
   else if (integerp(arg)) mode = arg->integer ? HIGH : LOW;
@@ -2813,7 +2963,7 @@ object *fn_analogreference (object *args, object *env) {
 object *fn_analogreference (object *args, object *env) {
   (void) env;
   object *arg = first(args);
-  #if defined(ARDUINO_TEENSY40) || defined(ARDUINO_TEENSY41) || defined(MAX32620)
+  #if defined(ARDUINO_TEENSY40) || defined(ARDUINO_TEENSY41) || defined(MAX32620) || defined(ARDUINO_RASPBERRY_PI_PICO)
   error2(ANALOGREFERENCE, PSTR("not supported"));
   #else
   analogReference((eAnalogReference)checkkeyword(ANALOGREFERENCE, arg));
@@ -2862,7 +3012,10 @@ object *fn_analogreadresolution (object *args, object *env) {
       (ANALOGWRITE nil 2 2 #"
 object *fn_analogwrite (object *args, object *env) {
   (void) env;
-  int pin = checkinteger(ANALOGWRITE, first(args));
+  int pin;
+  object *arg = first(args);
+  if (keywordp(arg)) pin = checkkeyword(NIL, arg);
+  else pin = checkinteger(ANALOGWRITE, arg);
   checkanalogwrite(pin);
   object *value = second(args);
   analogWrite(pin, checkinteger(ANALOGWRITE, value));
@@ -2949,6 +3102,32 @@ object *fn_note (object *args, object *env) {
   } else nonote(pin);
   return nil;
 }"#)
+      
+      #+(and avr ignore)
+      (REGISTER nil 1 2 #"
+object *fn_register (object *args, object *env) {
+  (void) env;
+  object *arg = first(args);
+  int addr;
+  if (keywordp(arg)) addr = checkkeyword(REGISTER, arg);
+  else if (integerp(arg)) addr = arg->integer;
+  if (cdr(args) == NULL) return number(*(volatile uint8_t *)addr);
+  (*(volatile uint8_t *)addr) = checkinteger(REGISTER, second(args));
+  return second(args);
+}"#)
+
+      #+(and (or arm esp) ignore)
+      (REGISTER nil 1 2 #"
+object *fn_register (object *args, object *env) {
+  (void) env;
+  object *arg = first(args);
+  int addr;
+  if (keywordp(arg)) addr = checkkeyword(REGISTER, arg);
+  else if (integerp(arg)) addr = arg->integer;
+  if (cdr(args) == NULL) return number(*(uint32_t *)addr);
+  (*(uint32_t *)addr) = checkinteger(REGISTER, second(args));
+  return second(args);
+}"#)
 
       #+interrupts
       (ATTACHINTERRUPT "attach-interrupt" 1 3 #"
@@ -3032,7 +3211,7 @@ object *fn_pprint (object *args, object *env) {
   pfun_t pfun = pstreamfun(cdr(args));
   pln(pfun);
   superprint(obj, 0, pfun);
-  return symbol(NOTHING);
+  return bsymbol(NOTHING);
 }"#)
 
       #+gfx
@@ -3047,7 +3226,7 @@ object *fn_pprint (object *args, object *env) {
   pln(pfun);
   superprint(obj, 0, pfun);
   ppwidth = PPWIDTH;
-  return symbol(NOTHING);
+  return bsymbol(NOTHING);
 }"#)
 
       #+avr
@@ -3061,20 +3240,20 @@ object *fn_pprintall (object *args, object *env) {
     object *var = car(pair);
     object *val = cdr(pair);
     pln(pfun);
-    if (consp(val) && symbolp(car(val)) && car(val)->name == LAMBDA) {
-      superprint(cons(symbol(DEFUN), cons(var, cdr(val))), 0, pfun);
+    if (consp(val) && symbolp(car(val)) && builtin(car(val)->name) == LAMBDA) {
+      superprint(cons(bsymbol(DEFUN), cons(var, cdr(val))), 0, pfun);
     #if defined(CODESIZE)
     } else if (consp(val) && car(val)->type == CODE) {
-      superprint(cons(symbol(DEFCODE), cons(var, cdr(val))), 0, pfun);
+      superprint(cons(bsymbol(DEFCODE), cons(var, cdr(val))), 0, pfun);
     #endif
     } else {
-      superprint(cons(symbol(DEFVAR), cons(var, cons(quote(val), NULL))), 0, pserial);
+      superprint(cons(bsymbol(DEFVAR), cons(var, cons(quote(val), NULL))), 0, pserial);
     }
     pln(pfun);
     testescape();
     globals = cdr(globals);
   }
-  return symbol(NOTHING);
+  return bsymbol(NOTHING);
 }"#)
 
     #+ignore
@@ -3116,17 +3295,17 @@ object *fn_pprintall (object *args, object *env) {
     object *var = car(pair);
     object *val = cdr(pair);
     pln(pfun);
-    if (consp(val) && symbolp(car(val)) && car(val)->name == LAMBDA) {
-      superprint(cons(symbol(DEFUN), cons(var, cdr(val))), 0, pfun);
+    if (consp(val) && symbolp(car(val)) && builtin(car(val)->name) == LAMBDA) {
+      superprint(cons(bsymbol(DEFUN), cons(var, cdr(val))), 0, pfun);
     } else {
-      superprint(cons(symbol(DEFVAR), cons(var, cons(quote(val), NULL))), 0, pserial);
+      superprint(cons(bsymbol(DEFVAR), cons(var, cons(quote(val), NULL))), 0, pserial);
     }
     pln(pfun);
     testescape();
     globals = cdr(globals);
   }
   ppwidth = PPWIDTH;
-  return symbol(NOTHING);
+  return bsymbol(NOTHING);
 }"#)
 
     #+(or riscv arm)
@@ -3143,19 +3322,19 @@ object *fn_pprintall (object *args, object *env) {
     object *var = car(pair);
     object *val = cdr(pair);
     pln(pfun);
-    if (consp(val) && symbolp(car(val)) && car(val)->name == LAMBDA) {
-      superprint(cons(symbol(DEFUN), cons(var, cdr(val))), 0, pfun);
+    if (consp(val) && symbolp(car(val)) && builtin(car(val)->name) == LAMBDA) {
+      superprint(cons(bsymbol(DEFUN), cons(var, cdr(val))), 0, pfun);
     } else if (consp(val) && car(val)->type == CODE) {
-      superprint(cons(symbol(DEFCODE), cons(var, cdr(val))), 0, pfun);
+      superprint(cons(bsymbol(DEFCODE), cons(var, cdr(val))), 0, pfun);
     } else {
-      superprint(cons(symbol(DEFVAR), cons(var, cons(quote(val), NULL))), 0, pserial);
+      superprint(cons(bsymbol(DEFVAR), cons(var, cons(quote(val), NULL))), 0, pserial);
     }
     pln(pfun);
     testescape();
     globals = cdr(globals);
   }
   ppwidth = PPWIDTH;
-  return symbol(NOTHING);
+  return bsymbol(NOTHING);
 }"#)))
 
     ("Format"
@@ -3177,8 +3356,7 @@ object *fn_format (object *args, object *env) {
   object *obj;
   if (output == nil) { obj = startstring(FORMAT); pfun = pstr; }
   else if (output != tee) pfun = pstreamfun(args);
-  object *formatstr = second(args);
-  if (!stringp(formatstr)) error(FORMAT, notastring, formatstr);
+  object *formatstr = checkstring(FORMAT, second(args));
   object *save = NULL;
   args = cddr(args);
   int len = stringlength(formatstr);
@@ -3227,9 +3405,9 @@ object *fn_format (object *args, object *env) {
           else if (ch2 == 'D' || ch2 == 'G') { indent(w, pad, pfun); prin1object(arg, pfun); }
           else if (ch2 == 'X' || ch2 == 'B') {
             if (integerp(arg)) {
-              uint8_t power2 = (ch2 == 'B') ? 1 : 4;
-              uint8_t hw = basewidth(arg, power2); if (width < hw) w = 0; else w = width-hw;
-              indent(w, pad, pfun); pintbase(arg->integer, power2, pfun);
+              uint8_t base = (ch2 == 'B') ? 2 : 16;
+              uint8_t hw = basewidth(arg, base); if (width < hw) w = 0; else w = width-hw;
+              indent(w, pad, pfun); pintbase(arg->integer, base, pfun);
             } else {
               indent(w, pad, pfun); prin1object(arg, pfun);
             }
@@ -3243,7 +3421,7 @@ object *fn_format (object *args, object *env) {
     }
     n++;
   }
-  if (output == nil) { obj->cdr = GlobalString; return obj; }
+  if (output == nil) return obj;
   else return nil;
 }"#)))
 
@@ -3266,8 +3444,8 @@ object *fn_require (object *args, object *env) {
   object *line = read(glibrary);
   while (line != NULL) {
     // Is this the definition we want
-    int fname = first(line)->name;
-    if ((fname == DEFUN || fname == DEFVAR) && symbolp(second(line)) && second(line)->name == arg->name) {
+    symbol_t fname = first(line)->name;
+    if ((fname == sym(DEFUN) || fname == sym(DEFVAR)) && symbolp(second(line)) && second(line)->name == arg->name) {
       eval(line, env);
       return tee;
     }
@@ -3282,13 +3460,13 @@ object *fn_listlibrary (object *args, object *env) {
   GlobalStringIndex = 0;
   object *line = read(glibrary);
   while (line != NULL) {
-    int fname = first(line)->name;
-    if (fname == DEFUN || fname == DEFVAR) {
-      pstring(symbolname(second(line)->name), pserial); pserial(' ');
+    builtin_t bname = builtin(first(line)->name);
+    if (bname == DEFUN || bname == DEFVAR) {
+      printsymbol(second(line), pserial); pserial(' ');
     }
     line = read(glibrary);
   }
-  return symbol(NOTHING);
+  return bsymbol(NOTHING);
 }"#)))
 
 #+ethernet
@@ -3320,7 +3498,7 @@ object *fn_wifisoftap (object *args, object *env) {
     object *second = first(args);
     args = cdr(args);
     int channel = 1;
-    boolean hidden = false;
+    bool hidden = false;
     if (args != NULL) {
       channel = checkinteger(WIFISOFTAP, first(args));
       args = cdr(args);

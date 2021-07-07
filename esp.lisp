@@ -5,8 +5,8 @@
 ; ESP
 
 (defparameter *header-esp*
-#"/* uLisp ESP Version 3.6 - www.ulisp.com
-   David Johnson-Davies - www.technoblogy.com - unreleased
+#"/* uLisp ESP Version 4.0 - www.ulisp.com
+   David Johnson-Davies - www.technoblogy.com - 7th July 2021
 
    Licensed under the MIT license: https://opensource.org/licenses/MIT
 */
@@ -61,41 +61,22 @@ Adafruit_SSD1306 tft(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire);
 // Platform specific settings
 
 #define WORDALIGNED __attribute__((aligned (4)))
-#define BUFFERSIZE 34  // Number of bits+2
+#define BUFFERSIZE 36  // Number of bits+4
 
 #if defined(ESP8266)
   #define WORKSPACESIZE (4000-SDSIZE)     /* Cells (8*bytes) */
   #define EEPROMSIZE 4096                 /* Bytes available for EEPROM */
-  #define SYMBOLTABLESIZE 512             /* Bytes */
   #define SDCARD_SS_PIN 10
 
 #elif defined(ESP32)
   #define WORKSPACESIZE (8000-SDSIZE)     /* Cells (8*bytes) */
   #define EEPROMSIZE 4096                 /* Bytes available for EEPROM */
-  #define SYMBOLTABLESIZE 1024            /* Bytes */
   #define analogWrite(x,y) dacWrite((x),(y))
   #define SDCARD_SS_PIN 13
 
 #else
 #error "Board not supported!"
 #endif"#)
-
-(defparameter *make-filename-esp* #"
-// Make SD card filename
-
-char *MakeFilename (object *arg) {
-  char *buffer = SymbolTop;
-  int max = maxbuffer(buffer);
-  buffer[0]='/';
-  int i = 1;
-  do {
-    char c = nthchar(arg, i-1);
-    if (c == '\0') break;
-    buffer[i++] = c;
-  } while (i<max);
-  buffer[i] = '\0';
-  return buffer;
-}"#)
 
 (defparameter *stream-interface-esp* #"
 // Streams
@@ -153,7 +134,7 @@ gfun_t gstreamfun (object *args) {
   else if (streamtype == SDSTREAM) gfun = (gfun_t)SDread;
   #endif
   else if (streamtype == WIFISTREAM) gfun = (gfun_t)WiFiread;
-  else error2(0, PSTR("unknown stream type"));
+  else error2(NIL, PSTR("unknown stream type"));
   return gfun;
 }
 
@@ -191,7 +172,7 @@ pfun_t pstreamfun (object *args) {
   else if (streamtype == GFXSTREAM) pfun = (pfun_t)gfxwrite;
   #endif
   else if (streamtype == WIFISTREAM) pfun = (pfun_t)WiFiwrite;
-  else error2(0, PSTR("unknown stream type"));
+  else error2(NIL, PSTR("unknown stream type"));
   return pfun;
 }"#)
 
@@ -251,7 +232,8 @@ void sleep (int secs) {
 
 (defparameter *keywords-esp*
   '((nil
-     ((DIGITALWRITE HIGH LOW)))
+     ((NIL LED_BUILTIN)
+      (DIGITALWRITE HIGH LOW)))
     ("ESP8266"
      ((PINMODE INPUT INPUT_PULLUP OUTPUT)))
     ("ESP32"

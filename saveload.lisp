@@ -9,24 +9,30 @@
 
 #+(or avr badge)
 #"
+/*
+  movepointer - corrects pointers to an object that has moved from 'from' to 'to'
+*/
 void movepointer (object *from, object *to) {
   for (int i=0; i<WORKSPACESIZE; i++) {
     object *obj = &Workspace[i];
     unsigned int type = (obj->type) & ~MARKBIT;
-    if (marked(obj) && (type >= STRING || type==ZZERO)) {
+    if (marked(obj) && (type >= STRING || type==ZZERO || (type == SYMBOL && longsymbolp(obj)))) {
       if (car(obj) == (object *)((uintptr_t)from | MARKBIT))
         car(obj) = (object *)((uintptr_t)to | MARKBIT);
       if (cdr(obj) == from) cdr(obj) = to;
     }
   }
-  // Fix strings
+  // Fix strings and long symbols
   for (int i=0; i<WORKSPACESIZE; i++) {
     object *obj = &Workspace[i];
-    if (marked(obj) && ((obj->type) & ~MARKBIT) == STRING) {
-      obj = cdr(obj);
-      while (obj != NULL) {
-        if (cdr(obj) == to) cdr(obj) = from;
-        obj = (object *)((uintptr_t)(car(obj)) & ~MARKBIT);
+    if (marked(obj)) {
+      unsigned int type = (obj->type) & ~MARKBIT;
+      if (type == STRING || (type == SYMBOL && longsymbolp(obj))) {
+        obj = cdr(obj);
+        while (obj != NULL) {
+          if (cdr(obj) == to) cdr(obj) = from;
+          obj = (object *)((uintptr_t)(car(obj)) & ~MARKBIT);
+        }
       }
     }
   }
@@ -34,30 +40,39 @@ void movepointer (object *from, object *to) {
 
 #-avr
 #"
+/*
+  movepointer - corrects pointers to an object that has moved from 'from' to 'to'
+*/
 void movepointer (object *from, object *to) {
   for (int i=0; i<WORKSPACESIZE; i++) {
     object *obj = &Workspace[i];
     unsigned int type = (obj->type) & ~MARKBIT;
-    if (marked(obj) && (type >= ARRAY || type==ZZERO)) {
+    if (marked(obj) && (type >= ARRAY || type==ZZERO || (type == SYMBOL && longsymbolp(obj)))) {
       if (car(obj) == (object *)((uintptr_t)from | MARKBIT))
         car(obj) = (object *)((uintptr_t)to | MARKBIT);
       if (cdr(obj) == from) cdr(obj) = to;
     }
   }
-  // Fix strings
+  // Fix strings and long symbols
   for (int i=0; i<WORKSPACESIZE; i++) {
     object *obj = &Workspace[i];
-    if (marked(obj) && ((obj->type) & ~MARKBIT) == STRING) {
-      obj = cdr(obj);
-      while (obj != NULL) {
-        if (cdr(obj) == to) cdr(obj) = from;
-        obj = (object *)((uintptr_t)(car(obj)) & ~MARKBIT);
+    if (marked(obj)) {
+      unsigned int type = (obj->type) & ~MARKBIT;
+      if (type == STRING || (type == SYMBOL && longsymbolp(obj))) {
+        obj = cdr(obj);
+        while (obj != NULL) {
+          if (cdr(obj) == to) cdr(obj) = from;
+          obj = (object *)((uintptr_t)(car(obj)) & ~MARKBIT);
+        }
       }
     }
   }
 }"#
 
 #"
+/*
+  compactimage - compacts the image by moving objects to the lowest possible position in the workspace
+*/
 uintptr_t compactimage (object **arg) {
   markobject(tee);
   markobject(GlobalEnv);
@@ -82,12 +97,14 @@ uintptr_t compactimage (object **arg) {
   return firstfree - Workspace;
 }"#))
 
-(defparameter *make-filename* #"
+(defparameter *make-filename* '(
+
+#-esp
+#"
 // Make SD card filename
 
-char *MakeFilename (object *arg) {
-  char *buffer = SymbolTop;
-  int max = maxbuffer(buffer);
+char *MakeFilename (object *arg, char *buffer) {
+  int max = BUFFERSIZE-1;
   int i = 0;
   do {
     char c = nthchar(arg, i);
@@ -96,7 +113,24 @@ char *MakeFilename (object *arg) {
   } while (i<max);
   buffer[i] = '\0';
   return buffer;
-}"#)
+}"#
+
+#+esp
+#"
+// Make SD card filename
+
+char *MakeFilename (object *arg, char *buffer) {
+  int max = BUFFERSIZE-1;
+  buffer[0]='/';
+  int i = 1;
+  do {
+    char c = nthchar(arg, i-1);
+    if (c == '\0') break;
+    buffer[i++] = c;
+  } while (i<max);
+  buffer[i] = '\0';
+  return buffer;
+}"#))
 
 #+(and avr (not badge))
 (defparameter *saveimage* #"
@@ -105,6 +139,11 @@ char *MakeFilename (object *arg) {
 #if defined(sdcardsupport)
 void SDWriteInt (File file, int data) {
   file.write(data & 0xFF); file.write(data>>8 & 0xFF);
+}
+
+int SDReadInt (File file) {
+  uint8_t b0 = file.read(); uint8_t b1 = file.read();
+  return b0 | b1<<8;
 }
 #elif defined(FLASHWRITESIZE)
 #if defined (CPU_ATmega1284P)
@@ -125,6 +164,15 @@ void FlashEndWrite (uint32_t *addr) {
   if (((*addr) & 0xFF) != 0) optiboot_page_write((BaseAddress + ((*addr) & 0xFF00)));
 }
 
+uint8_t FlashReadByte (uint32_t *addr) {
+  return pgm_read_byte_far(BaseAddress + (*addr)++);
+}
+
+int FlashReadInt (uint32_t *addr) {
+  int data = pgm_read_word_far(BaseAddress + *addr);
+  (*addr)++; (*addr)++;
+  return data;
+}
 #elif defined (CPU_AVR128DX48)
 // save-image area is the 16K bytes (32 512-byte pages) from 0x1c000 to 0x20000
 const uint32_t BaseAddress = 0x1c000;
@@ -140,10 +188,25 @@ void FlashWriteInt (uint32_t *addr, int data) {
 
 void FlashEndWrite (uint32_t *addr) {
 }
+
+uint8_t FlashReadByte (uint32_t *addr) {
+  return Flash.readByte(BaseAddress + (*addr)++);
+}
+
+int FlashReadInt (uint32_t *addr) {
+  int data = Flash.readWord(BaseAddress + *addr);
+  (*addr)++; (*addr)++;
+  return data;
+}
 #endif
 #else
 void EEPROMWriteInt (unsigned int *addr, int data) {
   EEPROM.write((*addr)++, data & 0xFF); EEPROM.write((*addr)++, data>>8 & 0xFF);
+}
+
+int EEPROMReadInt (unsigned int *addr) {
+  uint8_t b0 = EEPROM.read((*addr)++); uint8_t b1 = EEPROM.read((*addr)++);
+  return b0 | b1<<8;
 }
 #endif
 
@@ -153,20 +216,19 @@ unsigned int saveimage (object *arg) {
   SD.begin(SDCARD_SS_PIN);
   File file;
   if (stringp(arg)) {
-    file = SD.open(MakeFilename(arg), O_RDWR | O_CREAT | O_TRUNC);
+    char buffer[BUFFERSIZE];
+    file = SD.open(MakeFilename(arg, buffer), O_RDWR | O_CREAT | O_TRUNC);
+    if (!file) error2(SAVEIMAGE, PSTR("problem saving to SD card or invalid filename"));
     arg = NULL;
-  } else if (arg == NULL || listp(arg)) file = SD.open("/ULISP.IMG", O_RDWR | O_CREAT | O_TRUNC);
+  } else if (arg == NULL || listp(arg)) {
+    file = SD.open("/ULISP.IMG", O_RDWR | O_CREAT | O_TRUNC);
+    if (!file) error2(SAVEIMAGE, PSTR("problem saving to SD card"));
+  }
   else error(SAVEIMAGE, invalidarg, arg);
-  if (!file) error2(SAVEIMAGE, PSTR("problem saving to SD card"));
   SDWriteInt(file, (uintptr_t)arg);
   SDWriteInt(file, imagesize);
   SDWriteInt(file, (uintptr_t)GlobalEnv);
   SDWriteInt(file, (uintptr_t)GCStack);
-  #if SYMBOLTABLESIZE > BUFFERSIZE
-  SDWriteInt(file, (uintptr_t)SymbolTop);
-  int SymbolUsed = SymbolTop - SymbolTable;
-  for (int i=0; i<SymbolUsed; i++) file.write(SymbolTable[i]);
-  #endif
   #if defined(CODESIZE)
   for (int i=0; i<CODESIZE; i++) file.write(MyCode[i]);
   #endif
@@ -181,18 +243,13 @@ unsigned int saveimage (object *arg) {
   if (!(arg == NULL || listp(arg))) error(SAVEIMAGE, invalidarg, arg);
   if (FlashCheck()) error2(SAVEIMAGE, PSTR("flash write not supported"));
   // Save to Flash
-  int SymbolUsed = SymbolTop - SymbolTable;
-  int bytesneeded = 10 + SYMBOLTABLESIZE + CODESIZE + imagesize*4;
+  int bytesneeded = 10 + CODESIZE + imagesize*4;
   if (bytesneeded > FLASHWRITESIZE) error(SAVEIMAGE, PSTR("image too large"), number(imagesize));
   uint32_t addr = 0;
   FlashWriteInt(&addr, (uintptr_t)arg);
   FlashWriteInt(&addr, imagesize);
   FlashWriteInt(&addr, (uintptr_t)GlobalEnv);
   FlashWriteInt(&addr, (uintptr_t)GCStack);
-  #if SYMBOLTABLESIZE > BUFFERSIZE
-  FlashWriteInt(&addr, (uintptr_t)SymbolTop);
-  for (int i=0; i<SYMBOLTABLESIZE/2; i++) FlashWriteInt(&addr, SymbolTable[i*2] | SymbolTable[i*2+1]<<8);
-  #endif
   #if defined(CODESIZE)
   for (int i=0; i<CODESIZE/2; i++) FlashWriteInt(&addr, MyCode[i*2] | MyCode[i*2+1]<<8);
   #endif
@@ -205,18 +262,13 @@ unsigned int saveimage (object *arg) {
   return imagesize;
 #else
   if (!(arg == NULL || listp(arg))) error(SAVEIMAGE, invalidarg, arg);
-  int SymbolUsed = SymbolTop - SymbolTable;
-  int bytesneeded = imagesize*4 + SymbolUsed + 10;
+  int bytesneeded = imagesize*4 + 10;
   if (bytesneeded > EEPROMSIZE) error(SAVEIMAGE, PSTR("image too large"), number(imagesize));
   unsigned int addr = 0;
   EEPROMWriteInt(&addr, (unsigned int)arg);
   EEPROMWriteInt(&addr, imagesize);
   EEPROMWriteInt(&addr, (unsigned int)GlobalEnv);
   EEPROMWriteInt(&addr, (unsigned int)GCStack);
-  #if SYMBOLTABLESIZE > BUFFERSIZE
-  EEPROMWriteInt(&addr, (unsigned int)SymbolTop);
-  for (int i=0; i<SymbolUsed; i++) EEPROM.write(addr++, SymbolTable[i]);
-  #endif
   for (unsigned int i=0; i<imagesize; i++) {
     object *obj = &Workspace[i];
     EEPROMWriteInt(&addr, (uintptr_t)car(obj));
@@ -226,57 +278,24 @@ unsigned int saveimage (object *arg) {
 #endif
 }
 
-#if defined(sdcardsupport)
-int SDReadInt (File file) {
-  uint8_t b0 = file.read(); uint8_t b1 = file.read();
-  return b0 | b1<<8;
-}
-#elif defined(FLASHWRITESIZE)
-#if defined (CPU_ATmega1284P)
-uint8_t FlashReadByte (uint32_t *addr) {
-  return pgm_read_byte_far(BaseAddress + (*addr)++);
-}
-
-int FlashReadInt (uint32_t *addr) {
-  int data = pgm_read_word_far(BaseAddress + *addr);
-  (*addr)++; (*addr)++;
-  return data;
-}
-#elif defined (CPU_AVR128DX48)
-uint8_t FlashReadByte (uint32_t *addr) {
-  return Flash.readByte(BaseAddress + (*addr)++);
-}
-
-int FlashReadInt (uint32_t *addr) {
-  int data = Flash.readWord(BaseAddress + *addr);
-  (*addr)++; (*addr)++;
-  return data;
-}
-#endif
-#else
-int EEPROMReadInt (unsigned int *addr) {
-  uint8_t b0 = EEPROM.read((*addr)++); uint8_t b1 = EEPROM.read((*addr)++);
-  return b0 | b1<<8;
-}
-#endif
-
 unsigned int loadimage (object *arg) {
 #if defined(sdcardsupport)
   SD.begin(SDCARD_SS_PIN);
   File file;
-  if (stringp(arg)) file = SD.open(MakeFilename(arg));
-  else if (arg == NULL) file = SD.open("/ULISP.IMG");
+  if (stringp(arg)) {
+    char buffer[BUFFERSIZE];
+    file = SD.open(MakeFilename(arg, buffer));
+    if (!file) error2(LOADIMAGE, PSTR("problem loading from SD card or invalid filename"));
+  }
+  else if (arg == NULL) {
+    file = SD.open("/ULISP.IMG");
+    if (!file) error2(LOADIMAGE, PSTR("problem loading from SD card"));
+  }
   else error(LOADIMAGE, invalidarg, arg);
-  if (!file) error2(LOADIMAGE, PSTR("problem loading from SD card"));
   SDReadInt(file);
   unsigned int imagesize = SDReadInt(file);
   GlobalEnv = (object *)SDReadInt(file);
   GCStack = (object *)SDReadInt(file);
-  #if SYMBOLTABLESIZE > BUFFERSIZE
-  SymbolTop = (char *)SDReadInt(file);
-  int SymbolUsed = SymbolTop - SymbolTable;
-  for (int i=0; i<SymbolUsed; i++) SymbolTable[i] = file.read();
-  #endif
   #if defined(CODESIZE)
   for (int i=0; i<CODESIZE; i++) MyCode[i] = file.read();
   #endif
@@ -296,10 +315,6 @@ unsigned int loadimage (object *arg) {
   if (imagesize == 0 || imagesize == 0xFFFF) error2(LOADIMAGE, PSTR("no saved image"));
   GlobalEnv = (object *)FlashReadInt(&addr);
   GCStack = (object *)FlashReadInt(&addr);
-  #if SYMBOLTABLESIZE > BUFFERSIZE
-  SymbolTop = (char *)FlashReadInt(&addr);
-  for (int i=0; i<SYMBOLTABLESIZE; i++) SymbolTable[i] = FlashReadByte(&addr);
-  #endif
   #if defined(CODESIZE)
   for (int i=0; i<CODESIZE; i++) MyCode[i] = FlashReadByte(&addr);
   #endif
@@ -316,11 +331,6 @@ unsigned int loadimage (object *arg) {
   if (imagesize == 0 || imagesize == 0xFFFF) error2(LOADIMAGE, PSTR("no saved image"));
   GlobalEnv = (object *)EEPROMReadInt(&addr);
   GCStack = (object *)EEPROMReadInt(&addr);
-  #if SYMBOLTABLESIZE > BUFFERSIZE
-  SymbolTop = (char *)EEPROMReadInt(&addr);
-  int SymbolUsed = SymbolTop - SymbolTable;
-  for (int i=0; i<SymbolUsed; i++) SymbolTable[i] = EEPROM.read(addr++);
-  #endif
   for (unsigned int i=0; i<imagesize; i++) {
     object *obj = &Workspace[i];
     car(obj) = (object *)EEPROMReadInt(&addr);
@@ -335,7 +345,7 @@ void autorunimage () {
 #if defined(sdcardsupport)
   SD.begin(SDCARD_SS_PIN);
   File file = SD.open("ULISP.IMG");
-  if (!file) error2(0, PSTR("problem autorunning from SD card"));
+  if (!file) error2(NIL, PSTR("problem autorunning from SD card"));
   object *autorun = (object *)SDReadInt(file);
   file.close();
   if (autorun != NULL) {
@@ -347,14 +357,14 @@ void autorunimage () {
   object *autorun = (object *)FlashReadInt(&addr);
   if (autorun != NULL && (unsigned int)autorun != 0xFFFF) {
     loadimage(nil);
-    apply(0, autorun, NULL, NULL);
+    apply(NIL, autorun, NULL, NULL);
   }
 #else
   unsigned int addr = 0;
   object *autorun = (object *)EEPROMReadInt(&addr);
   if (autorun != NULL && (unsigned int)autorun != 0xFFFF) {
     loadimage(nil);
-    apply(0, autorun, NULL, NULL);
+    apply(NIL, autorun, NULL, NULL);
   }
 #endif
 }"#)
@@ -566,7 +576,7 @@ void autorunimage () {
 #if defined(sdcardsupport)
   SD.begin(SDCARD_SS_PIN);
   File file = SD.open("ULISP.IMG");
-  if (!file) error2(0, PSTR("problem autorunning from SD card"));
+  if (!file) error2(NIL, PSTR("problem autorunning from SD card"));
   object *autorun = (object *)SDReadInt(file);
   file.close();
   if (autorun != NULL) {
@@ -595,11 +605,17 @@ void autorunimage () {
 // Save-image and load-image
 
 #if defined(sdcardsupport)
-void SDWriteInt (File file, int data) {
+void SDWrite32 (File file, int data) {
   file.write(data & 0xFF); file.write(data>>8 & 0xFF);
   file.write(data>>16 & 0xFF); file.write(data>>24 & 0xFF);
 }
-#elif defined(DATAFLASHSIZE)
+
+int SDRead32 (File file) {
+  uintptr_t b0 = file.read(); uintptr_t b1 = file.read();
+  uintptr_t b2 = file.read(); uintptr_t b3 = file.read();
+  return b0 | b1<<8 | b2<<16 | b3<<24;
+}
+#elif defined(DATAFLASH)
 // Winbond DataFlash support for Adafruit M4 Express boards
 #define PAGEPROG      0x02
 #define READSTATUS    0x05
@@ -615,68 +631,19 @@ const int sck = 38, ssel = 39, mosi = 37, miso = 36;
 const int sck = PIN_QSPI_SCK, ssel = PIN_QSPI_CS, mosi = PIN_QSPI_IO0, miso = PIN_QSPI_IO1;
 #endif
 
-boolean FlashSetup () {
-  uint8_t manID, devID;
-  digitalWrite(ssel, HIGH); pinMode(ssel, OUTPUT);
-  pinMode(sck, OUTPUT);
-  pinMode(mosi, OUTPUT);
-  pinMode(miso, INPUT);
-  digitalWrite(sck, LOW); digitalWrite(mosi, HIGH);
-  digitalWrite(ssel, LOW);
-  FlashWrite(READID);
-  for(uint8_t i=0; i<4; i++) manID = FlashRead();
-  devID = FlashRead();
-  digitalWrite(ssel, HIGH);
-  return (devID == 0x14 || devID == 0x15 || devID == 0x16); // Found correct device
+void FlashBusy () {
+  digitalWrite(ssel, 0);
+  FlashWrite(READSTATUS);
+  while (FlashReadByte() & 1 != 0);
+  digitalWrite(ssel, 1);
 }
 
 inline void FlashWrite (uint8_t data) {
   shiftOut(mosi, sck, MSBFIRST, data);
 }
 
-void FlashBusy () {
-  digitalWrite(ssel, 0);
-  FlashWrite(READSTATUS);
-  while (FlashRead() & 1 != 0);
-  digitalWrite(ssel, 1);
-}
-
-void FlashWriteEnable () {
-  digitalWrite(ssel, 0);
-  FlashWrite(WRITEENABLE);
-  digitalWrite(ssel, 1);
-}
-
-void FlashBeginRead () {
-  FlashBusy();
-  digitalWrite(ssel, 0);
-  FlashWrite(READDATA);
-  FlashWrite(0); FlashWrite(0); FlashWrite(0);
-}
-
-inline uint8_t FlashRead () {
-  int data;
-  return shiftIn(miso, sck, MSBFIRST);
-}
-
-inline void FlashEndRead(void) {
-  digitalWrite(ssel, 1);
-}
-
-void FlashBeginWrite (int blocks) {
-  // Erase 64K
-  for (int b=0; b<blocks; b++) {
-    FlashWriteEnable();
-    digitalWrite(ssel, 0);
-    FlashWrite(BLOCK64K);
-    FlashWrite(b); FlashWrite(0); FlashWrite(0);
-    digitalWrite(ssel, 1);
-    FlashBusy();
-  }
-}
-
 inline uint8_t FlashReadByte () {
-  return FlashRead();
+  return shiftIn(miso, sck, MSBFIRST);
 }
 
 void FlashWriteByte (uint32_t *addr, uint8_t data) {
@@ -695,15 +662,137 @@ void FlashWriteByte (uint32_t *addr, uint8_t data) {
   (*addr)++;
 }
 
-inline void FlashEndWrite (void) {
+void FlashWriteEnable () {
+  digitalWrite(ssel, 0);
+  FlashWrite(WRITEENABLE);
+  digitalWrite(ssel, 1);
+}
+
+bool FlashCheck () {
+  uint8_t manID, devID;
+  digitalWrite(ssel, HIGH); pinMode(ssel, OUTPUT);
+  pinMode(sck, OUTPUT);
+  pinMode(mosi, OUTPUT);
+  pinMode(miso, INPUT);
+  digitalWrite(sck, LOW); digitalWrite(mosi, HIGH);
+  digitalWrite(ssel, LOW);
+  FlashWrite(READID);
+  for(uint8_t i=0; i<4; i++) manID = FlashReadByte();
+  devID = FlashReadByte();
+  digitalWrite(ssel, HIGH);
+  return (devID == 0x14 || devID == 0x15 || devID == 0x16); // true = found correct device
+}
+
+void FlashBeginWrite (uint32_t *addr, uint32_t bytes) {
+  *addr = 0;
+  uint32_t blocks = (bytes+65535)/65536;
+  // Erase 64K
+  for (int b=0; b<blocks; b++) {
+    FlashWriteEnable();
+    digitalWrite(ssel, 0);
+    FlashWrite(BLOCK64K);
+    FlashWrite(b); FlashWrite(0); FlashWrite(0);
+    digitalWrite(ssel, 1);
+    FlashBusy();
+  }
+}
+
+void FlashWrite32 (uint32_t *addr, uint32_t data) {
+  FlashWriteByte(addr, data & 0xFF); FlashWriteByte(addr, data>>8 & 0xFF);
+  FlashWriteByte(addr, data>>16 & 0xFF); FlashWriteByte(addr, data>>24 & 0xFF);
+}
+
+inline void FlashEndWrite (uint32_t *addr) {
+  (void) addr;
   digitalWrite(ssel, 1);
   FlashBusy();
 }
 
-void FlashWriteInt (uint32_t *addr, int data) {
-  FlashWriteByte(addr, data & 0xFF); FlashWriteByte(addr, data>>8 & 0xFF);
-  FlashWriteByte(addr, data>>16 & 0xFF); FlashWriteByte(addr, data>>24 & 0xFF);
+void FlashBeginRead (uint32_t *addr) {
+  *addr = 0;
+  FlashBusy();
+  digitalWrite(ssel, 0);
+  FlashWrite(READDATA);
+  FlashWrite(0); FlashWrite(0); FlashWrite(0);
 }
+
+uint32_t FlashRead32 (uint32_t *addr) {
+  (void) addr;
+  uint8_t b0 = FlashReadByte(); uint8_t b1 = FlashReadByte();
+  uint8_t b2 = FlashReadByte(); uint8_t b3 = FlashReadByte();
+  return b0 | b1<<8 | b2<<16 | b3<<24;
+}
+
+inline void FlashEndRead(uint32_t *addr) {
+  (void) addr;
+  digitalWrite(ssel, 1);
+}
+
+#elif defined(EEPROMFLASH)
+// For ATSAMD21
+__attribute__((__aligned__(256))) static const uint8_t flash_store[FLASHSIZE] = { };
+
+void row_erase (const volatile void *addr) {
+  NVMCTRL->ADDR.reg = ((uint32_t)addr) / 2;
+  NVMCTRL->CTRLA.reg = NVMCTRL_CTRLA_CMDEX_KEY | NVMCTRL_CTRLA_CMD_ER;
+  while (!NVMCTRL->INTFLAG.bit.READY);
+}
+
+void page_clear () {
+  // Execute "PBC" Page Buffer Clear
+  NVMCTRL->CTRLA.reg = NVMCTRL_CTRLA_CMDEX_KEY | NVMCTRL_CTRLA_CMD_PBC;
+  while (NVMCTRL->INTFLAG.bit.READY == 0);
+}
+
+void page_write () {
+  NVMCTRL->CTRLA.reg = NVMCTRL_CTRLA_CMDEX_KEY | NVMCTRL_CTRLA_CMD_WP;
+  while (NVMCTRL->INTFLAG.bit.READY == 0);
+}
+
+bool FlashCheck() {
+  return true;
+}
+
+void FlashBeginWrite(uint32_t *addr, uint32_t bytes) {
+  (void) bytes;
+  *addr = (uint32_t)flash_store;
+  // Disable automatic page write
+  NVMCTRL->CTRLB.bit.MANW = 1;
+}
+
+void FlashWrite32 (uint32_t *addr, uint32_t data) {
+  if (((*addr) & 0xFF) == 0) row_erase((const volatile void *)(*addr));
+  if (((*addr) & 0x3F) == 0) page_clear();
+  *(volatile uint32_t *)(*addr) = data;
+  (*addr) = (*addr) + 4;
+  if (((*addr) & 0x3F) == 0) page_write();
+}
+
+void FlashEndWrite (uint32_t *addr) {
+  if (((*addr) & 0x3F) != 0) page_write();
+}
+
+void FlashBeginRead(uint32_t *addr) {
+  *addr = (uint32_t)flash_store;
+}
+
+uint32_t FlashRead32 (uint32_t *addr) {
+  uint32_t data = *(volatile const uint32_t *)(*addr);
+  (*addr) = (*addr) + 4;
+  return data;
+}
+
+void FlashEndRead (uint32_t *addr) {
+}
+#elif defined(BLOCKDEVICE)
+// For Raspberry Pi Pico and RP2040 boards
+#include "FlashIAPBlockDevice.h"
+#include "KVStore.h"
+#include "TDBStore.h"
+
+// 512KB block device, starting 1MB inside the flash
+FlashIAPBlockDevice bd(XIP_BASE + 1024*1024, 1024*512);
+mbed::TDBStore eeprom(&bd);
 #endif
 
 int saveimage (object *arg) {
@@ -712,53 +801,66 @@ int saveimage (object *arg) {
   SD.begin(SDCARD_SS_PIN);
   File file;
   if (stringp(arg)) {
-    file = SD.open(MakeFilename(arg), O_RDWR | O_CREAT | O_TRUNC);
+    char buffer[BUFFERSIZE];
+    file = SD.open(MakeFilename(arg, buffer), O_RDWR | O_CREAT | O_TRUNC);
+    if (!file) error2(SAVEIMAGE, PSTR("problem saving to SD card or invalid filename"));
     arg = NULL;
-  } else if (arg == NULL || listp(arg)) file = SD.open("ULISP.IMG", O_RDWR | O_CREAT | O_TRUNC);
+  } else if (arg == NULL || listp(arg)) {
+    file = SD.open("/ULISP.IMG", O_RDWR | O_CREAT | O_TRUNC);
+    if (!file) error2(SAVEIMAGE, PSTR("problem saving to SD card"));
+  }
   else error(SAVEIMAGE, invalidarg, arg);
-  if (!file) error2(SAVEIMAGE, PSTR("problem saving to SD card"));
-  SDWriteInt(file, (uintptr_t)arg);
-  SDWriteInt(file, imagesize);
-  SDWriteInt(file, (uintptr_t)GlobalEnv);
-  SDWriteInt(file, (uintptr_t)GCStack);
-  #if SYMBOLTABLESIZE > BUFFERSIZE
-  SDWriteInt(file, (uintptr_t)SymbolTop);
-  int SymbolUsed = SymbolTop - SymbolTable;
-  for (int i=0; i<SymbolUsed; i++) file.write(SymbolTable[i]);
-  #endif
+  SDWrite32(file, (uintptr_t)arg);
+  SDWrite32(file, imagesize);
+  SDWrite32(file, (uintptr_t)GlobalEnv);
+  SDWrite32(file, (uintptr_t)GCStack);
   for (int i=0; i<CODESIZE; i++) file.write(MyCode[i]);
   for (unsigned int i=0; i<imagesize; i++) {
     object *obj = &Workspace[i];
-    SDWriteInt(file, (uintptr_t)car(obj));
-    SDWriteInt(file, (uintptr_t)cdr(obj));
+    SDWrite32(file, (uintptr_t)car(obj));
+    SDWrite32(file, (uintptr_t)cdr(obj));
   }
   file.close();
   return imagesize;
-#elif defined(DATAFLASHSIZE)
+#elif defined(DATAFLASH) || defined(EEPROMFLASH)
   unsigned int imagesize = compactimage(&arg);
   if (!(arg == NULL || listp(arg))) error(SAVEIMAGE, invalidarg, arg);
-  if (!FlashSetup()) error2(SAVEIMAGE, PSTR("no DataFlash found."));
-  // Save to DataFlash
-  int SymbolUsed = SymbolTop - SymbolTable;
-  int bytesneeded = 20 + SymbolUsed + CODESIZE + imagesize*8;
-  if (bytesneeded > DATAFLASHSIZE) error(SAVEIMAGE, PSTR("image too large"), number(imagesize));
-  uint32_t addr = 0;
-  FlashBeginWrite((bytesneeded+65535)/65536);
-  FlashWriteInt(&addr, (uintptr_t)arg);
-  FlashWriteInt(&addr, imagesize);
-  FlashWriteInt(&addr, (uintptr_t)GlobalEnv);
-  FlashWriteInt(&addr, (uintptr_t)GCStack);
-  #if SYMBOLTABLESIZE > BUFFERSIZE
-  FlashWriteInt(&addr, (uintptr_t)SymbolTop);
-  for (int i=0; i<SymbolUsed; i++) FlashWriteByte(&addr, SymbolTable[i]);
-  #endif
-  for (int i=0; i<CODESIZE; i++) FlashWriteByte(&addr, MyCode[i]);
+  if (!FlashCheck()) error2(SAVEIMAGE, PSTR("flash not available"));
+  // Save to flash
+  uint32_t bytesneeded = 16 + CODESIZE + imagesize*8;
+  if (bytesneeded > FLASHSIZE) error(SAVEIMAGE, PSTR("image too large"), number(imagesize));
+  uint32_t addr;
+  FlashBeginWrite(&addr, bytesneeded);
+  FlashWrite32(&addr, (uintptr_t)arg);
+  FlashWrite32(&addr, imagesize);
+  FlashWrite32(&addr, (uintptr_t)GlobalEnv);
+  FlashWrite32(&addr, (uintptr_t)GCStack);
+  for (int i=0; i<CODESIZE; i=i+4) {
+    union { uint32_t u32; uint8_t u8[4]; };
+    u8[0] = MyCode[i]; u8[1] = MyCode[i+1]; u8[2] = MyCode[i+2]; u8[3] = MyCode[i+3];
+    FlashWrite32(&addr, u32);
+  }
   for (unsigned int i=0; i<imagesize; i++) {
     object *obj = &Workspace[i];
-    FlashWriteInt(&addr, (uintptr_t)car(obj));
-    FlashWriteInt(&addr, (uintptr_t)cdr(obj));
+    FlashWrite32(&addr, (uintptr_t)car(obj));
+    FlashWrite32(&addr, (uintptr_t)cdr(obj));
   }
-  FlashEndWrite();
+  FlashEndWrite(&addr);
+  return imagesize;
+#elif defined(BLOCKDEVICE)
+  uint32_t imagesize = compactimage(&arg);
+  if (!(arg == NULL || listp(arg))) error(SAVEIMAGE, invalidarg, arg);
+  if (eeprom.init() != MBED_SUCCESS) error2(SAVEIMAGE, PSTR("block device not available"));
+  if (eeprom.reset() != MBED_SUCCESS) error2(SAVEIMAGE, PSTR("block device error"));
+  // Save to flash
+  uint32_t bytesneeded = 20 + CODESIZE + imagesize*8;
+  if (bytesneeded > FLASHSIZE) error(SAVEIMAGE, PSTR("image too large"), number(imagesize));
+  eeprom.set("eval", &arg, 4, 0);
+  eeprom.set("size", &imagesize, 4, 0);
+  eeprom.set("genv", &GlobalEnv, 4, 0);
+  eeprom.set("gstk", &GCStack, 4, 0);
+  eeprom.set("code", &MyCode, CODESIZE, 0);
+  eeprom.set("work", &Workspace, WORKSPACESIZE*4, 0);
   return imagesize;
 #else
   (void) arg;
@@ -767,67 +869,64 @@ int saveimage (object *arg) {
 #endif
 }
 
-#if defined(sdcardsupport)
-int SDReadInt (File file) {
-  uintptr_t b0 = file.read(); uintptr_t b1 = file.read();
-  uintptr_t b2 = file.read(); uintptr_t b3 = file.read();
-  return b0 | b1<<8 | b2<<16 | b3<<24;
-}
-#elif defined(DATAFLASHSIZE)
-int FlashReadInt () {
-  uint8_t b0 = FlashReadByte(); uint8_t b1 = FlashReadByte();
-  uint8_t b2 = FlashReadByte(); uint8_t b3 = FlashReadByte();
-  return b0 | b1<<8 | b2<<16 | b3<<24;
-}
-#endif
-
 int loadimage (object *arg) {
 #if defined(sdcardsupport)
   SD.begin(SDCARD_SS_PIN);
   File file;
-  if (stringp(arg)) file = SD.open(MakeFilename(arg));
-  else if (arg == NULL) file = SD.open("/ULISP.IMG");
-  else error(LOADIMAGE, PSTR("illegal argument"), arg);
-  if (!file) error2(LOADIMAGE, PSTR("problem loading from SD card"));
-  SDReadInt(file);
-  unsigned int imagesize = SDReadInt(file);
-  GlobalEnv = (object *)SDReadInt(file);
-  GCStack = (object *)SDReadInt(file);
-  #if SYMBOLTABLESIZE > BUFFERSIZE
-  SymbolTop = (char *)SDReadInt(file);
-  int SymbolUsed = SymbolTop - SymbolTable;
-  for (int i=0; i<SymbolUsed; i++) SymbolTable[i] = file.read();
-  #endif
+  if (stringp(arg)) {
+    char buffer[BUFFERSIZE];
+    file = SD.open(MakeFilename(arg, buffer));
+    if (!file) error2(LOADIMAGE, PSTR("problem loading from SD card or invalid filename"));
+  }
+  else if (arg == NULL) {
+    file = SD.open("/ULISP.IMG");
+    if (!file) error2(LOADIMAGE, PSTR("problem loading from SD card"));
+  }
+  else error(LOADIMAGE, invalidarg, arg);
+  SDRead32(file);
+  unsigned int imagesize = SDRead32(file);
+  GlobalEnv = (object *)SDRead32(file);
+  GCStack = (object *)SDRead32(file);
   for (int i=0; i<CODESIZE; i++) MyCode[i] = file.read();
   for (unsigned int i=0; i<imagesize; i++) {
     object *obj = &Workspace[i];
-    car(obj) = (object *)SDReadInt(file);
-    cdr(obj) = (object *)SDReadInt(file);
+    car(obj) = (object *)SDRead32(file);
+    cdr(obj) = (object *)SDRead32(file);
   }
   file.close();
   gc(NULL, NULL);
   return imagesize;
-#elif defined(DATAFLASHSIZE)
-  if (!FlashSetup()) error2(LOADIMAGE, PSTR("no DataFlash found."));
-  FlashBeginRead();
-  FlashReadInt(); // Skip eval address
-  unsigned int imagesize = FlashReadInt();
+#elif defined(DATAFLASH) || defined(EEPROMFLASH)
+  if (!FlashCheck()) error2(LOADIMAGE, PSTR("flash not available"));
+  uint32_t addr;
+  FlashBeginRead(&addr);
+  FlashRead32(&addr); // Skip eval address
+  uint32_t imagesize = FlashRead32(&addr);
   if (imagesize == 0 || imagesize == 0xFFFFFFFF) error2(LOADIMAGE, PSTR("no saved image"));
-  GlobalEnv = (object *)FlashReadInt();
-  GCStack = (object *)FlashReadInt();
-  #if SYMBOLTABLESIZE > BUFFERSIZE
-  SymbolTop = (char *)FlashReadInt();
-  int SymbolUsed = SymbolTop - SymbolTable;
-  for (int i=0; i<SymbolUsed; i++) SymbolTable[i] = FlashReadByte();
-  #endif
-  for (int i=0; i<CODESIZE; i++) MyCode[i] = FlashReadByte();
-  for (unsigned int i=0; i<imagesize; i++) {
-    object *obj = &Workspace[i];
-    car(obj) = (object *)FlashReadInt();
-    cdr(obj) = (object *)FlashReadInt();
+  GlobalEnv = (object *)FlashRead32(&addr);
+  GCStack = (object *)FlashRead32(&addr);
+  for (int i=0; i<CODESIZE; i=i+4) {
+    union { uint32_t u32; uint8_t u8[4]; };
+    u32 = FlashRead32(&addr);
+    MyCode[i] = u8[0]; MyCode[i+1] = u8[1]; MyCode[i+2] = u8[2]; MyCode[i+3] = u8[3];
   }
+  for (uint32_t i=0; i<imagesize; i++) {
+    object *obj = &Workspace[i];
+    car(obj) = (object *)FlashRead32(&addr);
+    cdr(obj) = (object *)FlashRead32(&addr);
+  }
+  FlashEndRead(&addr);
   gc(NULL, NULL);
-  FlashEndRead();
+  return imagesize;
+#elif defined(BLOCKDEVICE)
+  if (eeprom.init() != MBED_SUCCESS) error2(SAVEIMAGE, PSTR("block device not available"));
+  uint32_t imagesize;
+  if (eeprom.get("size", &imagesize, 4) != MBED_SUCCESS) error2(LOADIMAGE, PSTR("no saved image"));
+  eeprom.get("genv", &GlobalEnv, 4);
+  eeprom.get("gstk", &GCStack, 4);
+  eeprom.get("code", &MyCode, CODESIZE);
+  eeprom.get("work", &Workspace, WORKSPACESIZE*4);
+  gc(NULL, NULL);
   return imagesize;
 #else
   (void) arg;
@@ -840,24 +939,33 @@ void autorunimage () {
 #if defined(sdcardsupport)
   SD.begin(SDCARD_SS_PIN);
   File file = SD.open("ULISP.IMG");
-  if (!file) error2(0, PSTR("problem autorunning from SD card"));
-  object *autorun = (object *)SDReadInt(file);
+  if (!file) error2(NIL, PSTR("problem autorunning from SD card"));
+  object *autorun = (object *)SDRead32(file);
   file.close();
   if (autorun != NULL) {
     loadimage(NULL);
-    apply(0, autorun, NULL, NULL);
+    apply(NIL, autorun, NULL, NULL);
   }
-#elif defined(DATAFLASHSIZE)
-  if (!FlashSetup()) error2(0, PSTR("no DataFlash found."));
-  FlashBeginRead();
-  object *autorun = (object *)FlashReadInt();
-  FlashEndRead();
+#elif defined(DATAFLASH) || defined(EEPROMFLASH)
+  if (!FlashCheck()) error2(NIL, PSTR("flash not available"));
+  uint32_t addr;
+  FlashBeginRead(&addr);
+  object *autorun = (object *)FlashRead32(&addr);
+  FlashEndRead(&addr);
   if (autorun != NULL && (unsigned int)autorun != 0xFFFFFFFF) {
     loadimage(nil);
-    apply(0, autorun, NULL, NULL);
+    apply(NIL, autorun, NULL, NULL);
+  }
+#elif defined(BLOCKDEVICE)
+  if (eeprom.init() != MBED_SUCCESS) error2(SAVEIMAGE, PSTR("block device not available"));
+  object *autorun;
+  eeprom.get("eval", &autorun, 4);
+  if (autorun != NULL && (unsigned int)autorun != 0xFFFFFFFF) {
+    loadimage(nil);
+    apply(NIL, autorun, NULL, NULL);
   }
 #else
-  error2(0, PSTR("autorun not available"));
+  error2(NIL, PSTR("autorun not available"));
 #endif
 }"#)
 
@@ -958,7 +1066,7 @@ void autorunimage () {
 #if defined(sdcardsupport)
   SD.begin(SDCARD_SS_PIN);
   File file = SD.open("ULISP.IMG");
-  if (!file) error2(0, PSTR("problem autorunning from SD card"));
+  if (!file) error2(NIL, PSTR("problem autorunning from SD card"));
   object *autorun = (object *)SDReadInt(file);
   file.close();
   if (autorun != NULL) {
@@ -966,7 +1074,7 @@ void autorunimage () {
     apply(0, autorun, NULL, NULL);
   }
 #else
-  error2(0, PSTR("autorun not available"));
+  error2(NIL, PSTR("autorun not available"));
 #endif
 }"#)
 
@@ -979,10 +1087,22 @@ void SDWriteInt (File file, int data) {
   file.write(data & 0xFF); file.write(data>>8 & 0xFF);
   file.write(data>>16 & 0xFF); file.write(data>>24 & 0xFF);
 }
+
+int SDReadInt (File file) {
+  uintptr_t b0 = file.read(); uintptr_t b1 = file.read();
+  uintptr_t b2 = file.read(); uintptr_t b3 = file.read();
+  return b0 | b1<<8 | b2<<16 | b3<<24;
+}
 #else
 void EpromWriteInt(int *addr, uintptr_t data) {
   EEPROM.write((*addr)++, data & 0xFF); EEPROM.write((*addr)++, data>>8 & 0xFF);
   EEPROM.write((*addr)++, data>>16 & 0xFF); EEPROM.write((*addr)++, data>>24 & 0xFF);
+}
+
+int EpromReadInt (int *addr) {
+  uint8_t b0 = EEPROM.read((*addr)++); uint8_t b1 = EEPROM.read((*addr)++);
+  uint8_t b2 = EEPROM.read((*addr)++); uint8_t b3 = EEPROM.read((*addr)++);
+  return b0 | b1<<8 | b2<<16 | b3<<24;
 }
 #endif
 
@@ -1001,10 +1121,6 @@ unsigned int saveimage (object *arg) {
   SDWriteInt(file, imagesize);
   SDWriteInt(file, (uintptr_t)GlobalEnv);
   SDWriteInt(file, (uintptr_t)GCStack);
-  #if SYMBOLTABLESIZE > BUFFERSIZE
-  SDWriteInt(file, (uintptr_t)SymbolTop);
-  for (int i=0; i<SYMBOLTABLESIZE; i++) file.write(SymbolTable[i]);
-  #endif
   for (unsigned int i=0; i<imagesize; i++) {
     object *obj = &Workspace[i];
     SDWriteInt(file, (uintptr_t)car(obj));
@@ -1014,7 +1130,7 @@ unsigned int saveimage (object *arg) {
   return imagesize;
 #else
   if (!(arg == NULL || listp(arg))) error(SAVEIMAGE, PSTR("illegal argument"), arg);
-  int bytesneeded = imagesize*8 + SYMBOLTABLESIZE + 36;
+  int bytesneeded = imagesize*8 + 36;
   if (bytesneeded > EEPROMSIZE) error(SAVEIMAGE, PSTR("image too large"), number(imagesize));
   EEPROM.begin(EEPROMSIZE);
   int addr = 0;
@@ -1022,10 +1138,6 @@ unsigned int saveimage (object *arg) {
   EpromWriteInt(&addr, imagesize);
   EpromWriteInt(&addr, (uintptr_t)GlobalEnv);
   EpromWriteInt(&addr, (uintptr_t)GCStack);
-  #if SYMBOLTABLESIZE > BUFFERSIZE
-  EpromWriteInt(&addr, (uintptr_t)SymbolTop);
-  for (int i=0; i<SYMBOLTABLESIZE; i++) EEPROM.write(addr++, SymbolTable[i]);
-  #endif
   for (unsigned int i=0; i<imagesize; i++) {
     object *obj = &Workspace[i];
     EpromWriteInt(&addr, (uintptr_t)car(obj));
@@ -1035,20 +1147,6 @@ unsigned int saveimage (object *arg) {
   return imagesize;
 #endif
 }
-
-#if defined(sdcardsupport)
-int SDReadInt (File file) {
-  uintptr_t b0 = file.read(); uintptr_t b1 = file.read();
-  uintptr_t b2 = file.read(); uintptr_t b3 = file.read();
-  return b0 | b1<<8 | b2<<16 | b3<<24;
-}
-#else
-int EpromReadInt (int *addr) {
-  uint8_t b0 = EEPROM.read((*addr)++); uint8_t b1 = EEPROM.read((*addr)++);
-  uint8_t b2 = EEPROM.read((*addr)++); uint8_t b3 = EEPROM.read((*addr)++);
-  return b0 | b1<<8 | b2<<16 | b3<<24;
-}
-#endif
 
 unsigned int loadimage (object *arg) {
 #if defined(sdcardsupport)
@@ -1062,10 +1160,6 @@ unsigned int loadimage (object *arg) {
   unsigned int imagesize = SDReadInt(file);
   GlobalEnv = (object *)SDReadInt(file);
   GCStack = (object *)SDReadInt(file);
-  #if SYMBOLTABLESIZE > BUFFERSIZE
-  SymbolTop = (char *)SDReadInt(file);
-  for (int i=0; i<SYMBOLTABLESIZE; i++) SymbolTable[i] = file.read();
-  #endif
   for (unsigned int i=0; i<imagesize; i++) {
     object *obj = &Workspace[i];
     car(obj) = (object *)SDReadInt(file);
@@ -1082,10 +1176,6 @@ unsigned int loadimage (object *arg) {
   if (imagesize == 0 || imagesize == 0xFFFFFFFF) error2(LOADIMAGE, PSTR("no saved image"));
   GlobalEnv = (object *)EpromReadInt(&addr);
   GCStack = (object *)EpromReadInt(&addr);
-  #if SYMBOLTABLESIZE > BUFFERSIZE
-  SymbolTop = (char *)EpromReadInt(&addr);
-  for (int i=0; i<SYMBOLTABLESIZE; i++) SymbolTable[i] = EEPROM.read(addr++);
-  #endif
   for (unsigned int i=0; i<imagesize; i++) {
     object *obj = &Workspace[i];
     car(obj) = (object *)EpromReadInt(&addr);
@@ -1100,7 +1190,7 @@ void autorunimage () {
 #if defined(sdcardsupport)
   SD.begin(SDCARD_SS_PIN);
   File file = SD.open("/ULISP.IMG");
-  if (!file) error2(0, PSTR("problem autorunning from SD card"));
+  if (!file) error2(NIL, PSTR("problem autorunning from SD card"));
   object *autorun = (object *)SDReadInt(file);
   file.close();
   if (autorun != NULL) {

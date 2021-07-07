@@ -5,9 +5,9 @@
 ; Arm
 
 (defparameter *header-arm*
-#"/* uLisp ARM Version 3.6 - www.ulisp.com
-   David Johnson-Davies - www.technoblogy.com - unreleased
-
+#"/* uLisp ARM Version 4.0 - www.ulisp.com
+   David Johnson-Davies - www.technoblogy.com - 7th July 2021
+   
    Licensed under the MIT license: https://opensource.org/licenses/MIT
 */
 
@@ -52,83 +52,66 @@ Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RS
 
 #if defined(sdcardsupport)
 #include <SD.h>
-#define SDSIZE 172
+#define SDSIZE 91
 #else
 #define SDSIZE 0
 #endif"#)
-
-#+ignore
-#"
-#if defined(gfxsupport)
-#include <Adafruit_GFX.h>    // Core graphics library
-#include <Adafruit_ST7735.h> // Hardware-specific library for ST7735
-#define COLOR_WHITE 0xffff
-#define COLOR_BLACK 0
-
-// Adafruit PyBadge/PyGamer
-#define TFT_CS        44  // Chip select
-#define TFT_RST       46  // Display reset
-#define TFT_DC        45  // Display data/command select
-#define TFT_BACKLIGHT 47  // Display backlight pin
-#define TFT_MOSI      41  // Data out
-#define TFT_SCLK      42  // Clock out
-
-class Technoblogy_ST7735 : public Adafruit_ST7735 {       
-public:
-  Technoblogy_ST7735(int8_t cs, int8_t dc, int8_t mosi, int8_t sclk, int8_t rst);
-  uint16_t getPixel(uint16_t x, uint16_t y);
-  void xorPixel(uint16_t x, uint16_t y, uint16_t color);
-};
-
-Technoblogy_ST7735::Technoblogy_ST7735(int8_t cs, int8_t dc, int8_t mosi, int8_t sclk, int8_t rst)
-    : Adafruit_ST7735(cs, dc, mosi, sclk, rst) {}
-
-Technoblogy_ST7735 tft = Technoblogy_ST7735(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST);
-#endif"#
 
 (defparameter *workspace-arm* #"
 // Platform specific settings
 
 #define WORDALIGNED __attribute__((aligned (4)))
-#define BUFFERSIZE 34  // Number of bits+2
+#define BUFFERSIZE 36  // Number of bits+4
 #define RAMFUNC __attribute__ ((section (".ramfunctions")))
 #define MEMBANK
 
-#if defined(ARDUINO_ITSYBITSY_M0) || defined(ARDUINO_SAMD_FEATHER_M0_EXPRESS)
+#if defined(ARDUINO_GEMMA_M0) || defined(ARDUINO_SEEED_XIAO_M0) || defined(ARDUINO_QTPY_M0)
   #define WORKSPACESIZE (2816-SDSIZE)     /* Objects (8*bytes) */
-  #define DATAFLASHSIZE 2048000           /* 2 MBytes */
-  #define SYMBOLTABLESIZE 512             /* Bytes */
+  #define EEPROMFLASH
+  #define FLASHSIZE 32768                 /* Bytes */
+  #define CODESIZE 128                    /* Bytes */
+  #define STACKDIFF 320
+  #define CPU_ATSAMD21
+  
+#elif defined(ARDUINO_ITSYBITSY_M0) || defined(ARDUINO_SAMD_FEATHER_M0_EXPRESS)
+  #define WORKSPACESIZE (2816-SDSIZE)     /* Objects (8*bytes) */
+  #define DATAFLASH
+  #define FLASHSIZE 2048000               /* 2 MBytes */
   #define CODESIZE 128                    /* Bytes */
   #define SDCARD_SS_PIN 4
   #define STACKDIFF 320
   #define CPU_ATSAMD21
 
-#elif defined(ARDUINO_GEMMA_M0)
+#elif defined(ADAFRUIT_FEATHER_M0)        /* Feather M0 without DataFlash */
   #define WORKSPACESIZE (2816-SDSIZE)     /* Objects (8*bytes) */
-  #define SYMBOLTABLESIZE 512             /* Bytes */
+  #define EEPROMFLASH
+  #define FLASHSIZE 32768                 /* Bytes */
   #define CODESIZE 128                    /* Bytes */
+  #define SDCARD_SS_PIN 4
   #define STACKDIFF 320
   #define CPU_ATSAMD21
 
 #elif defined(ARDUINO_METRO_M4) || defined(ARDUINO_ITSYBITSY_M4) || defined(ARDUINO_FEATHER_M4) || defined(ARDUINO_PYBADGE_M4) || defined(ARDUINO_PYGAMER_M4)
-  #define WORKSPACESIZE (20480-SDSIZE)    /* Objects (8*bytes) */
-  #define DATAFLASHSIZE 2048000           /* 2 MBytes */
-  #define SYMBOLTABLESIZE 1024            /* Bytes */
+  #define WORKSPACESIZE (20608-SDSIZE)    /* Objects (8*bytes) */
+  #define DATAFLASH
+  #define FLASHSIZE 2048000               /* 2 MBytes */
   #define CODESIZE 256                    /* Bytes */
   #define SDCARD_SS_PIN 10
   #define STACKDIFF 400
   #define CPU_ATSAMD51
 
 #elif defined(ARDUINO_GRAND_CENTRAL_M4)
-  #define WORKSPACESIZE (28672-SDSIZE)    /* Objects (8*bytes) */
-  #define DATAFLASHSIZE 8192000           /* 8 MBytes */
-  #define SYMBOLTABLESIZE 1024            /* Bytes */
+  #define WORKSPACESIZE (28800-SDSIZE)    /* Objects (8*bytes) */
+  #define DATAFLASH
+  #define FLASHSIZE 8192000               /* 8 MBytes */
   #define CODESIZE 256                    /* Bytes */
   #define STACKDIFF 400
   #define CPU_ATSAMD51
 
 #elif defined(ARDUINO_SAMD_MKRZERO)
   #define WORKSPACESIZE (2816-SDSIZE)     /* Objects (8*bytes) */
+  #define EEPROMFLASH
+  #define FLASHSIZE 32768                 /* Bytes */
   #define SYMBOLTABLESIZE 512             /* Bytes */
   #define CODESIZE 128                    /* Bytes */
   #define STACKDIFF 840
@@ -136,66 +119,55 @@ Technoblogy_ST7735 tft = Technoblogy_ST7735(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, 
 
 #elif defined(ARDUINO_SAMD_ZERO)          /* Put this last, otherwise overrides the Adafruit boards */
   #define WORKSPACESIZE (2816-SDSIZE)     /* Objects (8*bytes) */
-  #define SYMBOLTABLESIZE 512             /* Bytes */
+  #define EEPROMFLASH
+  #define FLASHSIZE 32768                 /* Bytes */
   #define CODESIZE 128                    /* Bytes */
   #define SDCARD_SS_PIN 10
   #define STACKDIFF 320
   #define CPU_ATSAMD21
 
 #elif defined(ARDUINO_BBC_MICROBIT)
-  #define WORKSPACESIZE 1280              /* Objects (8*bytes) */
-  #define SYMBOLTABLESIZE 512             /* Bytes */
+  #define WORKSPACESIZE 1344              /* Objects (8*bytes) */
   #define CODESIZE 64                     /* Bytes */
   #define STACKDIFF 320
   #define CPU_NRF51822
 
 #elif defined(ARDUINO_BBC_MICROBIT_V2)
-  #define WORKSPACESIZE 12800              /* Objects (8*bytes) */
-  #define SYMBOLTABLESIZE 1024             /* Bytes */
+  #define WORKSPACESIZE 12928              /* Objects (8*bytes) */
   #define CODESIZE 128                     /* Bytes */
   #define STACKDIFF 320
   #define CPU_NRF52833
 
 #elif defined(ARDUINO_CALLIOPE_MINI)
-  #define WORKSPACESIZE 3328              /* Objects (8*bytes) */
-  #define SYMBOLTABLESIZE 512             /* Bytes */
+  #define WORKSPACESIZE 3392              /* Objects (8*bytes) */
   #define CODESIZE 64                     /* Bytes */
   #define STACKDIFF 320
   #define CPU_NRF51822
 
 #elif defined(ARDUINO_SINOBIT)
-  #define WORKSPACESIZE 1280              /* Objects (8*bytes) */
-  #define SYMBOLTABLESIZE 512             /* Bytes */
+  #define WORKSPACESIZE 1344              /* Objects (8*bytes) */
   #define CODESIZE 64                     /* Bytes */
   #define STACKDIFF 320
   #define CPU_NRF51822
 
 #elif defined(ARDUINO_NRF52840_ITSYBITSY) || defined(ARDUINO_NRF52840_CLUE)
-  #define WORKSPACESIZE (20992-SDSIZE)    /* Objects (8*bytes) */
-  #define DATAFLASHSIZE 2048000           /* 2 MBytes */
-  #define SYMBOLTABLESIZE 1024            /* Bytes */
+  #define WORKSPACESIZE (21120-SDSIZE)    /* Objects (8*bytes) */
+  #define DATAFLASH
+  #define FLASHSIZE 2048000               /* 2 MBytes */
   #define CODESIZE 256                    /* Bytes */
   #define STACKDIFF 1200
   #define CPU_NRF52840
 
 #elif defined(MAX32620)
-  #define WORKSPACESIZE (24576-SDSIZE)    /* Objects (8*bytes) */
+  #define WORKSPACESIZE (24704-SDSIZE)    /* Objects (8*bytes) */
   #define SYMBOLTABLESIZE 1024            /* Bytes */
   #define CODESIZE 256                    /* Bytes */
   #define STACKDIFF 320
   #define CPU_MAX32620
   #define Wire1 Wire2
 
-#elif defined(ARDUINO_FEATHER_F405)
-  #define WORKSPACESIZE (11840-SDSIZE)    /* Objects (8*bytes) */
-  #define SYMBOLTABLESIZE 1024            /* Bytes */
-  #define CODESIZE 256                    /* Bytes */
-  #define STACKDIFF 320
-  #define CPU_F405
-
 #elif defined(ARDUINO_TEENSY40) || defined(ARDUINO_TEENSY41)
   #define WORKSPACESIZE 60000             /* Objects (8*bytes) */
-  #define SYMBOLTABLESIZE 1024            /* Bytes */
   #define CODESIZE 256                    /* Bytes */
   #define STACKDIFF 15000
   #define CPU_iMXRT1062
@@ -205,6 +177,14 @@ Technoblogy_ST7735 tft = Technoblogy_ST7735(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, 
   #define RAMFUNC FASTRUN
   #undef MEMBANK
   #define MEMBANK DMAMEM
+
+#elif defined(ARDUINO_RASPBERRY_PI_PICO)    /* NANO_RP2040_CONNECT */
+  #define WORKSPACESIZE (15488-SDSIZE)    /* Objects (8*bytes) */
+  #define BLOCKDEVICE
+  #define FLASHSIZE 262144                /* 256 KBytes */
+  #define CODESIZE 256                    /* Bytes */
+  #define STACKDIFF 320
+  #define CPU_RP2040
 
 #else
 #error "Board not supported!"
@@ -296,7 +276,7 @@ gfun_t gstreamfun (object *args) {
   #if defined(sdcardsupport)
   else if (streamtype == SDSTREAM) gfun = (gfun_t)SDread;
   #endif
-  else error2(0, PSTR("unknown stream type"));
+  else error2(NIL, PSTR("unknown stream type"));
   return gfun;
 }
 
@@ -359,7 +339,7 @@ pfun_t pstreamfun (object *args) {
   #if defined(gfxsupport)
   else if (streamtype == GFXSTREAM) pfun = (pfun_t)gfxwrite;
   #endif
-  else error2(0, PSTR("unknown stream type"));
+  else error2(NIL, PSTR("unknown stream type"));
   return pfun;
 }"#)
 
@@ -403,6 +383,8 @@ void checkanalogread (int pin) {
   if (!((pin>=14 && pin<=27))) error(ANALOGREAD, invalidpin, number(pin));
 #elif defined(ARDUINO_TEENSY41)
   if (!((pin>=14 && pin<=27) || (pin>=38 && pin<=41))) error(ANALOGREAD, invalidpin, number(pin));
+#elif defined(ARDUINO_RASPBERRY_PI_PICO)
+  if (!(pin>=26 && pin<=29)) error(ANALOGREAD, invalidpin, number(pin));
 #endif
 }
 
@@ -443,6 +425,8 @@ void checkanalogwrite (int pin) {
   if (!((pin>=0 && pin<=15) || (pin>=18 && pin<=19) || (pin>=22 && pin<=25) || (pin>=28 && pin<=29) || (pin>=33 && pin<=39))) error(ANALOGWRITE, invalidpin, number(pin));
 #elif defined(ARDUINO_TEENSY41)
   if (!((pin>=0 && pin<=15) || (pin>=18 && pin<=19) || (pin>=22 && pin<=25) || (pin>=28 && pin<=29) || pin==33 || (pin>=36 && pin<=37))) error(ANALOGWRITE, invalidpin, number(pin));
+#elif defined(ARDUINO_RASPBERRY_PI_PICO)
+  if (!(pin>=0 && pin<=29)) error(ANALOGWRITE, invalidpin, number(pin));
 #endif
 }"#)
 
@@ -452,7 +436,7 @@ void checkanalogwrite (int pin) {
 const int scale[] PROGMEM = {4186,4435,4699,4978,5274,5588,5920,6272,6645,7040,7459,7902};
 
 void playnote (int pin, int note, int octave) {
-#if defined(ARDUINO_NRF52840_CLUE)
+#if defined(ARDUINO_NRF52840_CLUE) || defined(ARDUINO_RASPBERRY_PI_PICO)
   int prescaler = 8 - octave - note/12;
   if (prescaler<0 || prescaler>8) error(NOTE, PSTR("octave out of range"), number(prescaler));
   tone(pin, scale[note%12]>>prescaler);
@@ -460,7 +444,7 @@ void playnote (int pin, int note, int octave) {
 }
 
 void nonote (int pin) {
-#if defined(ARDUINO_NRF52840_CLUE)
+#if defined(ARDUINO_NRF52840_CLUE) || defined(ARDUINO_RASPBERRY_PI_PICO)
   noTone(pin);
 #endif
 }"#)
@@ -533,14 +517,21 @@ void sleep (int secs) {
 
 (defparameter *keywords-arm*
   '((nil
-     ((DIGITALWRITE HIGH LOW)))
+     ((NIL LED_BUILTIN)
+      (DIGITALWRITE HIGH LOW)))
     ("CPU_ATSAMD21"
      ((PINMODE INPUT INPUT_PULLUP INPUT_PULLDOWN OUTPUT)
-      (ANALOGREFERENCE AR_DEFAULT AR_INTERNAL1V0 AR_INTERNAL1V65 AR_INTERNAL2V23 AR_EXTERNAL)))
+      (ANALOGREFERENCE AR_DEFAULT AR_INTERNAL1V0 AR_INTERNAL1V65 AR_INTERNAL2V23 AR_EXTERNAL)
+      #+ignore
+      (REGISTER PORTA_DIR PORTA_OUT PORTA_IN PORTB_DIR PORTB_OUT PORTB_IN)
+      ))
     ("CPU_ATSAMD51"
      ((PINMODE INPUT INPUT_PULLUP INPUT_PULLDOWN OUTPUT)
       (ANALOGREFERENCE AR_DEFAULT AR_INTERNAL1V0 AR_INTERNAL1V1 AR_INTERNAL1V2 AR_INTERNAL1V25 AR_INTERNAL1V65 AR_INTERNAL2V0
-                       AR_INTERNAL2V2 AR_INTERNAL2V23 AR_INTERNAL2V4 AR_INTERNAL2V5 AR_EXTERNAL)))
+                       AR_INTERNAL2V2 AR_INTERNAL2V23 AR_INTERNAL2V4 AR_INTERNAL2V5 AR_EXTERNAL)
+      #+ignore
+      (REGISTER PORTA_DIR PORTA_OUT PORTA_IN PORTB_DIR PORTB_OUT PORTB_IN)
+      ))
     ("CPU_NRF51822"
      ((PINMODE INPUT INPUT_PULLUP INPUT_PULLDOWN OUTPUT)
       (ANALOGREFERENCE AR_DEFAULT AR_VBG AR_SUPPLY_ONE_HALF AR_SUPPLY_ONE_THIRD AR_EXT0 AR_EXT1)))
@@ -554,4 +545,6 @@ void sleep (int secs) {
      ((PINMODE INPUT INPUT_PULLUP INPUT_PULLDOWN OUTPUT OUTPUT_OPENDRAIN)))
     ("CPU_MAX32620"
      ((PINMODE INPUT INPUT_PULLUP OUTPUT)
-      (ANALOGREFERENCE DEFAULT EXTERNAL)))))
+      (ANALOGREFERENCE DEFAULT EXTERNAL)))
+    ("CPU_RP2040"
+     ((PINMODE INPUT INPUT_PULLUP INPUT_PULLDOWN OUTPUT)))))
