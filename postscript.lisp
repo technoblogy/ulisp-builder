@@ -698,8 +698,9 @@ void pradix40 (symbol_t name, pfun_t pfun) {
   uint16_t x = untwist(name);
   for (int d=1600; d>0; d = d/40) {
     uint16_t j = x/d;
-    pfun(fromradix40(j));
-    x = x - j*d;
+    char c = fromradix40(j);
+    if (c == 0) return;
+    pfun(c); x = x - j*d;
   }
 }"#
 
@@ -712,8 +713,9 @@ void pradix40 (symbol_t name, pfun_t pfun) {
   uint32_t x = untwist(name);
   for (int d=102400000; d>0; d = d/40) {
     uint32_t j = x/d;
-    pfun(fromradix40(j));
-    x = x - j*d;
+    char c = fromradix40(j);
+    if (c == 0) return;
+    pfun(c); x = x - j*d;
   }
 }"#
 
