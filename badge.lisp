@@ -205,7 +205,7 @@ void pserial (char c) {
   #endif
 }"#)
 
-(defparameter *lisp-badge* #"
+(defparameter *lisp-badge* (format nil "~a~c~a" #"
 // Lisp Badge terminal and keyboard support
 
 // These are the bit positions in PORTA
@@ -461,7 +461,7 @@ const char Keymap[] PROGMEM =
 // Without shift
 "1234567890\b" "qwertyuiop\n" "asdfghjkl \e" " zxcvbnm()."
 // With shift
-"CHANGE ME   " "QWERTYUIOP\n" "ASDFGHJKL  " " ZXCVBNM<>,";
+"\'\""# #\# #"=-+/*\\;%" "QWERTYUIOP\n" "ASDFGHJKL ~" " ZXCVBNM<>,";
 
 // Parenthesis highlighting
 void Highlight (int p, uint8_t invert) {
@@ -549,7 +549,7 @@ void InitKybd () {
   TCCR1B = 1<<WGM12 | 3<<CS10;    // Divide clock by 64
   TIMSK1 = 1<<TOIE1;              // Overflow interrupt
 }
-"#)
+"#))
 
 (defparameter *keywords-badge*
   '(("CPU_ATmega1284P"
