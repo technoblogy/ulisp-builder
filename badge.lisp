@@ -5,7 +5,7 @@
 ; Tiny Lisp Computer
 
 (defparameter *header-badge*
-#"/* Lisp Badge - uLisp 3.6
+#"/* Lisp Badge - uLisp 4.3
    David Johnson-Davies - www.technoblogy.com - unreleased
 
    Licensed under the MIT license: https://opensource.org/licenses/MIT
