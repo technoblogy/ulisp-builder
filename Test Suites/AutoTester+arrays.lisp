@@ -180,17 +180,17 @@
 
 #| Number entry |#
 
-(aeq 'hex -1 #xFFFFFFFF)
+(aeq 'hex -1 #xFFFF)
 (aeq 'hex 1 #x0001)
 (aeq 'hex 4112 #x1010)
 (aeq 'oct 511 #o777)
 (aeq 'oct 1 #o1)
-(aeq 'oct 65535 #o177777)
-(aeq 'bin -1 #b11111111111111111111111111111111)
+(aeq 'oct -1 #o177777)
+(aeq 'bin -1 #b1111111111111111)
 (aeq 'bin 10 #b1010)
 (aeq 'bin 0 #b0)
-(aeq 'hash 12 #'12)
-(aeq 'hash 6 (funcall #'(lambda (x) (+ x 2)) 4))
+(aeq 'bin 12 #'12)
+(aeq 'bin 6 (funcall #'(lambda (x) (+ x 2)) 4))
 
 #| Boolean |#
 
@@ -213,11 +213,11 @@
 (aeq 'logxor 0 (logxor))
 (aeq 'logxor 170 (logior #xAA))
 (aeq 'logxor 255 (logxor #xAAAA #xAA55))
-(aeq 'lognot -43691 (lognot #xAAAA))
+(aeq 'lognot #x5555 (lognot #xAAAA))
 (aeq 'ash 492 (ash 123 2))
-(aeq 'ash 65535 (ash #xFFFF 0))
-(aeq 'ash 16383 (ash #xFFFF -2))
-(aeq 'ash 262140 (ash #xFFFF 2))
+(aeq 'ash #xFFFF (ash #xFFFF 0))
+(aeq 'ash #xFFFF (ash #xFFFF -2))
+(aeq 'ash -4 (ash #xFFFF 2))
 (aeq 'ash 8191 (ash #x7FFF -2))
 (aeq 'logbitp t (logbitp 0 1))
 (aeq 'logbitp t (logbitp 1000 -1))
@@ -391,11 +391,6 @@
 (aeq 'lambda 5040 (let ((f (lambda (n) (if (= n 0) 1 (* n (f (- n 1))))))) (f 7)))
 (aeq 'lambda 10 (let ((a 0)) (let ((f (lambda (n) (incf a n) (when (> n 0) (f (1- n)))))) (f 4)) a))
 
-#| streams |#
-
-(aeq 'stream "<string-stream 0>" (with-output-to-string (s) (princ s s)))
-(aeq 'stream "12 23 34" (with-output-to-string (st) (format st "~a ~a ~a" 12 23 34)))
-
 #| printing |#
 
 (aeq 'princ "hello" (princ-to-string "hello"))
@@ -414,7 +409,6 @@
 (aeq 'format "01-45-07" (format nil "~2,'0d-~2,'0d-~2,'0d" 1 45 7))
 (aeq 'format "Hello42" (format nil "Hello~a" 42))
 (aeq 'format "[1,2,3]" (format nil "[~{~a~^,~}]" '(1 2 3)))
-(aeq 'format "0003.14159" (format nil "~10,'0g" 3.14159))
 (aeq 'format "nil  nil" (format nil "~a ~{ ~a ~} ~a" nil nil nil))
 
 #| strings |#
@@ -482,7 +476,7 @@
 (aeq 'closure 4 (let ((x 0)) (funcall (lambda (y) (incf x y)) 4) x))
 (aeq 'closure 0 (let ((x 0)) (funcall (let ((x 7)) (lambda (y) (setq x (+ x y) ))) 4) x))
 (aeq 'closure '(8 10 13 17) (let ((x 0) (clo (lambda () (let ((x 7)) (lambda (y) (incf x y)))))) (mapcar (funcall clo) '(1 2 3 4))))
-(aeq 'closure 3 (let ((y 0) (test (lambda (x) (+ x 1)))) (dotimes (x 3 y) (progn (test (+ x 2))) (incf y x))))
+(aeq 'closure 3 (let ((y 0) (tst (lambda (x) (+ x 1)))) (dotimes (x 3 y) (progn (tst (+ x 2))) (incf y x))))
 
 #| arrays |#
 
@@ -508,19 +502,12 @@
 (aeq 'array 0 (let ((a (make-array 10 :element-type 'bit :initial-element 1))) (decf (aref a 4)) (aref a 4)))
 (aeq 'array 1 (let ((a (make-array 40 :element-type 'bit :initial-element 0))) (incf (aref a 39)) (aref a 39)))
 (aeq 'array 0 (let ((a (make-array 40 :element-type 'bit :initial-element 0))) (incf (aref a 39)) (decf (aref a 39)) (aref a 39)))
-
 "#)
 
-
-(defun run-tests (&optional usb)
+(defun run-tests (&optional (usb 1411)) ; "/dev/cu.usbserial-A104OVGT")) ; 
   (let ((name (cond
                ((numberp usb) (format nil "/dev/cu.usbmodem~a" usb))
-               ((eq usb :esp) "/dev/cu.SLAB_USBtoUART")
-               ((eq usb :ftdi) "/dev/cu.usbserial-A104OVGT")
-               ;((eq usb :maix) "/dev/cu.usbserial-495223D74D0")
-               ((eq usb :maix) "/dev/cu.usbserial-xel_sipeed0")
-               ((eq usb :dock) "/dev/cu.wchusbserial1410")
-               ((eq usb :teensy) "/dev/cu.usbmodem7705521")
+               ((eq usb :badge) "/dev/cu.usbserial-A104OVGT") ; "/dev/cu.usbserial-A602TRZF"
                (t usb)))
         (speed 0.5))
   (flet ((serial-write-exp (string stream)

@@ -5,8 +5,8 @@
 ; ESP
 
 (defparameter *header-esp*
-#"/* uLisp ESP Version 4.0a - www.ulisp.com
-   David Johnson-Davies - www.technoblogy.com - 9th July 2021
+#"/* uLisp ESP Version 4.3 - www.ulisp.com
+   David Johnson-Davies - www.technoblogy.com - ???
 
    Licensed under the MIT license: https://opensource.org/licenses/MIT
 */
@@ -67,12 +67,83 @@ Adafruit_SSD1306 tft(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire);
   #define WORKSPACESIZE (4000-SDSIZE)     /* Cells (8*bytes) */
   #define EEPROMSIZE 4096                 /* Bytes available for EEPROM */
   #define SDCARD_SS_PIN 10
+  #define LED_BUILTIN 13
 
-#elif defined(ESP32)
-  #define WORKSPACESIZE (8000-SDSIZE)     /* Cells (8*bytes) */
-  #define EEPROMSIZE 4096                 /* Bytes available for EEPROM */
+#elif defined(ARDUINO_FEATHER_ESP32)
+  #define WORKSPACESIZE (9216-SDSIZE)     /* Cells (8*bytes) */
+  #define LITTLEFS
+  #include "FS.h"
+  #include <LittleFS.h>
   #define analogWrite(x,y) dacWrite((x),(y))
   #define SDCARD_SS_PIN 13
+
+#elif defined(ARDUINO_ADAFRUIT_FEATHER_ESP32S2)
+  #define WORKSPACESIZE (9216-SDSIZE)            /* Cells (8*bytes) */
+  #define LITTLEFS
+  #include "FS.h"
+  #include <LittleFS.h>
+  #define analogWrite(x,y) dacWrite((x),(y))
+  #define SDCARD_SS_PIN 13
+
+#elif defined(ARDUINO_ADAFRUIT_QTPY_ESP32S2)
+  #define WORKSPACESIZE (9216-SDSIZE)            /* Cells (8*bytes) */
+  #define LITTLEFS
+  #include "FS.h"
+  #include <LittleFS.h>
+  #define analogWrite(x,y) dacWrite((x),(y))
+  #define SDCARD_SS_PIN 13
+  #define LED_BUILTIN 13
+
+#elif defined(ARDUINO_ADAFRUIT_QTPY_ESP32C3)
+  #define WORKSPACESIZE (9216-SDSIZE)            /* Cells (8*bytes) */
+  #define LITTLEFS
+  #include "FS.h"
+  #include <LittleFS.h>
+  #define SDCARD_SS_PIN 13
+  #define LED_BUILTIN 13
+
+#elif defined(ARDUINO_FEATHERS2)          /* UM FeatherS2 */
+  #define WORKSPACESIZE (9216-SDSIZE)            /* Cells (8*bytes) */
+  #define LITTLEFS
+  #include "FS.h"
+  #include <LittleFS.h>
+  #define analogWrite(x,y) dacWrite((x),(y))
+  #define SDCARD_SS_PIN 13
+  #define LED_BUILTIN 13
+
+#elif defined(ARDUINO_ESP32S2_DEV)
+  #define WORKSPACESIZE (9216-SDSIZE)            /* Cells (8*bytes) */
+  #define LITTLEFS
+  #include "FS.h"
+  #include <LittleFS.h>
+  #define analogWrite(x,y) dacWrite((x),(y))
+  #define SDCARD_SS_PIN 13
+  #define LED_BUILTIN 13
+
+#elif defined(ARDUINO_ESP32C3_DEV)
+  #define WORKSPACESIZE (9216-SDSIZE)            /* Cells (8*bytes) */
+  #define LITTLEFS
+  #include "FS.h"
+  #include <LittleFS.h>
+  #define SDCARD_SS_PIN 13
+  #define LED_BUILTIN 13
+
+#elif defined(ARDUINO_ESP32S3_DEV)
+  #define WORKSPACESIZE (22000-SDSIZE)            /* Cells (8*bytes) */
+  #define LITTLEFS
+  #include "FS.h"
+  #include <LittleFS.h>
+  #define SDCARD_SS_PIN 13
+  #define LED_BUILTIN 13
+
+#elif defined(ESP32)
+  #define WORKSPACESIZE (9216-SDSIZE)     /* Cells (8*bytes) */
+  #define LITTLEFS
+  #include "FS.h"
+  #include <LittleFS.h>
+  #define analogWrite(x,y) dacWrite((x),(y))
+  #define SDCARD_SS_PIN 13
+  #define LED_BUILTIN 13
 
 #else
 #error "Board not supported!"
@@ -186,14 +257,33 @@ void checkanalogread (int pin) {
 #elif defined(ESP32)
   if (!(pin==0 || pin==2 || pin==4 || (pin>=12 && pin<=15) || (pin>=25 && pin<=27) || (pin>=32 && pin<=36) || pin==39))
     error(ANALOGREAD, PSTR("invalid pin"), number(pin));
+#elif defined(ARDUINO_FEATHER_ESP32)
+  if (!(pin==4 || (pin>=12 && pin<=15) || (pin>=25 && pin<=27) || (pin>=32 && pin<=36) || pin==39))
+    error(ANALOGREAD, PSTR("invalid pin"), number(pin));
+#elif defined(ARDUINO_ADAFRUIT_FEATHER_ESP32S2)
+  if (!(pin==8 || (pin>=14 && pin<=18))) error(ANALOGREAD, PSTR("invalid pin"), number(pin));
+#elif defined(ARDUINO_ADAFRUIT_QTPY_ESP32S2)
+  if (!((pin>=5 && pin<=9) || (pin>=16 && pin<=18))) error(ANALOGREAD, PSTR("invalid pin"), number(pin));
+#elif defined(ARDUINO_ADAFRUIT_QTPY_ESP32C3)
+  if (!((pin>=0 && pin<=1) || (pin>=3 && pin<=5))) error(ANALOGREAD, PSTR("invalid pin"), number(pin));
+#elif defined(ARDUINO_FEATHERS2) | defined(ARDUINO_ESP32S2_DEV)
+  if (!((pin>=1 && pin<=20))) error(ANALOGREAD, PSTR("invalid pin"), number(pin));
+#elif defined(ARDUINO_ESP32C3_DEV)
+  if (!((pin>=0 && pin<=5))) error(ANALOGREAD, PSTR("invalid pin"), number(pin));
+#elif defined(ARDUINO_ESP32S3_DEV)
+  if (!((pin>=1 && pin<=20))) error(ANALOGREAD, PSTR("invalid pin"), number(pin));
 #endif
 }
 
 void checkanalogwrite (int pin) {
 #if defined(ESP8266)
   if (!(pin>=0 && pin<=16)) error(ANALOGWRITE, PSTR("invalid pin"), number(pin));
-#elif defined(ESP32)
+#elif defined(ESP32) | defined(ARDUINO_FEATHER_ESP32)
   if (!(pin>=25 && pin<=26)) error(ANALOGWRITE, PSTR("invalid pin"), number(pin));
+#elif defined(ARDUINO_ADAFRUIT_FEATHER_ESP32S2) | defined(ARDUINO_ADAFRUIT_QTPY_ESP32S2) | defined(ARDUINO_FEATHERS2) | defined(ARDUINO_ESP32S2_DEV)
+  if (!(pin>=17 && pin<=18)) error(ANALOGWRITE, PSTR("invalid pin"), number(pin));
+#elif defined(ARDUINO_ESP32C3_DEV) | defined(ARDUINO_ESP32S3_DEV) | defined(ARDUINO_ADAFRUIT_QTPY_ESP32C3)
+  error2(ANALOGWRITE, PSTR("not supported"));
 #endif
 }"#)
 

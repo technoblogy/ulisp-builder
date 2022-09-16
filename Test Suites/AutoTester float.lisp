@@ -339,7 +339,7 @@
                ;((eq usb :maix) "/dev/cu.usbserial-495223D74D0")
                ((eq usb :maix) "/dev/cu.usbserial-xel_sipeed0")
                ((eq usb :dock) "/dev/cu.wchusbserial1410")
-               ((eq usb :teensy) "/dev/cu.usbmodem7705521")
+               ((eq usb :teensy) "/dev/cu.usbmodem6295431")
                (t usb)))
         (speed 0.5))
   (flet ((serial-write-exp (string stream)

@@ -111,7 +111,7 @@ int assemble (int pass, int origin, object *entries, object *env, object *pcpair
         printobject(arg, pserial); pln(pserial);
         #endif
       } else {
-        object *pair = findvalue(arg, env);
+        object *pair = findvalue(DEFCODE, arg, env);
         cdr(pair) = number(pc);
       }
     } else {
@@ -163,7 +163,7 @@ int assemble (int pass, int origin, object *entries, object *env, object *pcpair
         printobject(arg, pserial); pln(pserial);
         #endif
       } else {
-        object *pair = findvalue(arg, env);
+        object *pair = findvalue(DEFCODE, arg, env);
         cdr(pair) = number(pc);
       }
     } else {

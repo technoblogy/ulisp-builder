@@ -15,11 +15,20 @@
        (let* ((com (search "/*" string :start2 start))
               (ment (when com (search "*/" string :start2 com))))
          (cond
-          ((and com ment (> (- ment com) 32)) (write-string string stream :start start :end com)
+          ((and com ment (char= (char string (+ com 2)) #\newline)) (write-string string stream :start start :end com) ; 32
            (setq start (+ ment 3))) ; Swallow return too
           (t (write-string string stream :start start)
              (terpri stream)
              (return)))))))))
+
+(defun definition-p (string)
+  (cond
+   ((null string) nil)
+   ((stringp string)
+       (let* ((com (search "/*" string :start2 0))
+              (ment (when com (search "*/" string :start2 com))))
+         (not (and com ment (= com 1) (= ment (- (length string) 2))))))
+   (t t)))
 
 (defun mappend (fn &rest lsts)
   "maps elements in list and finally appends all resulted lists."
@@ -56,9 +65,40 @@
     (if only-wildcard (format str "const char string~a[] PROGMEM = \"\";~%" j)
       (format str "#endif~%"))))
 
-(defun do-keyword-table (str keywords i)
+(defun needs-&-prefix (a b)
+  (or
+   (and (eq a 'register) (listp b) (stringp (second b)) (char/= (char (second b) 0) #\())
+   (and (eq a 'register) (atom b))))
+
+(defun docstring (definition enum string)
+  (cond
+   ((null definition) nil)
+   ((stringp definition)
+    (let* ((com (search "/*" definition :start2 0))
+           (ment (when com (search "*/" definition :start2 com))))
+      (when (and com ment) (subseq definition (+ com 3) (- ment 1)))))
+   ((keywordp definition) nil)
+   ((symbolp definition)
+    (let* ((definition (with-output-to-string (str) (funcall definition str enum string t)))
+           (com (search "/*" definition :start2 0))
+           (ment (when com (search "*/" definition :start2 com))))
+      (when (and com ment) (subseq definition (+ com 3) (- ment 1)))))
+   (t nil)))
+
+(defun replace-linebreaks (string)
+  (let ((result "")
+        (start 0))
+    (loop
+     (let ((cr (position #\newline string :start start)))
+       (when (not cr) (return (concatenate 'string result (string-trim '(#\space) (subseq string start)))))
+       (setq result 
+             (concatenate 'string result (string-trim '(#\space) (subseq string start cr)) "\\n\"" (string #\newline) "\""))
+       (setq start (+ 1 cr))))))
+
+(defun do-keyword-table (str keywords i documentation)
   (let* ((wildcard (null (caar keywords)))
          (only-wildcard (and wildcard (null (cdr keywords))))
+         (docstring nil)
          (j i))
     (dotimes (n (length keywords))
       (destructuring-bind (cpu lists) (nth n keywords)
@@ -68,16 +108,26 @@
             (format str "#~[~:;el~]if defined(~a)~%" (if wildcard (1- n) n) cpu))
           (dolist (k klist)
             (destructuring-bind (a . b) k
-              (format str "  { string~a, (fn_ptr_type)~a, ~a },~%" j (if (listp b) (second b) b) (or a 0))
+              (if documentation
+                  (format str "  { string~a, (fn_ptr_type)~:[~;&~]~a, ~a, ~:[NULL~;doc~a~] },~%"
+                      j (needs-&-prefix a b) (if (listp b) (second b) b) (or a 0) docstring j)
+                (format str "  { string~a, (fn_ptr_type)~:[~;&~]~a, ~a },~%"
+                      j (needs-&-prefix a b) (if (listp b) (second b) b) (or a 0)))
               (incf j)))
-          (when cpu (format str "  { string~a, NULL, 0x00 },~%" j)))
+          (when cpu 
+            (if documentation
+                (format str "  { string~a, NULL, 0x00, ~:[NULL~;doc~a~] },~%" j docstring j)
+              (format str "  { string~a, NULL, 0x00 },~%" j))))
         (unless cpu (setq i j))))
-    (if only-wildcard (format str "  { string~a, NULL, 0x00 },~%" j)
-      (format str "#endif~%"))))
+    (if only-wildcard
+         (if documentation
+             (format str "  { string~a, NULL, 0x00, ~:[NULL~;doc~a~] },~%" j docstring j)
+           (format str "  { string~a, NULL, 0x00 },~%" j))
+      (format str "#endif~%")))) 
 
-(defun build (&optional (platform :avr) (comments nil))
+(defun build (&optional (platform :avr) (comments nil) (documentation t))
   (let* ((maxsymbol 0)
-         (definitions (case platform (:zero *definitions-zero*) (t *definitions*)))
+         (definitions *definitions*)
          (keywords (eval (intern (format nil "*KEYWORDS-~a*" platform) :cl-user))))
    (flet ((include (section str)
            (let ((special (intern (format nil "*~a-~a*" section platform) :cl-user))
@@ -138,6 +188,7 @@
     (include :assembler str)
     #+interrupts
     (include :interrupts str)
+
     ;; Write function definitions
     (dolist (section definitions)
       (destructuring-bind (comment defs &optional prefix) section
@@ -147,16 +198,17 @@
           (destructuring-bind (enum string min max definition) item
             (declare (ignore min max))
             (cond
-             ((null definition) nil)
+             ((null (definition-p definition)) nil)
              ((stringp definition)
               (write-no-comments str definition comments))
              ((keywordp definition) nil)
              ((symbolp definition)
-              (funcall definition str enum string)
+              (funcall definition str enum string comments)
               (format str "~%"))
              (t nil))))))
-    ;; Write PROGMEM strings
     (format str "~%// Insert your own function definitions here~%")
+
+    ;; Write PROGMEM strings
     (format str "~%// Built-in symbol names~%")
     (let ((i 0))
       (dolist (section definitions)
@@ -171,32 +223,54 @@
                 (incf i))))))
       ; Do keywords
       (do-keyword-progmems str keywords i))
+    (format str "~%// Insert your own function names here~%")
+
+    ;; Write documentation strings
+    (when documentation
+      (format str "~%// Documentation strings~%")
+      (let ((i 0))
+        (dolist (section definitions)
+          (destructuring-bind (comment defs &optional prefix) section
+            (declare (ignore comment prefix))
+            (dolist (item defs)
+              (destructuring-bind (enum string min max definition) item
+                (declare (ignore min max))
+                (let ((docstring (docstring definition enum string)))
+                  (when docstring 
+                    (format str "const char doc~a[] PROGMEM = \"~a\";~%"
+                            i (replace-linebreaks docstring)))
+                  (incf i)))))))
+      (format str "~%// Insert your own function documentation here~%"))
+
     ;; Write table
-    (let ((i 0)
-          (heading "// Insert your own function names here")
-          (comment "// Built-in symbol lookup table"))
-      (format str "~%~a~%~%~a~%const tbl_entry_t lookup_table[] PROGMEM = {~%" heading comment)
+    (format str "~%// Built-in symbol lookup table~%")
+    (let ((i 0))
+      (format str "const tbl_entry_t lookup_table[] PROGMEM = {~%")
       (dolist (section definitions)
         (destructuring-bind (comment defs &optional (prefix "fn")) section
           (declare (ignore comment))
           (dolist (item defs)
             (destructuring-bind (enum string min max definition) item
-              (declare (ignore string))
-              (let ((lower (cond
+              (let ((docstring (docstring definition enum string))
+                    (lower (cond
                             ((consp definition) (string-downcase (car definition)))
                             ((keywordp definition) definition)
                             (t (string-downcase enum)))))
-                (format str "  { string~a, ~:[NULL~2*~;~a_~a~], 0x~2,'0x },~%" i definition prefix lower (+ (ash min 4) (min max 15)))
+                (if documentation
+                    (format str "  { string~a, ~:[NULL~2*~;~a_~a~], 0x~2,'0x, ~:[NULL~;doc~a~] },~%" 
+                        i (definition-p definition) prefix lower (+ (ash min 4) (min max 15)) docstring i)
+                  (format str "  { string~a, ~:[NULL~2*~;~a_~a~], 0x~2,'0x },~%" 
+                        i (definition-p definition) prefix lower (+ (ash min 4) (min max 15))))
                 (incf i))))))
       ; Do keywords
-      (do-keyword-table str keywords i)
+      (do-keyword-table str keywords i documentation)
       (format str "~%~a~%~%};~%" "// Insert your own table entries here"))
+
     ;; Write rest
     (include :table str)
     (include :eval str)
     (include :print-functions str)
     (include :read-functions str)
-    (when (eq platform :tlc) (write-string *tiny-lisp-computer* str))
     (when (eq platform :badge) (write-string *lisp-badge* str))
     (include :setup str)
     (include :repl str)

@@ -1,21 +1,21 @@
 ;; Options: :avr :arm :msp430 :esp :stm32 :badge :zero :riscv
 
-(push :esp *features*)
+(push :avr *features*)
  
 ;***************************************
 
 ;(push :interrupts *features*)
 
 #+badge
-(push :arm *features*)
+(push :avr *features*)
 
 #+(or arm esp stm32 riscv)
 (push :float *features*)
 
-#+(or arm esp stm32 riscv)
+#+(or arm esp stm32 riscv avr)
 (push :arrays *features*)
 
-#+(or esp)
+#+(or arm esp)
 (push :ethernet *features*)
 
 #+(or riscv arm esp)
@@ -24,6 +24,8 @@
 #+(or riscv arm)
 (push :code *features*)
 
+#+(or arm esp riscv avr)
+(push :doc *features*)
 
 (load "/Users/david/Projects/Builder/builder defsys.lisp")
 

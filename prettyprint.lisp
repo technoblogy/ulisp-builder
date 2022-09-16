@@ -2,6 +2,8 @@
 
 (in-package :cl-user)
 
+;; Prettyprinter and tree editor
+
 (defparameter *prettyprint* 
   '(
     #"
@@ -30,6 +32,9 @@ void pcount (char c) {
   PrintCount++;
 }
 
+/*
+  atomwidth - calculates the character width of an atom
+*/
 uint8_t atomwidth (object *obj) {
   PrintCount = 0;
   printobject(obj, pcount);
@@ -63,6 +68,9 @@ int subwidthlist (object *form, int w) {
 
 #-gfx
 #"
+/*
+  superprint - the main pretty-print subroutine
+*/
 void superprint (object *form, int lm, pfun_t pfun) {
   if (atom(form)) {
     if (symbolp(form) && form->name == sym(NOTHING)) printsymbol(form, pfun);
@@ -75,6 +83,9 @@ void superprint (object *form, int lm, pfun_t pfun) {
 
 #+gfx
 #"
+/*
+  superprint - the main pretty-print subroutine
+*/
 void superprint (object *form, int lm, pfun_t pfun) {
   if (atom(form)) {
     if (symbolp(form) && form->name == sym(NOTHING)) printsymbol(form, pfun);
@@ -91,6 +102,9 @@ const int ppspecials = 16;
 const char ppspecial[ppspecials] PROGMEM = 
   { DOTIMES, DOLIST, IF, SETQ, TEE, LET, LETSTAR, LAMBDA, WHEN, UNLESS, WITHI2C, WITHSERIAL, WITHSPI, WITHSDCARD, FORMILLIS, DEFVAR };
 
+/*
+  supersub - subroutine used by pprint
+*/
 void supersub (object *form, int lm, int super, pfun_t pfun) {
   int special = 0, separate = 1;
   object *arg = car(form);
@@ -105,7 +119,7 @@ void supersub (object *form, int lm, int super, pfun_t pfun) {
       #if defined(CPU_ATmega4809)
       if (sname == sym(ppspecial[i])) { special = 1; break; }    
       #else
-      if (sname == sym(pgm_read_byte(&ppspecial[i]))) { special = 1; break; }
+      if (sname == sym((builtin_t)pgm_read_byte(&ppspecial[i]))) { special = 1; break; }
       #endif   
     } 
   }
@@ -121,13 +135,16 @@ void supersub (object *form, int lm, int super, pfun_t pfun) {
   pfun(')'); return;
 }"#
 
- #+(or arm riscv)
+ #+arm
 #"
-const int ppspecials = 19;
-const char ppspecial[ppspecials] PROGMEM = 
-  { DOTIMES, DOLIST, IF, SETQ, TEE, LET, LETSTAR, LAMBDA, WHEN, UNLESS, WITHI2C, WITHSERIAL, WITHSPI, WITHSDCARD, 
-    WITHGFX, WITHOUTPUTTOSTRING, FORMILLIS, DEFVAR, CASE };
+const int ppspecials = 20;
+const char ppspecial[ppspecials] PROGMEM =
+  { DOTIMES, DOLIST, IF, SETQ, TEE, LET, LETSTAR, LAMBDA, WHEN, UNLESS, WITHI2C, WITHSERIAL, WITHSPI, WITHSDCARD, FORMILLIS,
+    WITHOUTPUTTOSTRING, DEFVAR, CASE, WITHGFX, WITHCLIENT };
 
+/*
+  supersub - subroutine used by pprint
+*/
 void supersub (object *form, int lm, int super, pfun_t pfun) {
   int special = 0, separate = 1;
   object *arg = car(form);
@@ -135,8 +152,40 @@ void supersub (object *form, int lm, int super, pfun_t pfun) {
     symbol_t sname = arg->name;
     if (sname == sym(DEFUN) || sname == sym(DEFCODE)) special = 2;
     else for (int i=0; i<ppspecials; i++) {
-      if (sname == sym((builtin_t)ppspecial[i])) { special = 1; break; }    
-    } 
+      if (sname == sym((builtin_t)ppspecial[i])) { special = 1; break; }
+    }
+  }
+  while (form != NULL) {
+    if (atom(form)) { pfstring(PSTR(" . "), pfun); printobject(form, pfun); pfun(')'); return; }
+    else if (separate) { pfun('('); separate = 0; }
+    else if (special) { pfun(' '); special--; }
+    else if (!super) pfun(' ');
+    else { pln(pfun); indent(lm, ' ', pfun); }
+    superprint(car(form), lm, pfun);
+    form = cdr(form);
+  }
+  pfun(')'); return;
+}"#
+
+#+riscv
+#"
+const int ppspecials = 19;
+const char ppspecial[ppspecials] PROGMEM =
+  { DOTIMES, DOLIST, IF, SETQ, TEE, LET, LETSTAR, LAMBDA, WHEN, UNLESS, WITHI2C, WITHSERIAL, WITHSPI, WITHSDCARD, FORMILLIS,
+    WITHOUTPUTTOSTRING, DEFVAR, CASE, WITHGFX };
+
+/*
+  supersub - subroutine used by pprint
+*/
+void supersub (object *form, int lm, int super, pfun_t pfun) {
+  int special = 0, separate = 1;
+  object *arg = car(form);
+  if (symbolp(arg)) {
+    symbol_t sname = arg->name;
+    if (sname == sym(DEFUN) || sname == sym(DEFCODE)) special = 2;
+    else for (int i=0; i<ppspecials; i++) {
+      if (sname == sym((builtin_t)ppspecial[i])) { special = 1; break; }
+    }
   }
   while (form != NULL) {
     if (atom(form)) { pfstring(PSTR(" . "), pfun); printobject(form, pfun); pfun(')'); return; }
@@ -156,6 +205,9 @@ const int ppspecials = 16;
 const char ppspecial[ppspecials] PROGMEM =
   { DOTIMES, DOLIST, IF, SETQ, TEE, LET, LETSTAR, LAMBDA, WHEN, UNLESS, WITHI2C, WITHSERIAL, WITHSPI, WITHSDCARD, FORMILLIS, WITHLCD };
 
+/*
+  supersub - subroutine used by pprint
+*/
 void supersub (object *form, int lm, int super, pfun_t pfun) {
   int special = 0, separate = 1;
   object *arg = car(form);
@@ -184,6 +236,9 @@ const int ppspecials = 15;
 const uint8_t ppspecial[ppspecials] PROGMEM = 
   { DOTIMES, DOLIST, IF, SETQ, TEE, LET, LETSTAR, LAMBDA, WHEN, UNLESS, WITHI2C, WITHSERIAL, WITHSPI, WITHSDCARD, FORMILLIS };
 
+/*
+  supersub - subroutine used by pprint
+*/
 void supersub (object *form, int lm, int super, pfun_t pfun) {
   int special = 0, separate = 1;
   object *arg = car(form);
@@ -212,10 +267,14 @@ void supersub (object *form, int lm, int super, pfun_t pfun) {
 
  #+esp
 #"
-const int ppspecials = 16;
+const int ppspecials = 20;
 const char ppspecial[ppspecials] PROGMEM =
-  { DOTIMES, DOLIST, IF, SETQ, TEE, LET, LETSTAR, LAMBDA, WHEN, UNLESS, WITHI2C, WITHSERIAL, WITHSPI, WITHSDCARD, FORMILLIS, WITHCLIENT };
+  { DOTIMES, DOLIST, IF, SETQ, TEE, LET, LETSTAR, LAMBDA, WHEN, UNLESS, WITHI2C, WITHSERIAL, WITHSPI, WITHSDCARD, FORMILLIS, 
+    WITHOUTPUTTOSTRING,  DEFVAR, CASE, WITHGFX, WITHCLIENT };
 
+/*
+  supersub - subroutine used by pprint
+*/
 void supersub (object *form, int lm, int super, pfun_t pfun) {
   int special = 0, separate = 1;
   object *arg = car(form);
@@ -244,6 +303,9 @@ const int ppspecials = 18;
 const char ppspecial[ppspecials] PROGMEM = 
   { DOTIMES, DOLIST, IF, SETQ, TEE, LET, LETSTAR, LAMBDA, WHEN, UNLESS, WITHI2C, WITHSERIAL, WITHSPI, WITHSDCARD, WITHGFX, WITHOUTPUTTOSTRING, FORMILLIS };
 
+/*
+  supersub - subroutine used by pprint
+*/
 void supersub (object *form, int lm, int super, pfun_t pfun) {
   int special = 0, separate = 1;
   object *arg = car(form);
@@ -264,5 +326,27 @@ void supersub (object *form, int lm, int super, pfun_t pfun) {
     form = cdr(form);   
   }
   pfun(')'); return;
+}"#
+
+#"
+/*
+  edit - the Lisp tree editor
+  Steps through a function definition, editing it a bit at a time, using single-key editing commands.
+*/
+object *edit (object *fun) {
+  while (1) {
+    if (tstflag(EXITEDITOR)) return fun;
+    char c = gserial();
+    if (c == 'q') setflag(EXITEDITOR);
+    else if (c == 'b') return fun;
+    else if (c == 'r') fun = read(gserial);
+    else if (c == '\n') { pfl(pserial); superprint(fun, 0, pserial); pln(pserial); }
+    else if (c == 'c') fun = cons(read(gserial), fun);
+    else if (atom(fun)) pserial('!');
+    else if (c == 'd') fun = cons(car(fun), edit(cdr(fun)));
+    else if (c == 'a') fun = cons(edit(car(fun)), cdr(fun));
+    else if (c == 'x') fun = cdr(fun);
+    else pserial('?');
+  }
 }"#))
         

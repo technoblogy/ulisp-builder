@@ -196,14 +196,42 @@ void checkminmax (symbol_t name, int nargs) {
   if ((minmax & 0x0f) != 0x0f && nargs>(minmax & 0x0f)) error2(name, toomanyargs);
 }"#
 
+    #+(and doc (not avr))
+    #"
+/*
+  lookupdoc - looks up the documentation string for the built-in function name
+*/
+char *lookupdoc (builtin_t name) {
+  return (char*)lookup_table[name].doc;
+}"#
+
+    #+(and doc avr)
+    #"
+/*
+  lookupdoc - looks up the documentation string for the built-in function name
+*/
+char *lookupdoc (builtin_t name) {
+  #if defined(CPU_ATmega4809)
+  return (char*)lookup_table[name].doc;
+  #else
+  return (char*)pgm_read_ptr(&lookup_table[name].doc);
+  #endif
+}"#
+
     #-badge
     #"
+/*
+  testescape - tests whether the '~' escape character has been typed
+*/
 void testescape () {
   if (Serial.read() == '~') error2(NIL, PSTR("escape!"));
 }"#
 
     #+badge
     #"
+/*
+  testescape - tests whether the '~' escape character has been typed
+*/
 void testescape () {
 #if defined serialmonitor
   if (Serial.read() == '~') error2(NIL, PSTR("escape!"));
@@ -234,6 +262,9 @@ char end[0];"#
 
 #+(and avr (not badge))
 #"
+/*
+  eval - the main Lisp evaluator
+*/
 object *eval (object *form, object *env) {
   uint8_t sp[0];
   int TC=0;
@@ -248,6 +279,9 @@ object *eval (object *form, object *env) {
 
 #+arm
 #"
+/*
+  eval - the main Lisp evaluator
+*/
 object *eval (object *form, object *env) {
   register int *sp asm ("r13");
   int TC=0;
@@ -262,6 +296,9 @@ object *eval (object *form, object *env) {
 
 #+riscv
 #"
+/*
+  eval - the main Lisp evaluator
+*/
 object *eval (object *form, object *env) {
   register int *sp asm ("sp");
   int TC=0;
@@ -276,6 +313,9 @@ object *eval (object *form, object *env) {
 
 #+badge
 #"
+/*
+  eval - the main Lisp evaluator
+*/
 object *eval (object *form, object *env) {
   uint8_t sp[0];
   int TC=0;
@@ -292,10 +332,21 @@ object *eval (object *form, object *env) {
 
 #+esp
 #"
+/*
+  eval - the main Lisp evaluator
+*/
 object *eval (object *form, object *env) {
+  static unsigned long start = 0;
   int TC=0;
   EVAL:
-  yield(); // Needed on ESP8266 to avoid Soft WDT Reset
+#if defined(ESP8266)
+  (void) start;
+  yield();  // Needed on ESP8266 to avoid Soft WDT Reset
+#elif defined(ARDUINO_ESP32C3_DEV)
+  if (millis() - start > 4000) { delay(1); start = millis(); }
+#else
+  (void) start;
+#endif
   // Enough space?
   if (Freespace <= WORKSPACESIZE>>4) gc(form, env);
   // Escape
@@ -488,6 +539,9 @@ object *eval (object *form, object *env) {
 
   #-badge
   #"
+/*
+  pserial - prints a character to the serial port
+*/
 void pserial (char c) {
   LastPrint = c;
   if (c == '\n') Serial.write('\r');
@@ -497,6 +551,9 @@ void pserial (char c) {
 
   #+badge
   #"
+/*
+  pserial - prints a character to the serial port
+*/
 void pserial (char c) {
   LastPrint = c;
   Display(c);
@@ -511,6 +568,12 @@ void pserial (char c) {
 const char ControlCodes[] PROGMEM = "Null\0SOH\0STX\0ETX\0EOT\0ENQ\0ACK\0Bell\0Backspace\0Tab\0Newline\0VT\0"
 "Page\0Return\0SO\0SI\0DLE\0DC1\0DC2\0DC3\0DC4\0NAK\0SYN\0ETB\0CAN\0EM\0SUB\0Escape\0FS\0GS\0RS\0US\0Space\0";
 
+/*
+  pcharacter - prints a character to a stream, escaping special characters if PRINTREADABLY is false
+  If <= 32 prints character name; eg #\Space
+  If < 127 prints ASCII; eg #\A
+  Otherwise prints decimal; eg #\234
+*/
 void pcharacter (uint8_t c, pfun_t pfun) {
   if (!tstflag(PRINTREADABLY)) pfun(c);
   else {
@@ -533,6 +596,12 @@ void pcharacter (uint8_t c, pfun_t pfun) {
 const char ControlCodes[] PROGMEM = "Null\0SOH\0STX\0ETX\0EOT\0ENQ\0ACK\0Bell\0Backspace\0Tab\0Newline\0VT\0"
 "Page\0Return\0SO\0SI\0DLE\0DC1\0DC2\0DC3\0DC4\0NAK\0SYN\0ETB\0CAN\0EM\0SUB\0Escape\0FS\0GS\0RS\0US\0Space\0";
 
+/*
+  pcharacter - prints a character to a stream, escaping special characters if PRINTREADABLY is false
+  If <= 32 prints character name; eg #\Space
+  If < 127 prints ASCII; eg #\A
+  Otherwise prints decimal; eg #\234
+*/
 void pcharacter (uint8_t c, pfun_t pfun) {
   if (!tstflag(PRINTREADABLY)) pfun(c);
   else {
@@ -552,7 +621,7 @@ const char ControlCodes[] PROGMEM = "Null\0SOH\0STX\0ETX\0EOT\0ENQ\0ACK\0Bell\0B
 "Page\0Return\0SO\0SI\0DLE\0DC1\0DC2\0DC3\0DC4\0NAK\0SYN\0ETB\0CAN\0EM\0SUB\0Escape\0FS\0GS\0RS\0US\0Space\0";
 
 /*
-  pcharacter - prints a character
+  pcharacter - prints a character to a stream, escaping special characters if PRINTREADABLY is false
   If <= 32 prints character name; eg #\Space
   If < 127 prints ASCII; eg #\A
   Otherwise prints decimal; eg #\234
@@ -576,7 +645,7 @@ const char ControlCodes[] PROGMEM = "Null\0SOH\0STX\0ETX\0EOT\0ENQ\0ACK\0Bell\0B
 "Page\0Return\0SO\0SI\0DLE\0DC1\0DC2\0DC3\0DC4\0NAK\0SYN\0ETB\0CAN\0EM\0SUB\0Escape\0FS\0GS\0RS\0US\0Space\0";
 
 /*
-  pcharacter - prints a character
+  pcharacter - prints a character to a stream, escaping special characters if PRINTREADABLY is false
   If <= 32 prints character name; eg #\Space
   If < 127 prints ASCII; eg #\A
   Otherwise prints decimal; eg #\234
@@ -596,7 +665,7 @@ void pcharacter (uint8_t c, pfun_t pfun) {
 
     #"
 /*
-  pstring - prints a C string to the specified print stream
+  pstring - prints a C string to the specified stream
 */
 void pstring (char *s, pfun_t pfun) {
   while (*s) pfun(*s++);
@@ -604,14 +673,14 @@ void pstring (char *s, pfun_t pfun) {
 
     #"
 /*
-  plispstring - prints a Lisp string object to the specified print stream
+  plispstring - prints a Lisp string object to the specified stream
 */
 void plispstring (object *form, pfun_t pfun) {
   plispstr(form->name, pfun);
 }
 
 /*
-  plispstr - prints a Lisp string name to the specified print stream
+  plispstr - prints a Lisp string name to the specified stream
 */
 void plispstr (symbol_t name, pfun_t pfun) {
   object *form = (object *)name;
@@ -627,7 +696,8 @@ void plispstr (symbol_t name, pfun_t pfun) {
 }
 
 /*
-  printstring - prints a Lisp string object taking account of the PRINTREADABLY flag
+  printstring - prints a Lisp string object to the specified stream
+  taking account of the PRINTREADABLY flag
 */
 void printstring (object *form, pfun_t pfun) {
   if (tstflag(PRINTREADABLY)) pfun('"');
@@ -638,14 +708,14 @@ void printstring (object *form, pfun_t pfun) {
   #+avr
   #"
 /*
-  pbuiltin - prints a built-in symbol
+  pbuiltin - prints a built-in symbol to the specified stream
 */
 void pbuiltin (builtin_t name, pfun_t pfun) {
   int p = 0;
   #if defined(CPU_ATmega4809)
   PGM_P s = lookup_table[name].string;
   #else
-  PGM_P s = pgm_read_word(&lookup_table[name].string);
+  PGM_P s = (char*)pgm_read_word(&lookup_table[name].string);
   #endif
   while (1) {
     #if defined(CPU_ATmega4809)
@@ -661,7 +731,7 @@ void pbuiltin (builtin_t name, pfun_t pfun) {
   #+(or arm riscv)
   #"
 /*
-  pbuiltin - prints a built-in symbol
+  pbuiltin - prints a built-in symbol to the specified stream
 */
 void pbuiltin (builtin_t name, pfun_t pfun) {
   int p = 0;
@@ -676,7 +746,7 @@ void pbuiltin (builtin_t name, pfun_t pfun) {
   #+esp
   #"
 /*
-  pbuiltin - prints a built-in symbol
+  pbuiltin - prints a built-in symbol to the specified stream
 */
 void pbuiltin (builtin_t name, pfun_t pfun) {
   int p = 0;
@@ -692,7 +762,7 @@ void pbuiltin (builtin_t name, pfun_t pfun) {
   #+avr
   #"
 /*
-  pradix40 - prints a radix 40 symbol
+  pradix40 - prints a radix 40 symbol to the specified stream
 */
 void pradix40 (symbol_t name, pfun_t pfun) {
   uint16_t x = untwist(name);
@@ -707,7 +777,7 @@ void pradix40 (symbol_t name, pfun_t pfun) {
   #+(or arm esp riscv)
   #"
 /*
-  pradix40 - prints a radix 40 symbol
+  pradix40 - prints a radix 40 symbol to the specified stream
 */
 void pradix40 (symbol_t name, pfun_t pfun) {
   uint32_t x = untwist(name);
@@ -721,7 +791,7 @@ void pradix40 (symbol_t name, pfun_t pfun) {
 
   #"
 /*
-  printsymbol - prints any symbol from a symbol object
+  printsymbol - prints any symbol from a symbol object to the specified stream
 */
 void printsymbol (object *form, pfun_t pfun) {
   psymbol(form->name, pfun);
@@ -730,7 +800,7 @@ void printsymbol (object *form, pfun_t pfun) {
   #+avr
   #"
 /*
-  psymbol - prints any symbol from a symbol name
+  psymbol - prints any symbol from a symbol name to the specified stream
 */
 void psymbol (symbol_t name, pfun_t pfun) {
   if ((name & 0x03) == 0) plispstr(name, pfun);
@@ -745,7 +815,7 @@ void psymbol (symbol_t name, pfun_t pfun) {
   #+(or arm esp riscv)
   #"
 /*
-  psymbol - prints any symbol from a symbol name
+  psymbol - prints any symbol from a symbol name to the specified stream
 */
 void psymbol (symbol_t name, pfun_t pfun) {
   if ((name & 0x03) == 0) plispstr(name, pfun);
@@ -760,7 +830,7 @@ void psymbol (symbol_t name, pfun_t pfun) {
   #+(and avr (not badge))
   #"
 /*
-  pfstring - prints a string from flash memory
+  pfstring - prints a string from flash memory to the specified stream
 */
 void pfstring (PGM_P s, pfun_t pfun) {
   int p = 0;
@@ -778,7 +848,7 @@ void pfstring (PGM_P s, pfun_t pfun) {
     #+(or arm riscv)
     #"
 /*
-  pfstring - prints a string from flash memory
+  pfstring - prints a string from flash memory to the specified stream
 */
 void pfstring (const char *s, pfun_t pfun) {
   int p = 0;
@@ -792,7 +862,7 @@ void pfstring (const char *s, pfun_t pfun) {
 #+(or msp430 badge)
     #"
 /*
-  pfstring - prints a string from flash memory
+  pfstring - prints a string from flash memory to the specified stream
 */
 void pfstring (PGM_P s, pfun_t pfun) {
   intptr_t p = (intptr_t)s;
@@ -806,7 +876,7 @@ void pfstring (PGM_P s, pfun_t pfun) {
     #+esp
     #"
 /*
-  pfstring - prints a string from flash memory
+  pfstring - prints a string from flash memory to the specified stream
 */
 void pfstring (PGM_P s, pfun_t pfun) {
   int p = 0;
@@ -820,7 +890,7 @@ void pfstring (PGM_P s, pfun_t pfun) {
   #+avr
   #"
 /*
-  pint - prints an integer in decimal
+  pint - prints an integer in decimal to the specified stream
 */
 void pint (int i, pfun_t pfun) {
   uint16_t j = i;
@@ -829,14 +899,14 @@ void pint (int i, pfun_t pfun) {
 }
 
 /*
-  pintbase - prints an integer in base 'base'
+  pintbase - prints an integer in base 'base' to the specified stream
 */
 void pintbase (uint16_t i, uint8_t base, pfun_t pfun) {
   int lead = 0; uint16_t p = 10000;
   if (base == 2) p = 0x8000; else if (base == 16) p = 0x1000;
   for (uint16_t d=p; d>0; d=d/base) {
     uint16_t j = i/d;
-    if (j!=0 || lead || d==1) { pfun((j<10) ? j+'0' : j+'W'); lead=1;}  
+    if (j!=0 || lead || d==1) { pfun((j<10) ? j+'0' : j+'W'); lead=1;}
     i = i - j*d;
   }
 }"#
@@ -844,7 +914,7 @@ void pintbase (uint16_t i, uint8_t base, pfun_t pfun) {
   #+(or arm esp riscv)
   #"
 /*
-  pint - prints an integer in decimal
+  pint - prints an integer in decimal to the specified stream
 */
 void pint (int i, pfun_t pfun) {
   uint32_t j = i;
@@ -853,14 +923,14 @@ void pint (int i, pfun_t pfun) {
 }
 
 /*
-  pintbase - prints an integer in base 'base'
+  pintbase - prints an integer in base 'base' to the specified stream
 */
 void pintbase (uint32_t i, uint8_t base, pfun_t pfun) {
   int lead = 0; uint32_t p = 1000000000;
   if (base == 2) p = 0x80000000; else if (base == 16) p = 0x10000000;
   for (uint32_t d=p; d>0; d=d/base) {
     uint32_t j = i/d;
-    if (j!=0 || lead || d==1) { pfun((j<10) ? j+'0' : j+'W'); lead=1;}  
+    if (j!=0 || lead || d==1) { pfun((j<10) ? j+'0' : j+'W'); lead=1;}
     i = i - j*d;
   }
 }"#
@@ -868,7 +938,7 @@ void pintbase (uint32_t i, uint8_t base, pfun_t pfun) {
     #+avr
     #"
 /*
-  pinthex2 - prints a two-digit hexadecimal number with leading zeros
+  pinthex2 - prints a two-digit hexadecimal number with leading zeros to the specified stream
 */
 void printhex2 (int i, pfun_t pfun) {
   for (unsigned int d=0x10; d>0; d=d>>4) {
@@ -881,13 +951,13 @@ void printhex2 (int i, pfun_t pfun) {
     #+(or riscv arm)
     #"
 /*
-  pinthex4 - prints a four-digit hexadecimal number with leading zeros
+  pinthex4 - prints a four-digit hexadecimal number with leading zeros to the specified stream
 */
 void printhex4 (int i, pfun_t pfun) {
   int p = 0x1000;
   for (int d=p; d>0; d=d/16) {
     int j = i/d;
-    pfun((j<10) ? j+'0' : j + 'W'); 
+    pfun((j<10) ? j+'0' : j + 'W');
     i = i - j*d;
   }
   pfun(' ');
@@ -895,6 +965,9 @@ void printhex4 (int i, pfun_t pfun) {
 
     #+float
     #"
+/*
+  pmantissa - prints the mantissa of a floating-point number to the specified stream
+*/
 void pmantissa (float f, pfun_t pfun) {
   int sig = floor(log10(f));
   int mul = pow(10, 5 - sig);
@@ -922,6 +995,9 @@ void pmantissa (float f, pfun_t pfun) {
   }
 }
 
+/*
+  pfloat - prints a floating-point number to the specified stream
+*/
 void pfloat (float f, pfun_t pfun) {
   if (isnan(f)) { pfstring(PSTR("NaN"), pfun); return; }
   if (f == 0.0) { pfun('0'); return; }
@@ -944,16 +1020,25 @@ void pfloat (float f, pfun_t pfun) {
 }"#
 
     #"
+/*
+  pln - prints a newline to the specified stream
+*/
 inline void pln (pfun_t pfun) {
   pfun('\n');
 }"#
 
     #"
+/*
+  pfl - prints a newline to the specified stream if a newline has not just been printed
+*/
 void pfl (pfun_t pfun) {
   if (LastPrint != '\n') pfun('\n');
 }"#
 
     #"
+/*
+  plist - prints a list to the specified stream
+*/
 void plist (object *form, pfun_t pfun) {
   pfun('(');
   printobject(car(form), pfun);
@@ -971,6 +1056,9 @@ void plist (object *form, pfun_t pfun) {
 }"#
 
     #"
+/*
+  pstream - prints a stream name to the specified stream
+*/
 void pstream (object *form, pfun_t pfun) {
   pfun('<');
   pfstring(streamname[(form->integer)>>8], pfun);
@@ -979,8 +1067,11 @@ void pstream (object *form, pfun_t pfun) {
   pfun('>');
 }"#
 
-   #+avr
+   #+(and avr (not arrays))
    #"
+/*
+  printobject - prints any Lisp object to the specified stream
+*/
 void printobject (object *form, pfun_t pfun) {
   if (form == NULL) pfstring(PSTR("nil"), pfun);
   else if (listp(form) && isbuiltin(car(form), CLOSURE)) pfstring(PSTR("<closure>"), pfun);
@@ -996,8 +1087,32 @@ void printobject (object *form, pfun_t pfun) {
   else error2(NIL, PSTR("error in print"));
 }"#
 
+   #+(and avr arrays)
+   #"
+/*
+  printobject - prints any Lisp object to the specified stream
+*/
+void printobject (object *form, pfun_t pfun) {
+  if (form == NULL) pfstring(PSTR("nil"), pfun);
+  else if (listp(form) && isbuiltin(car(form), CLOSURE)) pfstring(PSTR("<closure>"), pfun);
+  else if (listp(form)) plist(form, pfun);
+  else if (integerp(form)) pint(form->integer, pfun);
+  else if (symbolp(form)) { if (form->name != sym(NOTHING)) printsymbol(form, pfun); }
+  else if (characterp(form)) pcharacter(form->chars, pfun);
+  else if (stringp(form)) printstring(form, pfun);
+  else if (arrayp(form)) printarray(form, pfun);
+  #if defined(CODESIZE)
+  else if (form->type == CODE) pfstring(PSTR("code"), pfun);
+  #endif
+  else if (streamp(form)) pstream(form, pfun);
+  else error2(NIL, PSTR("error in print"));
+}"#
+
    #+(or arm riscv)
    #"
+/*
+  printobject - prints any Lisp object to the specified stream
+*/
 void printobject (object *form, pfun_t pfun) {
   if (form == NULL) pfstring(PSTR("nil"), pfun);
   else if (listp(form) && isbuiltin(car(form), CLOSURE)) pfstring(PSTR("<closure>"), pfun);
@@ -1016,6 +1131,9 @@ void printobject (object *form, pfun_t pfun) {
 ; Has LCDSTREAM
     #+msp430
     #"
+/*
+  printobject - prints any Lisp object to the specified stream
+*/
 void printobject (object *form, pfun_t pfun) {
   if (form == NULL) pfstring(PSTR("nil"), pfun);
   else if (listp(form) && issymbol(car(form), CLOSURE)) pfstring(PSTR("<closure>"), pfun);
@@ -1053,6 +1171,9 @@ void printobject (object *form, pfun_t pfun) {
 
     #+esp
     #"
+/*
+  printobject - prints any Lisp object to the specified stream
+*/
 void printobject (object *form, pfun_t pfun) {
   if (form == NULL) pfstring(PSTR("nil"), pfun);
   else if (listp(form) && isbuiltin(car(form), CLOSURE)) pfstring(PSTR("<closure>"), pfun);
@@ -1068,6 +1189,9 @@ void printobject (object *form, pfun_t pfun) {
 }"#
 
 #"
+/*
+  prin1object - prints any Lisp object to the specified stream escaping special characters
+*/
 void prin1object (object *form, pfun_t pfun) {
   char temp = Flags;
   clrflag(PRINTREADABLY);
@@ -1091,6 +1215,9 @@ volatile uint8_t KybdAvailable = 0;"#
     #"
 // Read functions
 
+/*
+  glibrary - reads a character from the Lisp Library
+*/
 int glibrary () {
   if (LastChar) {
     char temp = LastChar;
@@ -1105,6 +1232,9 @@ int glibrary () {
   return (c != 0) ? c : -1; // -1?
 }
 
+/*
+  loadfromlibrary - reads and evaluates a form from the Lisp Library
+*/
 void loadfromlibrary (object *env) {
   GlobalStringIndex = 0;
   object *line = read(glibrary);
@@ -1120,8 +1250,11 @@ void loadfromlibrary (object *env) {
        #"
 // Read functions
 
+/*
+  glibrary - reads a character from the Lisp Library
+*/
 int glibrary () {
-  if (LastChar) { 
+  if (LastChar) {
     char temp = LastChar;
     LastChar = 0;
     return temp;
@@ -1130,6 +1263,9 @@ int glibrary () {
   return (c != 0) ? c : -1; // -1?
 }
 
+/*
+  loadfromlibrary - reads and evaluates a form from the Lisp Library
+*/
 void loadfromlibrary (object *env) {
   GlobalStringIndex = 0;
   object *line = read(glibrary);
@@ -1145,6 +1281,9 @@ void loadfromlibrary (object *env) {
     #"
 // Read functions
 
+/*
+  glibrary - reads a character from the Lisp Library
+*/
 int glibrary () {
   if (LastChar) { 
     char temp = LastChar;
@@ -1155,6 +1294,9 @@ int glibrary () {
   return (c != 0) ? c : -1; // -1?
 }
 
+/*
+  loadfromlibrary - reads and evaluates a form from the Lisp Library
+*/
 void loadfromlibrary (object *env) {
   GlobalStringIndex = 0;
   object *line = read(glibrary);
@@ -1170,6 +1312,9 @@ void loadfromlibrary (object *env) {
        #"
 // Read functions
 
+/*
+  glibrary - reads a character from the Lisp Library
+*/
 int glibrary () {
   if (LastChar) {
     char temp = LastChar;
@@ -1180,6 +1325,9 @@ int glibrary () {
   return (c != 0) ? c : -1; // -1?
 }
 
+/*
+  loadfromlibrary - reads and evaluates a form from the Lisp Library
+*/
 void loadfromlibrary (object *env) {
   GlobalStringIndex = 0;
   object *line = read(glibrary);
@@ -1213,6 +1361,9 @@ void hilight (char c) {
   Serial.write('\e'); Serial.write('['); Serial.write(c); Serial.write('m');
 }
 
+/*
+  Highlight - handles parenthesis highlighting with the line editor
+*/
 void Highlight (int p, int wp, uint8_t invert) {
   wp = wp + 2; // Prompt
 #if defined (printfreespace)
@@ -1237,6 +1388,9 @@ void Highlight (int p, int wp, uint8_t invert) {
   }
 }
 
+/*
+  processkey - handles keys in the line editor
+*/
 void processkey (char c) {
   if (c == 27) { setflag(ESCAPE); return; }    // Escape key
 #if defined(vt100)
@@ -1282,6 +1436,9 @@ void processkey (char c) {
 
  #+(and avr (not badge))
  #"
+/*
+  gserial - gets a character from the serial port
+*/
 int gserial () {
   if (LastChar) {
     char temp = LastChar;
@@ -1312,8 +1469,11 @@ int gserial () {
 #endif
 }"#
 
- #-(or avr badge)
+ #-(or avr badge esp)
  #"
+/*
+  gserial - gets a character from the serial port
+*/
 int gserial () {
   if (LastChar) {
     char temp = LastChar;
@@ -1339,8 +1499,41 @@ int gserial () {
 #endif
 }"#
 
+ #+esp
+ #"
+/*
+  gserial - gets a character from the serial port
+*/
+int gserial () {
+  if (LastChar) {
+    char temp = LastChar;
+    LastChar = 0;
+    return temp;
+  }
+#if defined(lineeditor)
+  while (!KybdAvailable) {
+    while (!Serial.available());
+    char temp = Serial.read();
+    processkey(temp);
+  }
+  if (ReadPtr != WritePtr) return KybdBuf[ReadPtr++];
+  KybdAvailable = 0;
+  WritePtr = 0;
+  return '\n';
+#else
+  unsigned long start = millis();
+  while (!Serial.available()) { delay(1); if (millis() - start > 1000) clrflag(NOECHO); }
+  char temp = Serial.read();
+  if (temp != '\n' && !tstflag(NOECHO)) pserial(temp);
+  return temp;
+#endif
+}"#
+
   #+badge
   #"
+/*
+  gserial - gets a character from the serial port
+*/
 int gserial () {
   if (LastChar) { 
     char temp = LastChar;
@@ -1372,8 +1565,11 @@ int gserial () {
   #endif
 }"#
 
-  #+(and avr (not badge))
+  #+(and avr (not arrays) (not badge))
   #"
+/*
+  nextitem - reads the next token from the specified stream
+*/
 object *nextitem (gfun_t gfun) {
   int ch = gfun();
   while(issp(ch)) ch = gfun();
@@ -1445,8 +1641,91 @@ object *nextitem (gfun_t gfun) {
     ch = gfun();
   }"#
 
+  #+(and avr arrays (not badge))
+  #"
+/*
+  nextitem - reads the next token from the specified stream
+*/
+object *nextitem (gfun_t gfun) {
+  int ch = gfun();
+  while(issp(ch)) ch = gfun();
+
+  #if defined(CPU_ATmega328P)
+  if (ch == ';') {
+    while(ch != '(') ch = gfun();
+  }
+  #else
+  if (ch == ';') {
+    do { ch = gfun(); if (ch == ';' || ch == '(') setflag(NOECHO); }
+    while(ch != '(');
+  }
+  #endif
+  if (ch == '\n') ch = gfun();
+  if (ch == -1) return nil;
+  if (ch == ')') return (object *)KET;
+  if (ch == '(') return (object *)BRA;
+  if (ch == '\'') return (object *)QUO;
+  if (ch == '.') return (object *)DOT;
+
+  // Parse string
+  if (ch == '"') return readstring('"', gfun);
+
+  // Parse symbol, character, or number
+  int index = 0, base = 10, sign = 1;
+  char buffer[BUFFERSIZE];
+  int bufmax = BUFFERSIZE-1; // Max index
+  unsigned int result = 0;
+  if (ch == '+' || ch == '-') {
+    buffer[index++] = ch;
+    if (ch == '-') sign = -1;
+    ch = gfun();
+  }
+
+  // Parse reader macros
+  else if (ch == '#') {
+    ch = gfun();
+    char ch2 = ch & ~0x20; // force to upper case
+    if (ch == '\\') { // Character
+      base = 0; ch = gfun();
+      if (issp(ch) || ch == ')' || ch == '(') return character(ch);
+      else LastChar = ch;
+    } else if (ch == '|') {
+      do { while (gfun() != '|'); }
+      while (gfun() != '#');
+      return nextitem(gfun);
+    } else if (ch2 == 'B') base = 2;
+    else if (ch2 == 'O') base = 8;
+    else if (ch2 == 'X') base = 16;
+    else if (ch == '\'') return nextitem(gfun);
+    else if (ch == '.') {
+      setflag(NOESC);
+      object *result = eval(read(gfun), NULL);
+      clrflag(NOESC);
+      return result;
+    }
+    else if (ch == '(') { LastChar = ch; return readarray(1, read(gfun)); }
+    else if (ch == '*') return readbitarray(gfun);
+    else if (ch >= '1' && ch <= '9' && (gfun() & ~0x20) == 'A') return readarray(ch - '0', read(gfun));
+    else error2(NIL, PSTR("illegal character after #"));
+    ch = gfun();
+  }
+
+  int isnumber = (digitvalue(ch)<base);
+  buffer[2] = '\0'; // In case symbol is one letter
+
+  while(!issp(ch) && ch != ')' && ch != '(' && index < bufmax) {
+    buffer[index++] = ch;
+    int temp = digitvalue(ch);
+    result = result * base + temp;
+    isnumber = isnumber && (digitvalue(ch)<base);
+    ch = gfun();
+  }"#
+
   #+badge
   #"
+/*
+  nextitem - reads the next token from the specified stream
+*/
 object *nextitem (gfun_t gfun) {
   int ch = gfun();
   while(issp(ch)) ch = gfun();
@@ -1514,6 +1793,9 @@ object *nextitem (gfun_t gfun) {
 
   #+float
   #"
+/*
+  nextitem - reads the next token from the specified stream
+*/
 object *nextitem (gfun_t gfun) {
   int ch = gfun();
   while(issp(ch)) ch = gfun();
@@ -1759,6 +2041,9 @@ object *nextitem (gfun_t gfun) {
 }"#
 
   #"
+/*
+  readrest - reads the remaining tokens from the specified stream
+*/
 object *readrest (gfun_t gfun) {
   object *item = nextitem(gfun);
   object *head = NULL;
@@ -1813,6 +2098,9 @@ void initenv () {
   tee = bsymbol(TEE);
 }
 
+/*
+  setup - entry point from the Arduino IDE
+*/
 void setup () {
   Serial.begin(9600);
   int start = millis();
@@ -1820,7 +2108,7 @@ void setup () {
   initworkspace();
   initenv();
   initsleep();
-  pfstring(PSTR("uLisp 4.0 "), pserial); pln(pserial);
+  pfstring(PSTR("uLisp 4.3 "), pserial); pln(pserial);
 }"#
 
 #+badge
@@ -1833,6 +2121,9 @@ void initenv () {
   tee = bsymbol(TEE);
 }
 
+/*
+  setup - entry point from the Arduino IDE
+*/
 void setup () {
   InitDisplay();
   InitKybd();
@@ -1871,6 +2162,9 @@ void initenv () {
   tee = bsymbol(TEE);
 }
 
+/*
+  setup - entry point from the Arduino IDE
+*/
 void setup () {
   Serial.begin(9600);
   int start = millis();
@@ -1879,7 +2173,7 @@ void setup () {
   initenv();
   initsleep();
   initgfx();
-  pfstring(PSTR("uLisp 4.0 "), pserial); pln(pserial);
+  pfstring(PSTR("uLisp 4.3 "), pserial); pln(pserial);
 }"#
 
 #+esp
@@ -1904,6 +2198,9 @@ void initenv () {
   tee = bsymbol(TEE);
 }
 
+/*
+  setup - entry point from the Arduino IDE
+*/
 void setup () {
   Serial.begin(9600);
   int start = millis();
@@ -1912,7 +2209,7 @@ void setup () {
   initenv();
   initsleep();
   initgfx();
-  pfstring(PSTR("uLisp 4.0 "), pserial); pln(pserial);
+  pfstring(PSTR("uLisp 4.3 "), pserial); pln(pserial);
 }"#
 
 #+riscv
@@ -1935,6 +2232,9 @@ void initenv () {
   tee = bsymbol(TEE);
 }
 
+/*
+  setup - entry point from the Arduino IDE
+*/
 void setup () {
   Serial.begin(9600);
   int start = millis();
@@ -1943,7 +2243,7 @@ void setup () {
   initenv();
   initsleep();
   initgfx();
-  pfstring(PSTR("uLisp 4.0 "), pserial); pln(pserial);
+  pfstring(PSTR("uLisp 4.3 "), pserial); pln(pserial);
 }"#
 
 #+stm32
@@ -1956,6 +2256,9 @@ void initenv () {
   tee = symbol(TEE);
 }
 
+/*
+  setup - entry point from the Arduino IDE
+*/
 void setup () {
   Serial.begin(9600);
   while (!Serial);
@@ -1971,6 +2274,9 @@ void setup () {
  #"
 // Read/Evaluate/Print loop
 
+/*
+  repl - the Lisp Read/Evaluate/Print loop
+*/
 void repl (object *env) {
   for (;;) {
     RandomSeed = micros();
@@ -2001,6 +2307,9 @@ void repl (object *env) {
 #"
 // Read/Evaluate/Print loop
 
+/*
+  repl - the Lisp Read/Evaluate/Print loop
+*/
 void repl (object *env) {
   for (;;) {
     randomSeed(micros());
@@ -2031,6 +2340,9 @@ void repl (object *env) {
 
 #+(and avr (not badge))
 #"
+/*
+  loop - the Arduino IDE main execution loop
+*/
 void loop () {
   if (!setjmp(exception)) {
     #if defined(resetautorun)
@@ -2055,6 +2367,9 @@ void loop () {
 
 #+badge
 #"
+/*
+  loop - the Arduino IDE main execution loop
+*/
 void loop () {
   if (!setjmp(exception)) {
     #if defined(resetautorun)
@@ -2077,8 +2392,11 @@ void loop () {
   repl(NULL);
 }"#
 
-#+(or arm riscv)
+#+arm
 #"
+/*
+  loop - the Arduino IDE main execution loop
+*/
 void loop () {
   if (!setjmp(exception)) {
     #if defined(resetautorun)
@@ -2098,11 +2416,17 @@ void loop () {
   #if defined(lisplibrary)
   if (!tstflag(LIBRARYLOADED)) { setflag(LIBRARYLOADED); loadfromlibrary(NULL); }
   #endif
+  #if defined(ULISP_WIFI)
+  client.stop();
+  #endif
   repl(NULL);
 }"#
 
 #+esp
 #"
+/*
+  loop - the Arduino IDE main execution loop
+*/
 void loop () {
   if (!setjmp(exception)) {
     #if defined(resetautorun)
@@ -2123,5 +2447,32 @@ void loop () {
   if (!tstflag(LIBRARYLOADED)) { setflag(LIBRARYLOADED); loadfromlibrary(NULL); }
   #endif
   client.stop();
+  repl(NULL);
+}"#
+
+#+riscv
+#"
+/*
+  loop - the Arduino IDE main execution loop
+*/
+void loop () {
+  if (!setjmp(exception)) {
+    #if defined(resetautorun)
+    volatile int autorun = 12; // Fudge to keep code size the same
+    #else
+    volatile int autorun = 13;
+    #endif
+    if (autorun == 12) autorunimage();
+  }
+  // Come here after error
+  delay(100); while (Serial.available()) Serial.read();
+  clrflag(NOESC); BreakLevel = 0;
+  for (int i=0; i<TRACEMAX; i++) TraceDepth[i] = 0;
+  #if defined(sdcardsupport)
+  SDpfile.close(); SDgfile.close();
+  #endif
+  #if defined(lisplibrary)
+  if (!tstflag(LIBRARYLOADED)) { setflag(LIBRARYLOADED); loadfromlibrary(NULL); }
+  #endif
   repl(NULL);
 }"#))

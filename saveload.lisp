@@ -7,7 +7,7 @@
 #"
 // Compact image"#
 
-#+(or avr badge)
+#+(or (and avr (not arrays)) badge)
 #"
 /*
   movepointer - corrects pointers to an object that has moved from 'from' to 'to'
@@ -38,7 +38,7 @@ void movepointer (object *from, object *to) {
   }
 }"#
 
-#-avr
+#-(or (and avr (not arrays)) badge)
 #"
 /*
   movepointer - corrects pointers to an object that has moved from 'from' to 'to'
@@ -99,7 +99,7 @@ uintptr_t compactimage (object **arg) {
 
 (defparameter *make-filename* '(
 
-#-esp
+#-(or esp arm)
 #"
 // Make SD card filename
 
@@ -115,7 +115,7 @@ char *MakeFilename (object *arg, char *buffer) {
   return buffer;
 }"#
 
-#+esp
+#+(or esp arm)
 #"
 // Make SD card filename
 
@@ -187,6 +187,7 @@ void FlashWriteInt (uint32_t *addr, int data) {
 }
 
 void FlashEndWrite (uint32_t *addr) {
+  (void) addr;
 }
 
 uint8_t FlashReadByte (uint32_t *addr) {
@@ -308,6 +309,7 @@ unsigned int loadimage (object *arg) {
   gc(NULL, NULL);
   return imagesize;
 #elif defined(FLASHWRITESIZE)
+  (void) arg;
   if (FlashCheck()) error2(SAVEIMAGE, PSTR("flash write not supported"));
   uint32_t addr = 0;
   FlashReadInt(&addr); // Skip eval address
@@ -326,6 +328,7 @@ unsigned int loadimage (object *arg) {
   gc(NULL, NULL);
   return imagesize;
 #else
+  (void) arg;
   unsigned int addr = 2; // Skip eval address
   unsigned int imagesize = EEPROMReadInt(&addr);
   if (imagesize == 0 || imagesize == 0xFFFF) error2(LOADIMAGE, PSTR("no saved image"));
@@ -350,7 +353,7 @@ void autorunimage () {
   file.close();
   if (autorun != NULL) {
     loadimage(NULL);
-    apply(0, autorun, NULL, NULL);
+    apply(NIL, autorun, NULL, NULL);
   }
 #elif defined(FLASHWRITESIZE)
   uint32_t addr = 0;
@@ -581,21 +584,21 @@ void autorunimage () {
   file.close();
   if (autorun != NULL) {
     loadimage(NULL);
-    apply(0, autorun, NULL, NULL);
+    apply(NIL, autorun, NULL, NULL);
   }
 #elif defined(FLASHWRITESIZE)
   uint32_t addr = 0;
   object *autorun = (object *)FlashReadInt(&addr);
   if (autorun != NULL && (unsigned int)autorun != 0xFFFF) {
     loadimage(nil);
-    apply(0, autorun, NULL, NULL);
+    apply(NIL, autorun, NULL, NULL);
   }
 #else
   unsigned int addr = 0;
   object *autorun = (object *)EEPROMReadInt(&addr);
   if (autorun != NULL && (unsigned int)autorun != 0xFFFF) {
     loadimage(nil);
-    apply(0, autorun, NULL, NULL);
+    apply(NIL, autorun, NULL, NULL);
   }
 #endif
 }"#)
@@ -614,6 +617,18 @@ int SDRead32 (File file) {
   uintptr_t b0 = file.read(); uintptr_t b1 = file.read();
   uintptr_t b2 = file.read(); uintptr_t b3 = file.read();
   return b0 | b1<<8 | b2<<16 | b3<<24;
+}
+#elif defined(LITTLEFS)
+void FSWrite32 (File file, uint32_t data) {
+  union { uint32_t data2; uint8_t u8[4]; };
+  data2 = data;
+  if (file.write(u8, 4) != 4) error2(SAVEIMAGE, PSTR("not enough room"));
+}
+
+uint32_t FSRead32 (File file) {
+  union { uint32_t data; uint8_t u8[4]; };
+  file.read(u8, 4);
+  return data;
 }
 #elif defined(DATAFLASH)
 // Winbond DataFlash support for Adafruit M4 Express boards
@@ -634,7 +649,7 @@ const int sck = PIN_QSPI_SCK, ssel = PIN_QSPI_CS, mosi = PIN_QSPI_IO0, miso = PI
 void FlashBusy () {
   digitalWrite(ssel, 0);
   FlashWrite(READSTATUS);
-  while (FlashReadByte() & 1 != 0);
+  while ((FlashReadByte() & 1) != 0);
   digitalWrite(ssel, 1);
 }
 
@@ -669,7 +684,7 @@ void FlashWriteEnable () {
 }
 
 bool FlashCheck () {
-  uint8_t manID, devID;
+  uint8_t devID;
   digitalWrite(ssel, HIGH); pinMode(ssel, OUTPUT);
   pinMode(sck, OUTPUT);
   pinMode(mosi, OUTPUT);
@@ -677,7 +692,7 @@ bool FlashCheck () {
   digitalWrite(sck, LOW); digitalWrite(mosi, HIGH);
   digitalWrite(ssel, LOW);
   FlashWrite(READID);
-  for(uint8_t i=0; i<4; i++) manID = FlashReadByte();
+  for (uint8_t i=0; i<4; i++) FlashReadByte();
   devID = FlashReadByte();
   digitalWrite(ssel, HIGH);
   return (devID == 0x14 || devID == 0x15 || devID == 0x16); // true = found correct device
@@ -685,9 +700,9 @@ bool FlashCheck () {
 
 void FlashBeginWrite (uint32_t *addr, uint32_t bytes) {
   *addr = 0;
-  uint32_t blocks = (bytes+65535)/65536;
+  uint8_t blocks = (bytes+65535)/65536;
   // Erase 64K
-  for (int b=0; b<blocks; b++) {
+  for (uint8_t b=0; b<blocks; b++) {
     FlashWriteEnable();
     digitalWrite(ssel, 0);
     FlashWrite(BLOCK64K);
@@ -783,16 +798,8 @@ uint32_t FlashRead32 (uint32_t *addr) {
 }
 
 void FlashEndRead (uint32_t *addr) {
+  (void) addr;
 }
-#elif defined(BLOCKDEVICE)
-// For Raspberry Pi Pico and RP2040 boards
-#include "FlashIAPBlockDevice.h"
-#include "KVStore.h"
-#include "TDBStore.h"
-
-// 512KB block device, starting 1MB inside the flash
-FlashIAPBlockDevice bd(XIP_BASE + 1024*1024, 1024*512);
-mbed::TDBStore eeprom(&bd);
 #endif
 
 int saveimage (object *arg) {
@@ -822,6 +829,31 @@ int saveimage (object *arg) {
   }
   file.close();
   return imagesize;
+#elif defined(LITTLEFS)
+  unsigned int imagesize = compactimage(&arg);
+  LittleFS.begin(LITTLEFS);
+  File file;
+  if (stringp(arg)) {
+    char buffer[BUFFERSIZE];
+    file = LittleFS.open(MakeFilename(arg, buffer), FILE_WRITE_BEGIN);
+    if (!file) error2(SAVEIMAGE, PSTR("problem saving to LittleFS or invalid filename"));
+    arg = NULL;
+  } else if (arg == NULL || listp(arg)) {
+    file = LittleFS.open("/ULISP.IMG", FILE_WRITE_BEGIN);
+    if (!file) error2(SAVEIMAGE, PSTR("problem saving to LittleFS"));
+  } else error(SAVEIMAGE, invalidarg, arg);
+  FSWrite32(file, (uintptr_t)arg);
+  FSWrite32(file, imagesize);
+  FSWrite32(file, (uintptr_t)GlobalEnv);
+  FSWrite32(file, (uintptr_t)GCStack);
+  if (file.write(MyCode, CODESIZE) != CODESIZE) error2(SAVEIMAGE, PSTR("not enough room"));
+  for (unsigned int i=0; i<imagesize; i++) {
+    object *obj = &Workspace[i];
+    FSWrite32(file, (uintptr_t)car(obj));
+    FSWrite32(file, (uintptr_t)cdr(obj));
+  }
+  file.close();
+  return imagesize;
 #elif defined(DATAFLASH) || defined(EEPROMFLASH)
   unsigned int imagesize = compactimage(&arg);
   if (!(arg == NULL || listp(arg))) error(SAVEIMAGE, invalidarg, arg);
@@ -846,21 +878,6 @@ int saveimage (object *arg) {
     FlashWrite32(&addr, (uintptr_t)cdr(obj));
   }
   FlashEndWrite(&addr);
-  return imagesize;
-#elif defined(BLOCKDEVICE)
-  uint32_t imagesize = compactimage(&arg);
-  if (!(arg == NULL || listp(arg))) error(SAVEIMAGE, invalidarg, arg);
-  if (eeprom.init() != MBED_SUCCESS) error2(SAVEIMAGE, PSTR("block device not available"));
-  if (eeprom.reset() != MBED_SUCCESS) error2(SAVEIMAGE, PSTR("block device error"));
-  // Save to flash
-  uint32_t bytesneeded = 20 + CODESIZE + imagesize*8;
-  if (bytesneeded > FLASHSIZE) error(SAVEIMAGE, PSTR("image too large"), number(imagesize));
-  eeprom.set("eval", &arg, 4, 0);
-  eeprom.set("size", &imagesize, 4, 0);
-  eeprom.set("genv", &GlobalEnv, 4, 0);
-  eeprom.set("gstk", &GCStack, 4, 0);
-  eeprom.set("code", &MyCode, CODESIZE, 0);
-  eeprom.set("work", &Workspace, WORKSPACESIZE*4, 0);
   return imagesize;
 #else
   (void) arg;
@@ -896,7 +913,34 @@ int loadimage (object *arg) {
   file.close();
   gc(NULL, NULL);
   return imagesize;
-#elif defined(DATAFLASH) || defined(EEPROMFLASH)
+#elif defined(LITTLEFS)
+  LittleFS.begin(LITTLEFS);
+  File file;
+  if (stringp(arg)) {
+    char buffer[BUFFERSIZE];
+    file = LittleFS.open(MakeFilename(arg, buffer), FILE_READ);
+    if (!file) error2(LOADIMAGE, PSTR("problem loading from LittleFS or invalid filename"));
+  }
+  else if (arg == NULL) {
+    file = LittleFS.open("/ULISP.IMG", FILE_READ);
+    if (!file) error2(LOADIMAGE, PSTR("problem loading from LittleFS"));
+  }
+  else error(LOADIMAGE, invalidarg, arg);
+  FSRead32(file);
+  unsigned int imagesize = FSRead32(file);
+  GlobalEnv = (object *)FSRead32(file);
+  GCStack = (object *)FSRead32(file);
+  file.read(MyCode, CODESIZE);
+  for (unsigned int i=0; i<imagesize; i++) {
+    object *obj = &Workspace[i];
+    car(obj) = (object *)FSRead32(file);
+    cdr(obj) = (object *)FSRead32(file);
+  }
+  file.close();
+  gc(NULL, NULL);
+  return imagesize;
+#elif defined(DATAFLASH) || defined(EEPROMFLASH) || defined(EEPROMLIBRARY)
+  (void) arg;
   if (!FlashCheck()) error2(LOADIMAGE, PSTR("flash not available"));
   uint32_t addr;
   FlashBeginRead(&addr);
@@ -918,16 +962,6 @@ int loadimage (object *arg) {
   FlashEndRead(&addr);
   gc(NULL, NULL);
   return imagesize;
-#elif defined(BLOCKDEVICE)
-  if (eeprom.init() != MBED_SUCCESS) error2(SAVEIMAGE, PSTR("block device not available"));
-  uint32_t imagesize;
-  if (eeprom.get("size", &imagesize, 4) != MBED_SUCCESS) error2(LOADIMAGE, PSTR("no saved image"));
-  eeprom.get("genv", &GlobalEnv, 4);
-  eeprom.get("gstk", &GCStack, 4);
-  eeprom.get("code", &MyCode, CODESIZE);
-  eeprom.get("work", &Workspace, WORKSPACESIZE*4);
-  gc(NULL, NULL);
-  return imagesize;
 #else
   (void) arg;
   error2(LOADIMAGE, PSTR("not available"));
@@ -938,7 +972,7 @@ int loadimage (object *arg) {
 void autorunimage () {
 #if defined(sdcardsupport)
   SD.begin(SDCARD_SS_PIN);
-  File file = SD.open("ULISP.IMG");
+  File file = SD.open("/ULISP.IMG");
   if (!file) error2(NIL, PSTR("problem autorunning from SD card"));
   object *autorun = (object *)SDRead32(file);
   file.close();
@@ -946,20 +980,22 @@ void autorunimage () {
     loadimage(NULL);
     apply(NIL, autorun, NULL, NULL);
   }
-#elif defined(DATAFLASH) || defined(EEPROMFLASH)
+#elif defined(LITTLEFS)
+  LittleFS.begin(LITTLEFS);
+  File file = LittleFS.open("/ULISP.IMG", FILE_READ);
+  if (!file) error2(NIL, PSTR("problem autorunning from LittleFS"));
+  object *autorun = (object *)FSRead32(file);
+  file.close();
+  if (autorun != NULL) {
+    loadimage(NULL);
+    apply(NIL, autorun, NULL, NULL);
+  }
+#elif defined(DATAFLASH) || defined(EEPROMFLASH) || defined(EEPROMLIBRARY)
   if (!FlashCheck()) error2(NIL, PSTR("flash not available"));
   uint32_t addr;
   FlashBeginRead(&addr);
   object *autorun = (object *)FlashRead32(&addr);
   FlashEndRead(&addr);
-  if (autorun != NULL && (unsigned int)autorun != 0xFFFFFFFF) {
-    loadimage(nil);
-    apply(NIL, autorun, NULL, NULL);
-  }
-#elif defined(BLOCKDEVICE)
-  if (eeprom.init() != MBED_SUCCESS) error2(SAVEIMAGE, PSTR("block device not available"));
-  object *autorun;
-  eeprom.get("eval", &autorun, 4);
   if (autorun != NULL && (unsigned int)autorun != 0xFFFFFFFF) {
     loadimage(nil);
     apply(NIL, autorun, NULL, NULL);
@@ -1071,7 +1107,7 @@ void autorunimage () {
   file.close();
   if (autorun != NULL) {
     loadimage(NULL);
-    apply(0, autorun, NULL, NULL);
+    apply(NIL, autorun, NULL, NULL);
   }
 #else
   error2(NIL, PSTR("autorun not available"));
@@ -1093,6 +1129,18 @@ int SDReadInt (File file) {
   uintptr_t b2 = file.read(); uintptr_t b3 = file.read();
   return b0 | b1<<8 | b2<<16 | b3<<24;
 }
+#elif defined(LITTLEFS)
+void FSWrite32 (File file, uint32_t data) {
+  union { uint32_t data2; uint8_t u8[4]; };
+  data2 = data;
+  if (file.write(u8, 4) != 4) error2(SAVEIMAGE, PSTR("not enough room"));
+}
+
+uint32_t FSRead32 (File file) {
+  union { uint32_t data; uint8_t u8[4]; };
+  file.read(u8, 4);
+  return data;
+}
 #else
 void EpromWriteInt(int *addr, uintptr_t data) {
   EEPROM.write((*addr)++, data & 0xFF); EEPROM.write((*addr)++, data>>8 & 0xFF);
@@ -1107,8 +1155,8 @@ int EpromReadInt (int *addr) {
 #endif
 
 unsigned int saveimage (object *arg) {
-  unsigned int imagesize = compactimage(&arg);
 #if defined(sdcardsupport)
+  unsigned int imagesize = compactimage(&arg);
   SD.begin(SDCARD_SS_PIN);
   File file;
   if (stringp(arg)) {
@@ -1128,7 +1176,32 @@ unsigned int saveimage (object *arg) {
   }
   file.close();
   return imagesize;
-#else
+#elif defined(LITTLEFS)
+  unsigned int imagesize = compactimage(&arg);
+  if (!LittleFS.begin(true)) error2(SAVEIMAGE, PSTR("problem mounting LittleFS"));
+  File file;
+  if (stringp(arg)) {
+    char buffer[BUFFERSIZE];
+    file = LittleFS.open(MakeFilename(arg, buffer), "w");
+    if (!file) error2(SAVEIMAGE, PSTR("problem saving to LittleFS or invalid filename"));
+    arg = NULL;
+  } else if (arg == NULL || listp(arg)) {
+    file = LittleFS.open("/ULISP.IMG", "w");
+    if (!file) error2(SAVEIMAGE, PSTR("problem saving to LittleFS"));
+  } else error(SAVEIMAGE, invalidarg, arg);
+  FSWrite32(file, (uintptr_t)arg);
+  FSWrite32(file, imagesize);
+  FSWrite32(file, (uintptr_t)GlobalEnv);
+  FSWrite32(file, (uintptr_t)GCStack);
+  for (unsigned int i=0; i<imagesize; i++) {
+    object *obj = &Workspace[i];
+    FSWrite32(file, (uintptr_t)car(obj));
+    FSWrite32(file, (uintptr_t)cdr(obj));
+  }
+  file.close();
+  return imagesize;
+#elif defined(EEPROMSIZE)
+  unsigned int imagesize = compactimage(&arg);
   if (!(arg == NULL || listp(arg))) error(SAVEIMAGE, PSTR("illegal argument"), arg);
   int bytesneeded = imagesize*8 + 36;
   if (bytesneeded > EEPROMSIZE) error(SAVEIMAGE, PSTR("image too large"), number(imagesize));
@@ -1145,6 +1218,10 @@ unsigned int saveimage (object *arg) {
   }
   EEPROM.commit();
   return imagesize;
+#else
+  (void) arg;
+  error2(SAVEIMAGE, PSTR("not available"));
+  return 0;
 #endif
 }
 
@@ -1168,7 +1245,33 @@ unsigned int loadimage (object *arg) {
   file.close();
   gc(NULL, NULL);
   return imagesize;
-#else
+#elif defined(LITTLEFS)
+  if (!LittleFS.begin()) error2(LOADIMAGE, PSTR("problem mounting LittleFS"));
+  File file;
+  if (stringp(arg)) {
+    char buffer[BUFFERSIZE];
+    file = LittleFS.open(MakeFilename(arg, buffer), "r");
+    if (!file) error2(LOADIMAGE, PSTR("problem loading from LittleFS or invalid filename"));
+  }
+  else if (arg == NULL) {
+    file = LittleFS.open("/ULISP.IMG", "r");
+    if (!file) error2(LOADIMAGE, PSTR("problem loading from LittleFS"));
+  }
+  else error(LOADIMAGE, invalidarg, arg);
+  FSRead32(file);
+  unsigned int imagesize = FSRead32(file);
+  GlobalEnv = (object *)FSRead32(file);
+  GCStack = (object *)FSRead32(file);
+  for (unsigned int i=0; i<imagesize; i++) {
+    object *obj = &Workspace[i];
+    car(obj) = (object *)FSRead32(file);
+    cdr(obj) = (object *)FSRead32(file);
+  }
+  file.close();
+  gc(NULL, NULL);
+  return imagesize;
+#elif defined(EEPROMSIZE)
+  (void) arg;
   EEPROM.begin(EEPROMSIZE);
   int addr = 0;
   EpromReadInt(&addr); // Skip eval address
@@ -1183,6 +1286,10 @@ unsigned int loadimage (object *arg) {
   }
   gc(NULL, NULL);
   return imagesize;
+#else
+  (void) arg;
+  error2(LOADIMAGE, PSTR("not available"));
+  return 0;
 #endif
 }
 
@@ -1195,16 +1302,28 @@ void autorunimage () {
   file.close();
   if (autorun != NULL) {
     loadimage(NULL);
-    apply(0, autorun, NULL, NULL);
+    apply(NIL, autorun, NULL, NULL);
   }
-#else
+#elif defined(LITTLEFS)
+  if (!LittleFS.begin()) error2(NIL, PSTR("problem mounting LittleFS"));
+  File file = LittleFS.open("/ULISP.IMG", "r");
+  if (!file) error2(NIL, PSTR("problem autorunning from LittleFS"));
+  object *autorun = (object *)FSRead32(file);
+  file.close();
+  if (autorun != NULL) {
+    loadimage(NULL);
+    apply(NIL, autorun, NULL, NULL);
+  }
+#elif defined(EEPROMSIZE)
   EEPROM.begin(EEPROMSIZE);
   int addr = 0;
   object *autorun = (object *)EpromReadInt(&addr);
   if (autorun != NULL && (unsigned int)autorun != 0xFFFF) {
     loadimage(NULL);
-    apply(0, autorun, NULL, NULL);
+    apply(NIL, autorun, NULL, NULL);
   }
+#else
+  error2(NIL, PSTR("autorun not available"));
 #endif
 }"#)
 
@@ -1371,14 +1490,14 @@ void autorunimage () {
   file.close();
   if (autorun != NULL) {
     loadimage(NULL);
-    apply(0, autorun, NULL, NULL);
+    apply(NIL, autorun, NULL, NULL);
   }
 #else
   unsigned int addr = 0;
   object *autorun = (object *)FlashReadInt(&addr);
   if (autorun != NULL && (unsigned int)autorun != 0xFFFFFFFF) {
     loadimage(nil);
-    apply(0, autorun, NULL, NULL);
+    apply(NIL, autorun, NULL, NULL);
   }
 #endif
 }"#)

@@ -20,30 +20,50 @@
 
 ; Code generation functions
 
-(defun float-function (str enum string)
+(defun float-function (str enum string comments)
   (declare (ignore string))
   (format str "
-object *fn_~a (object *args, object *env) {
+~:[~2*~;/*
+  (~a number)
+  Returns ~a(number).
+*/
+~]object *fn_~a (object *args, object *env) {
   (void) env;
   return makefloat(~a(checkintfloat(~a, first(args))));
-}" (string-downcase enum) (string-downcase enum) enum))
+}" 
+          comments
+          (string-downcase enum)
+          (string-downcase enum)
+          (string-downcase enum)
+          (string-downcase enum) 
+          enum))
 
-(defun truncate-function (str enum string)
+(defun truncate-function (str enum string comments)
   (declare (ignore string))
   (format str "
-object *fn_~a (object *args, object *env) {
+~:[~2*~;/*
+  (~a number [divisor])
+  Returns ~a(number/divisor). If omitted, divisor is 1.
+*/
+~]object *fn_~a (object *args, object *env) {
   (void) env;
   object *arg = first(args);
   args = cdr(args);
   if (args != NULL) return number(~a(checkintfloat(~a, arg) / checkintfloat(~a, first(args))));
   else return number(~a(checkintfloat(~a, arg)));
-}" (string-downcase enum) 
+}" 
+          comments
+          (string-downcase enum)
+          (cdr (assoc enum '((CEILING . "ceil") (FLOOR . "floor") (TRUNCATE . "trunc") (ROUND . "round"))))
+
+          (string-downcase enum) 
           (cdr (assoc enum '((CEILING . "ceil") (FLOOR . "floor") (TRUNCATE . "trunc") (ROUND . "round"))))
           enum enum
           (cdr (assoc enum '((CEILING . "ceil") (FLOOR . "floor") (TRUNCATE . "trunc") (ROUND . "round"))))
           enum))
 
-(defun numeric1 (str enum string)
+#|
+(defun numeric1 (str enum string comments)
   (declare (ignore string))
   (format str "
 object *fn_~a (object *args, object *env) {
@@ -51,11 +71,16 @@ object *fn_~a (object *args, object *env) {
   int arg = checkinteger(~a, first(args));
   return number(~a(arg));
 }" (string-downcase enum) enum (string-downcase enum)))
+|#
 
-(defun bitwise (str enum string)
+(defun bitwise (str enum string comments)
   (declare (ignore string))
   (format str "
-object *fn_~a (object *args, object *env) {
+~:[~2*~;/*
+  (~a [value*])
+  Returns the bitwise ~a of the values.
+*/
+~]object *fn_~a (object *args, object *env) {
   (void) env;
   int result = ~a;
   while (args != NULL) {
@@ -63,14 +88,19 @@ object *fn_~a (object *args, object *env) {
     args = cdr(args);
   }
   return number(result);
-}" (string-downcase enum)
+}"
+          comments
+          (string-downcase enum)
+          (cdr (assoc enum '((LOGAND . "&") (LOGIOR . "|") (LOGXOR . "^"))))
+          (string-downcase enum)
           (cdr (assoc enum '((LOGAND . "-1") (LOGIOR . "0") (LOGXOR . "0"))))
           (cdr (assoc enum '((LOGAND . "&") (LOGIOR . "|") (LOGXOR . "^"))))
           enum))
 
+#|
 ; For max or min
 
-(defun numeric2 (str enum string)
+(defun numeric2 (str enum string comments)
   (declare (ignore string))
   (format str "
 object *fn_~a (object *args, object *env) {
@@ -83,6 +113,7 @@ object *fn_~a (object *args, object *env) {
   }
   return number(result);
 }" (string-downcase enum) (string-downcase enum)))
+|#
 
 (defun split-into-lines (string &optional (indent 0))
   (let* ((linelen 106)
