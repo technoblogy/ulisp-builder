@@ -57,12 +57,12 @@
             (setq j i)
             (format str "#~[~:;el~]if defined(~a)~%" (if wildcard (1- n) n) cpu))
           (dolist (k klist)
-            (format str "const char string~a[] PROGMEM = \":~a\";~%" j 
+            (format str "STRINGER(~a, \":~a\")~%" j 
                     (substitute #\- #\_ (string-downcase (if (consp k) (car k) k))))
             (incf j))
-          (when cpu (format str "const char string~a[] PROGMEM = \"\";~%" j)))
+          (when cpu (format str "STRINGER(~a, \"\")~%" j)))
         (unless cpu (setq i j))))
-    (if only-wildcard (format str "const char string~a[] PROGMEM = \"\";~%" j)
+    (if only-wildcard (format str "STRINGER(~a, \"\")~%" j)
       (format str "#endif~%"))))
 
 (defun needs-&-prefix (a b)
@@ -210,6 +210,7 @@
 
     ;; Write PROGMEM strings
     (format str "~%// Built-in symbol names~%")
+    (format str "~%#define STRINGER(s, k) const char string##s[] PROGMEM = k;~%")
     (let ((i 0))
       (dolist (section definitions)
         (destructuring-bind (comment defs &optional prefix) section
@@ -218,7 +219,7 @@
             (destructuring-bind (enum string min max definition) item
               (declare (ignore definition min max))
               (let ((lower (string-downcase enum)))
-                (format str "const char string~a[] PROGMEM = \"~a\";~%" i (or string lower))
+                (format str "STRINGER(~a, \"~a\")~%" i (or string lower))
                 (setq maxsymbol (max maxsymbol (length (or string lower))))
                 (incf i))))))
       ; Do keywords
@@ -228,6 +229,7 @@
     ;; Write documentation strings
     (when documentation
       (format str "~%// Documentation strings~%")
+      (format str "~%#define DOCSER(s, k) const char string##s[] PROGMEM = k;~%")
       (let ((i 0))
         (dolist (section definitions)
           (destructuring-bind (comment defs &optional prefix) section
@@ -237,7 +239,7 @@
                 (declare (ignore min max))
                 (let ((docstring (docstring definition enum string)))
                   (when docstring 
-                    (format str "const char doc~a[] PROGMEM = \"~a\";~%"
+                    (format str "DOCSER(~a, \"~a\")~%"
                             i (replace-linebreaks docstring)))
                   (incf i)))))))
       (format str "~%// Insert your own function documentation here~%"))
