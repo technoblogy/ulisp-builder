@@ -1,10 +1,11 @@
-;; Options: :avr :arm :msp430 :esp :stm32 :badge :zero :riscv
+;; Options: :avr :avr-nano :arm :msp430 :esp :stm32 :badge :zero :riscv
 
-(push :avr *features*)
+(push :avr-nano *features*)
+
+(defparameter *release* "4.4b")
+(defparameter *date* "3rd April 2023")
  
 ;***************************************
-
-;(push :interrupts *features*)
 
 #+badge
 (push :avr *features*)
@@ -16,16 +17,16 @@
 (push :arrays *features*)
 
 #+(or arm esp)
-(push :ethernet *features*)
+(push :wifi *features*)
 
 #+(or riscv arm esp)
 (push :gfx *features*)
 
-#+(or riscv arm)
-(push :code *features*)
-
 #+(or arm esp riscv avr)
 (push :doc *features*)
+
+#+(or arm esp riscv avr)
+(push :errors *features*)
 
 (load "/Users/david/Projects/Builder/builder defsys.lisp")
 

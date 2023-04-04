@@ -72,7 +72,7 @@ object *call (int entry, int nargs, object *args, object *env) {
 #+avr
 #"
 void putcode (object *arg, int origin, int pc) {
-  int code = checkinteger(DEFCODE, arg);
+  int code = checkinteger(arg);
   uint8_t hi = (code>>8) & 0xff;
   uint8_t lo = code & 0xff; 
   MyCode[origin+pc] = lo;            // Little-endian
@@ -87,7 +87,7 @@ void putcode (object *arg, int origin, int pc) {
 #"
 void putcode (object *arg, int origin, int pc) {
 #if defined(CODESIZE)
-  int code = checkinteger(DEFCODE, arg);
+  int code = checkinteger(arg);
   MyCode[origin+pc] = code & 0xff;
   MyCode[origin+pc+1] = (code>>8) & 0xff;
   #if defined(assemblerlist)
@@ -111,7 +111,7 @@ int assemble (int pass, int origin, object *entries, object *env, object *pcpair
         printobject(arg, pserial); pln(pserial);
         #endif
       } else {
-        object *pair = findvalue(DEFCODE, arg, env);
+        object *pair = findvalue(arg, env);
         cdr(pair) = number(pc);
       }
     } else {
@@ -139,7 +139,7 @@ int assemble (int pass, int origin, object *entries, object *env, object *pcpair
         }
         pc = pc + 2;
         cdr(pcpair) = number(pc);
-      } else error(DEFCODE, PSTR("illegal entry"), arg);
+      } else error(PSTR("illegal entry"), arg);
     }
     entries = cdr(entries);
   }
@@ -163,7 +163,7 @@ int assemble (int pass, int origin, object *entries, object *env, object *pcpair
         printobject(arg, pserial); pln(pserial);
         #endif
       } else {
-        object *pair = findvalue(DEFCODE, arg, env);
+        object *pair = findvalue(arg, env);
         cdr(pair) = number(pc);
       }
     } else {
@@ -191,7 +191,7 @@ int assemble (int pass, int origin, object *entries, object *env, object *pcpair
         }
         pc = pc + 2;
         cdr(pcpair) = number(pc);
-      } else error(DEFCODE, PSTR("illegal entry"), arg);
+      } else error(PSTR("illegal entry"), arg);
     }
     entries = cdr(entries);
   }

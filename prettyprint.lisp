@@ -96,32 +96,17 @@ void superprint (object *form, int lm, pfun_t pfun) {
   else supersub(form, lm + PPINDENT, 1, pfun);
 }"#
 
-#+(and avr (not badge))
 #"
-const int ppspecials = 16;
-const char ppspecial[ppspecials] PROGMEM = 
-  { DOTIMES, DOLIST, IF, SETQ, TEE, LET, LETSTAR, LAMBDA, WHEN, UNLESS, WITHI2C, WITHSERIAL, WITHSPI, WITHSDCARD, FORMILLIS, DEFVAR };
-
 /*
   supersub - subroutine used by pprint
 */
 void supersub (object *form, int lm, int super, pfun_t pfun) {
   int special = 0, separate = 1;
   object *arg = car(form);
-  if (symbolp(arg)) {
-    symbol_t sname = arg->name;
-    #if defined(CODESIZE)
-    if (sname == sym(DEFUN) || sname == sym(DEFCODE)) special = 2;
-    #else
-    if (sname == sym(DEFUN)) special = 2;
-    #endif
-    else for (int i=0; i<ppspecials; i++) {
-      #if defined(CPU_ATmega4809)
-      if (sname == sym(ppspecial[i])) { special = 1; break; }    
-      #else
-      if (sname == sym((builtin_t)pgm_read_byte(&ppspecial[i]))) { special = 1; break; }
-      #endif   
-    } 
+  if (symbolp(arg) && builtinp(arg->name)) {
+    uint8_t minmax = getminmax(builtin(arg->name));
+    if (minmax == 0327 || minmax == 0313) special = 2; // defun, setq, setf, defvar
+    else if (minmax == 0317 || minmax == 0017 || minmax == 0117 || minmax == 0123) special = 1;
   }
   while (form != NULL) {
     if (atom(form)) { pfstring(PSTR(" . "), pfun); printobject(form, pfun); pfun(')'); return; }
@@ -131,199 +116,6 @@ void supersub (object *form, int lm, int super, pfun_t pfun) {
     else { pln(pfun); indent(lm, ' ', pfun); }
     superprint(car(form), lm, pfun);
     form = cdr(form);
-  }
-  pfun(')'); return;
-}"#
-
- #+arm
-#"
-const int ppspecials = 20;
-const char ppspecial[ppspecials] PROGMEM =
-  { DOTIMES, DOLIST, IF, SETQ, TEE, LET, LETSTAR, LAMBDA, WHEN, UNLESS, WITHI2C, WITHSERIAL, WITHSPI, WITHSDCARD, FORMILLIS,
-    WITHOUTPUTTOSTRING, DEFVAR, CASE, WITHGFX, WITHCLIENT };
-
-/*
-  supersub - subroutine used by pprint
-*/
-void supersub (object *form, int lm, int super, pfun_t pfun) {
-  int special = 0, separate = 1;
-  object *arg = car(form);
-  if (symbolp(arg)) {
-    symbol_t sname = arg->name;
-    if (sname == sym(DEFUN) || sname == sym(DEFCODE)) special = 2;
-    else for (int i=0; i<ppspecials; i++) {
-      if (sname == sym((builtin_t)ppspecial[i])) { special = 1; break; }
-    }
-  }
-  while (form != NULL) {
-    if (atom(form)) { pfstring(PSTR(" . "), pfun); printobject(form, pfun); pfun(')'); return; }
-    else if (separate) { pfun('('); separate = 0; }
-    else if (special) { pfun(' '); special--; }
-    else if (!super) pfun(' ');
-    else { pln(pfun); indent(lm, ' ', pfun); }
-    superprint(car(form), lm, pfun);
-    form = cdr(form);
-  }
-  pfun(')'); return;
-}"#
-
-#+riscv
-#"
-const int ppspecials = 19;
-const char ppspecial[ppspecials] PROGMEM =
-  { DOTIMES, DOLIST, IF, SETQ, TEE, LET, LETSTAR, LAMBDA, WHEN, UNLESS, WITHI2C, WITHSERIAL, WITHSPI, WITHSDCARD, FORMILLIS,
-    WITHOUTPUTTOSTRING, DEFVAR, CASE, WITHGFX };
-
-/*
-  supersub - subroutine used by pprint
-*/
-void supersub (object *form, int lm, int super, pfun_t pfun) {
-  int special = 0, separate = 1;
-  object *arg = car(form);
-  if (symbolp(arg)) {
-    symbol_t sname = arg->name;
-    if (sname == sym(DEFUN) || sname == sym(DEFCODE)) special = 2;
-    else for (int i=0; i<ppspecials; i++) {
-      if (sname == sym((builtin_t)ppspecial[i])) { special = 1; break; }
-    }
-  }
-  while (form != NULL) {
-    if (atom(form)) { pfstring(PSTR(" . "), pfun); printobject(form, pfun); pfun(')'); return; }
-    else if (separate) { pfun('('); separate = 0; }
-    else if (special) { pfun(' '); special--; }
-    else if (!super) pfun(' ');
-    else { pln(pfun); indent(lm, ' ', pfun); }
-    superprint(car(form), lm, pfun);
-    form = cdr(form);
-  }
-  pfun(')'); return;
-}"#
-
-#+msp430
-#"
-const int ppspecials = 16;
-const char ppspecial[ppspecials] PROGMEM =
-  { DOTIMES, DOLIST, IF, SETQ, TEE, LET, LETSTAR, LAMBDA, WHEN, UNLESS, WITHI2C, WITHSERIAL, WITHSPI, WITHSDCARD, FORMILLIS, WITHLCD };
-
-/*
-  supersub - subroutine used by pprint
-*/
-void supersub (object *form, int lm, int super, pfun_t pfun) {
-  int special = 0, separate = 1;
-  object *arg = car(form);
-  if (symbolp(arg)) {
-    int name = arg->name;
-    if (name == DEFUN) special = 2;
-    else for (int i=0; i<ppspecials; i++) {
-      if (name == pgm_read_byte(&ppspecial[i])) { special = 1; break; }
-    }
-  }
-  while (form != NULL) {
-    if (atom(form)) { pfstring(PSTR(" . "), pfun); printobject(form, pfun); pfun(')'); return; }
-    else if (separate) { pfun('('); separate = 0; }
-    else if (special) { pfun(' '); special--; }
-    else if (!super) pfun(' ');
-    else { pln(pfun); indent(lm, ' ', pfun); }
-    superprint(car(form), lm, pfun);
-    form = cdr(form);
-  }
-  pfun(')'); return;
-}"#
-
-#+badge
-#"
-const int ppspecials = 15;
-const uint8_t ppspecial[ppspecials] PROGMEM = 
-  { DOTIMES, DOLIST, IF, SETQ, TEE, LET, LETSTAR, LAMBDA, WHEN, UNLESS, WITHI2C, WITHSERIAL, WITHSPI, WITHSDCARD, FORMILLIS };
-
-/*
-  supersub - subroutine used by pprint
-*/
-void supersub (object *form, int lm, int super, pfun_t pfun) {
-  int special = 0, separate = 1;
-  object *arg = car(form);
-  if (symbolp(arg)) {
-    int name = arg->name;
-    #if defined(CODESIZE)
-    if (name == DEFUN || name == DEFCODE) special = 2;
-    #else
-    if (name == DEFUN) special = 2;
-    #endif
-    else for (int i=0; i<ppspecials; i++) {
-      if (name == pgm_read_byte(&ppspecial[i])) { special = 1; break; }
-    } 
-  }
-  while (form != NULL) {
-    if (atom(form)) { pfstring(PSTR(" . "), pfun); printobject(form, pfun); pfun(')'); return; }
-    else if (separate) { pfun('('); separate = 0; }
-    else if (special) { pfun(' '); special--; }
-    else if (!super) pfun(' ');
-    else { pln(pfun); indent(lm, ' ', pfun); }
-    superprint(car(form), lm, pfun);
-    form = cdr(form);
-  }
-  pfun(')'); return;
-}"#
-
- #+esp
-#"
-const int ppspecials = 20;
-const char ppspecial[ppspecials] PROGMEM =
-  { DOTIMES, DOLIST, IF, SETQ, TEE, LET, LETSTAR, LAMBDA, WHEN, UNLESS, WITHI2C, WITHSERIAL, WITHSPI, WITHSDCARD, FORMILLIS, 
-    WITHOUTPUTTOSTRING,  DEFVAR, CASE, WITHGFX, WITHCLIENT };
-
-/*
-  supersub - subroutine used by pprint
-*/
-void supersub (object *form, int lm, int super, pfun_t pfun) {
-  int special = 0, separate = 1;
-  object *arg = car(form);
-  if (symbolp(arg)) {
-    symbol_t sname = arg->name;
-    if (sname == sym(DEFUN)) special = 2;
-    else for (int i=0; i<ppspecials; i++) {
-      if (sname == sym((builtin_t)pgm_read_byte(&ppspecial[i]))) { special = 1; break; }
-    } 
-  }
-  while (form != NULL) {
-    if (atom(form)) { pfstring(PSTR(" . "), pfun); printobject(form, pfun); pfun(')'); return; }
-    else if (separate) { pfun('('); separate = 0; }
-    else if (special) { pfun(' '); special--; }
-    else if (!super) pfun(' ');
-    else { pln(pfun); indent(lm, ' ', pfun); }
-    superprint(car(form), lm, pfun);
-    form = cdr(form);
-  }
-  pfun(')'); return;
-}"#
-
-#+stm32
-#"
-const int ppspecials = 18;
-const char ppspecial[ppspecials] PROGMEM = 
-  { DOTIMES, DOLIST, IF, SETQ, TEE, LET, LETSTAR, LAMBDA, WHEN, UNLESS, WITHI2C, WITHSERIAL, WITHSPI, WITHSDCARD, WITHGFX, WITHOUTPUTTOSTRING, FORMILLIS };
-
-/*
-  supersub - subroutine used by pprint
-*/
-void supersub (object *form, int lm, int super, pfun_t pfun) {
-  int special = 0, separate = 1;
-  object *arg = car(form);
-  if (symbolp(arg)) {
-    int name = arg->name;
-    if (name == DEFUN || name == DEFCODE) special = 2;
-    else for (int i=0; i<ppspecials; i++) {
-      if (name == ppspecial[i]) { special = 1; break; }   
-    } 
-  }
-  while (form != NULL) {
-    if (atom(form)) { pfstring(PSTR(" . "), pfun); printobject(form, pfun); pfun(')'); return; }
-    else if (separate) { pfun('('); separate = 0; }
-    else if (special) { pfun(' '); special--; }
-    else if (!super) pfun(' ');
-    else { pln(pfun); indent(lm, ' ', pfun); }
-    superprint(car(form), lm, pfun);
-    form = cdr(form);   
   }
   pfun(')'); return;
 }"#

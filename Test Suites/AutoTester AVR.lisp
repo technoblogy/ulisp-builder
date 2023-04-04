@@ -106,7 +106,12 @@
 (aeq 'let 83 (let ((1- 83)) 1-))
 (aeq 'let 13 (let ((12a 13)) 12a))
 (aeq 'let 17 (let ((-1- 17)) -1-))
-(aeq 'let 23 (let ((abracadabra 23)) abracadabra))
+(aeq 'let 66 (let ((abcdef 66)) abcdef))
+(aeq 'let 77 (let ((abcdefg 77)) abcdefg))
+(aeq 'let 88 (let ((abcdefgh 88)) abcdefgh))
+(aeq 'let 99 (let ((abcdefghi 99)) abcdefghi))
+(aeq 'let 1010 (let ((abcdefghij 1010)) abcdefghij))
+(aeq 'let "ab9" (princ-to-string 'ab9))
 
 #| Arithmetic |#
 
@@ -391,12 +396,28 @@
 (aeq 'lambda 5040 (let ((f (lambda (n) (if (= n 0) 1 (* n (f (- n 1))))))) (f 7)))
 (aeq 'lambda 10 (let ((a 0)) (let ((f (lambda (n) (incf a n) (when (> n 0) (f (1- n)))))) (f 4)) a))
 
+#| streams |#
+
+(aeq 'stream "<string-stream 0>" (with-output-to-string (s) (princ s s)))
+(aeq 'stream "12 23 34" (with-output-to-string (st) (format st "~a ~a ~a" 12 23 34)))
+
 #| printing |#
 
 (aeq 'princ "hello" (princ-to-string "hello"))
 (aeq 'princ "hello \"David\"" (princ-to-string "hello \"David\""))
 (aeq 'prin1 "\"hello\"" (prin1-to-string "hello"))
 (aeq 'prin1 "\"hello \\\"David\\\"\"" (prin1-to-string "hello \"David\""))
+
+#| prettyprinting |#
+
+(aeq 'princ "hello" (princ-to-string "hello"))
+(aeq 'pprint 8313 (let ((n 0) (st (with-output-to-string (str) (pprint aeq str)))) (dotimes (i (length st) n) (incf n (char-code (char st i))))))
+
+#| documentation |#
+
+(aeq 'apropos '(progn apropos apropos-list unwind-protect) (apropos-list 'pro))
+(aeq 'apropos '(progn apropos apropos-list unwind-protect) (apropos-list "pro"))
+(aeq 'documentation 7397 (let ((n 0)) (let ((st (documentation '?))) (dotimes (i (length st) n) (incf n (char-code (char st i)))))))
 
 #| format |#
 
@@ -423,8 +444,6 @@
 (aeq 'eq t (let ((a "hello")) (eq a a)))
 (aeq 'length 0 (length ""))
 (aeq 'length 5 (length "hello"))
-(aeq 'subseq "hello" (subseq "hellofromdavid" 0 5))
-(aeq 'subseq "fromdavid" (subseq "hellofromdavid" 5))
 (aeq 'concatenate t (string= (concatenate 'string "A" "B") "AB"))
 (aeq 'concatenate 3 (length (concatenate 'string "A" "BC")))
 (aeq 'concatenate 0 (length (concatenate 'string)))
@@ -441,6 +460,19 @@
 (aeq 'string "x" (string #\x))
 (aeq 'string "cat" (string 'cat))
 (aeq 'string "albatross" (string 'albatross))
+
+#| subseq and search |#
+
+(aeq 'subseq "hello" (subseq "hellofromdavid" 0 5))
+(aeq 'subseq "fromdavid" (subseq "hellofromdavid" 5))
+(aeq 'subseq '(2 3 4) (subseq '(0 1 2 3 4) 2))
+(aeq 'subseq '(2) (subseq '(0 1 2 3 4) 2 3))
+(aeq 'subseq nil (subseq '() 0))
+(aeq 'search 4 (search "cat" "the cat sat on the mat"))
+(aeq 'search 19 (search "mat" "the cat sat on the mat"))
+(aeq 'search nil (search "hat" "the cat sat on the mat"))
+(aeq 'search 1 (search '(1 2) '( 0 1 2 3 4)))
+(aeq 'search nil (search '(2 1 2 3 4 5) '(2 1 2 3 4)))
 
 #| characters |#
 
@@ -477,12 +509,79 @@
 (aeq 'closure 0 (let ((x 0)) (funcall (let ((x 7)) (lambda (y) (setq x (+ x y) ))) 4) x))
 (aeq 'closure '(8 10 13 17) (let ((x 0) (clo (lambda () (let ((x 7)) (lambda (y) (incf x y)))))) (mapcar (funcall clo) '(1 2 3 4))))
 (aeq 'closure 3 (let ((y 0) (tst (lambda (x) (+ x 1)))) (dotimes (x 3 y) (progn (tst (+ x 2))) (incf y x))))
+
+#| equal |#
+
+(aeq 'equal t (equal '(1 2 3) '(1 2 3)))
+(aeq 'equal t (equal '(1 2 (4) 3) '(1 2 (4) 3)))
+(aeq 'equal nil (equal '(1 2 (4) 3) '(1 2 (4 nil) 3)))
+(aeq 'equal t (equal "cat" "cat"))
+(aeq 'equal nil (equal "cat" "Cat"))
+(aeq 'equal t (equal 'cat 'Cat))
+(aeq 'equal t (equal 2 (+ 1 1)))
+
+#| keywords |#
+
+(aeq 'keywordp t (keywordp :led-builtin))
+(aeq 'keywordp nil (keywordp print))
+(aeq 'keywordp nil (keywordp nil))
+(aeq 'keywordp nil (keywordp 12))
+
+#| errors |#
+
+(aeq 'error 7 (let ((x 7)) (ignore-errors (setq x (/ 1 0))) x))
+(aeq 'error 5 (unwind-protect (+ 2 3) 13))
+
+#| arrays |#
+
+(aeq 'array '(0 0) (array-dimensions #2a()))
+(aeq 'array '(1 0) (array-dimensions #2a(())))
+(aeq 'array '(2 0) (array-dimensions #2a(() ())))
+(aeq 'array '(0) (array-dimensions (make-array '(0))))
+(aeq 'array '(0) (array-dimensions (make-array 0)))
+(aeq 'array 1 (let ((a (make-array 3 :initial-element 0))) (incf (aref a (+ 1 1))) (aref a 2)))
+(aeq 'array 1 (let ((a (make-array '(3) :initial-element 0))) (incf (aref a (+ 1 1))) (aref a 2)))
+(aeq 'array 1 (let ((a (make-array '(2 3) :initial-element 0))) (incf (aref a 1 (+ 1 1))) (aref a 1 2)))
+(aeq 'array 1 (let ((a (make-array '(2 3 2 2) :initial-element 0))) (incf (aref a 1 (+ 1 1) 1 1)) (aref a 1 2 1 1)))
+(aeq 'array 10 (length (make-array 10 :initial-element 1)))
+
+#| bit arrays |#
+
+(aeq 'array '(0) (array-dimensions (make-array '(0) :element-type 'bit)))
+(aeq 'array '(1 1) (array-dimensions (make-array '(1 1) :element-type 'bit)))
+(aeq 'array 10 (length (make-array '(10) :element-type 'bit)))
+(aeq 'array 10 (length (make-array 10 :element-type 'bit)))
+(aeq 'array 1 (let ((a (make-array 3 :element-type 'bit))) (incf (aref a (+ 1 1))) (aref a 2)))
+(aeq 'array 1 (let ((a (make-array 3 :initial-element 0 :element-type 'bit))) (incf (aref a (+ 1 1))) (aref a 2)))
+(aeq 'array 0 (let ((a (make-array 10 :element-type 'bit :initial-element 1))) (decf (aref a 4)) (aref a 4)))
+(aeq 'array 1 (let ((a (make-array 40 :element-type 'bit :initial-element 0))) (incf (aref a 39)) (aref a 39)))
+(aeq 'array 0 (let ((a (make-array 40 :element-type 'bit :initial-element 0))) (incf (aref a 39)) (decf (aref a 39)) (aref a 39)))
+
+#| parameter checks |#
+
+(aeq 'dolist nothing (ignore-errors (dolist 12 (print x))))
+(aeq 'dolist nothing (ignore-errors (dolist () (print x))))
+(aeq 'dolist nothing (ignore-errors (dolist (x) (print x))))
+(aeq 'dolist nothing (ignore-errors (dolist (x nil x x) (print x))))
+(aeq 'dotimes nothing (ignore-errors (dotimes 12 (print x))))
+(aeq 'dotimes nothing (ignore-errors (dotimes () (print x))))
+(aeq 'dotimes nothing (ignore-errors (dotimes (x) (print x))))
+(aeq 'dotimes nothing (ignore-errors (dotimes (x 1 x x) (print x))))
+(aeq 'for-millis nothing (for-millis 12 (print 12)))
+(aeq 'for-millis nothing (for-millis (12 12) (print 12)))
+
+#| errors |#
+
+(aeq 'errors 0 ers)
+
 "#)
 
 (defun run-tests (&optional (usb 1411)) ; "/dev/cu.usbserial-A104OVGT")) ; 
   (let ((name (cond
                ((numberp usb) (format nil "/dev/cu.usbmodem~a" usb))
-               ((eq usb :badge) "/dev/cu.usbserial-A104OVGT") ; "/dev/cu.usbserial-A602TRZF"
+               ((eq usb :badge2) "/dev/cu.usbserial-A104OVGT")
+               ((eq usb :badge) "/dev/cu.usbserial-A602TRZF") ; "/dev/cu.usbserial-A602TRZF"
+               ((eq usb :avrfeather) "/dev/cu.SLAB_USBtoUART")
                (t usb)))
         (speed 0.5))
   (flet ((serial-write-exp (string stream)
@@ -511,22 +610,10 @@
       (serial-write-exp "(defvar ers 0)" s)
       (echo s)
       (serial-write-exp 
-       "(defun teq (a b)
-         (cond
-          ((and (stringp a) (stringp b)) (string= a b))
-          ((and (atom a) (atom b)) (eq a b))
-          ((null a) nil)
-          ((null b) nil)
-          (t (and 
-              (teq (car a) (car b)) 
-              (teq (cdr a) (cdr b))))))"
-       s)
-      (echo s)
-      (serial-write-exp 
        "(defun aeq (tst x y)
-          (unless (teq x y)
+          (unless (equal x y)
             (incf ers)
-              (princ tst) (princ '=) (princ x) (princ '/) y))"
+              (format t \"~a=~a/~a~%\" tst x y)))"
        s)
       (echo s)
       ;;

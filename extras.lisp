@@ -29,14 +29,13 @@
 */
 ~]object *fn_~a (object *args, object *env) {
   (void) env;
-  return makefloat(~a(checkintfloat(~a, first(args))));
+  return makefloat(~a(checkintfloat(first(args))));
 }" 
           comments
           (string-downcase enum)
           (string-downcase enum)
           (string-downcase enum)
-          (string-downcase enum) 
-          enum))
+          (string-downcase enum)))
 
 (defun truncate-function (str enum string comments)
   (declare (ignore string))
@@ -49,18 +48,15 @@
   (void) env;
   object *arg = first(args);
   args = cdr(args);
-  if (args != NULL) return number(~a(checkintfloat(~a, arg) / checkintfloat(~a, first(args))));
-  else return number(~a(checkintfloat(~a, arg)));
+  if (args != NULL) return number(~a(checkintfloat(arg) / checkintfloat(first(args))));
+  else return number(~a(checkintfloat(arg)));
 }" 
           comments
           (string-downcase enum)
           (cdr (assoc enum '((CEILING . "ceil") (FLOOR . "floor") (TRUNCATE . "trunc") (ROUND . "round"))))
-
           (string-downcase enum) 
           (cdr (assoc enum '((CEILING . "ceil") (FLOOR . "floor") (TRUNCATE . "trunc") (ROUND . "round"))))
-          enum enum
-          (cdr (assoc enum '((CEILING . "ceil") (FLOOR . "floor") (TRUNCATE . "trunc") (ROUND . "round"))))
-          enum))
+          (cdr (assoc enum '((CEILING . "ceil") (FLOOR . "floor") (TRUNCATE . "trunc") (ROUND . "round"))))))
 
 #|
 (defun numeric1 (str enum string comments)
@@ -84,7 +80,7 @@ object *fn_~a (object *args, object *env) {
   (void) env;
   int result = ~a;
   while (args != NULL) {
-    result = result ~a checkinteger(~a, first(args));
+    result = result ~a checkinteger(first(args));
     args = cdr(args);
   }
   return number(result);
@@ -94,8 +90,7 @@ object *fn_~a (object *args, object *env) {
           (cdr (assoc enum '((LOGAND . "&") (LOGIOR . "|") (LOGXOR . "^"))))
           (string-downcase enum)
           (cdr (assoc enum '((LOGAND . "-1") (LOGIOR . "0") (LOGXOR . "0"))))
-          (cdr (assoc enum '((LOGAND . "&") (LOGIOR . "|") (LOGXOR . "^"))))
-          enum))
+          (cdr (assoc enum '((LOGAND . "&") (LOGIOR . "|") (LOGXOR . "^"))))))
 
 #|
 ; For max or min

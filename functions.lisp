@@ -48,42 +48,41 @@
   and is assigned a list of the corresponding arguments.
 */"#)
 
-      (LAMBDA nil 0 127 #"
+      (LAMBDA nil 1 127 #"
 /*
   (lambda (parameter*) form*)
   Creates an unnamed function with parameters. The body is evaluated with the parameters as local variables
   whose initial values are defined by the values of the forms after the lambda form.
 */"#)
 
-      (LET "let" 0 127 #"
+      (LET "let" 1 127 #"
 /*
   (let ((var value) ... ) forms*)
   Declares local variables with values, and evaluates the forms with those local variables.
 */"#)
 
-      (LETSTAR "let*" 0 127 #"
+      (LETSTAR "let*" 1 127 #"
 /*
   (let* ((var value) ... ) forms*)
   Declares local variables with values, and evaluates the forms with those local variables.
   Each declaration can refer to local variables that have been defined earlier in the let*.
 */"#)
 
-      (CLOSURE nil 0 127 nil)
+      (CLOSURE nil 1 127 nil)
 
       #+avr
       (PSTAR "*p*" 0 127 nil)
 
-      #-avr
-      (PSTAR "*pc*" 0 127 nil)
+      #-(or avr avr-nano)
+      (PSTAR "*pc*" 0 127 nil))
 
-      ))
+     "sy")
 
     ("Special forms"
-     ((SPECIAL_FORMS "" 0 0 nil)
-      (QUOTE nil 1 1 "
+     ((QUOTE nil 1 1 "
 object *sp_quote (object *args, object *env) {
   (void) env;
-  checkargs(QUOTE, args);
+  checkargs(args);
   return first(args);
 }")
 
@@ -114,9 +113,9 @@ object *sp_lambda (object *args, object *env) {
 */
 object *sp_defun (object *args, object *env) {
   (void) env;
-  checkargs(DEFUN, args);
+  checkargs(args);
   object *var = first(args);
-  if (!symbolp(var)) error(DEFUN, notasymbol, var);
+  if (!symbolp(var)) error(notasymbol, var);
   object *val = cons(bsymbol(LAMBDA), cdr(args));
   object *pair = value(var->name, GlobalEnv);
   if (pair != NULL) cdr(pair) = val;
@@ -130,9 +129,9 @@ object *sp_defun (object *args, object *env) {
   Defines a global variable.
 */
 object *sp_defvar (object *args, object *env) {
-  checkargs(DEFVAR, args);
+  checkargs(args);
   object *var = first(args);
-  if (!symbolp(var)) error(DEFVAR, notasymbol, var);
+  if (!symbolp(var)) error(notasymbol, var);
   object *val = NULL;
   args = cdr(args);
   if (args != NULL) { setflag(NOESC); val = eval(first(args), env); clrflag(NOESC); }
@@ -151,8 +150,8 @@ object *sp_defvar (object *args, object *env) {
 object *sp_setq (object *args, object *env) {
   object *arg = nil;
   while (args != NULL) {
-    if (cdr(args) == NULL) error2(SETQ, oddargs);
-    object *pair = findvalue(SETQ, first(args), env);
+    if (cdr(args) == NULL) error2(oddargs);
+    object *pair = findvalue(first(args), env);
     arg = eval(second(args), env);
     cdr(pair) = arg;
     args = cddr(args);
@@ -224,9 +223,9 @@ object *sp_return (object *args, object *env) {
   and returns the new list.
 */
 object *sp_push (object *args, object *env) {
-  checkargs(PUSH, args);
+  checkargs(args);
   object *item = eval(first(args), env);
-  object **loc = place(PUSH, second(args), env);
+  object **loc = place(second(args), env);
   push(item, *loc);
   return *loc;
 }")
@@ -240,9 +239,9 @@ object *sp_push (object *args, object *env) {
 */
 object *sp_push (object *args, object *env) {
   int bit;
-  checkargs(PUSH, args);
+  checkargs(args);
   object *item = eval(first(args), env);
-  object **loc = place(PUSH, second(args), env, &bit);
+  object **loc = place(second(args), env, &bit);
   push(item, *loc);
   return *loc;
 }")
@@ -254,8 +253,8 @@ object *sp_push (object *args, object *env) {
   Modifies the value of place, which should be a list, to remove its first item, and returns that item.
 */
 object *sp_pop (object *args, object *env) {
-  checkargs(POP, args);
-  object **loc = place(POP, first(args), env);
+  checkargs(args);
+  object **loc = place(first(args), env);
   object *result = car(*loc);
   pop(*loc);
   return result;
@@ -269,8 +268,8 @@ object *sp_pop (object *args, object *env) {
 */
 object *sp_pop (object *args, object *env) {
   int bit;
-  checkargs(POP, args);
-  object **loc = place(POP, first(args), env, &bit);
+  checkargs(args);
+  object **loc = place(first(args), env, &bit);
   object *result = car(*loc);
   pop(*loc);
   return result;
@@ -287,7 +286,7 @@ object *sp_pop (object *args, object *env) {
   The third argument is an optional increment which defaults to 1.
 */
 object *sp_incf (object *args, object *env) {
-  return incfdecf(INCF, args, 1, env);
+  return incfdecf(args, 1, env);
 }"#)
 
        #+float
@@ -299,8 +298,8 @@ object *sp_incf (object *args, object *env) {
 */
 object *sp_incf (object *args, object *env) {
   int bit;
-  checkargs(INCF, args);
-  object **loc = place(INCF, first(args), env, &bit);
+  checkargs(args);
+  object **loc = place(first(args), env, &bit);
   args = cdr(args);
 
   object *x = *loc;
@@ -308,19 +307,19 @@ object *sp_incf (object *args, object *env) {
 
   if (bit != -1) {
     int increment;
-    if (inc == NULL) increment = 1; else increment = checkbitvalue(INCF, inc);
+    if (inc == NULL) increment = 1; else increment = checkbitvalue(inc);
     int newvalue = (((*loc)->integer)>>bit & 1) + increment;
 
-    if (newvalue & ~1) error2(INCF, PSTR("result is not a bit value"));
+    if (newvalue & ~1) error2(PSTR("result is not a bit value"));
     *loc = number((((*loc)->integer) & ~(1<<bit)) | newvalue<<bit);
     return number(newvalue);
   }
 
   if (floatp(x) || floatp(inc)) {
     float increment;
-    float value = checkintfloat(INCF, x);
+    float value = checkintfloat(x);
 
-    if (inc == NULL) increment = 1.0; else increment = checkintfloat(INCF, inc);
+    if (inc == NULL) increment = 1.0; else increment = checkintfloat(inc);
 
     *loc = makefloat(value + increment);
   } else if (integerp(x) && (integerp(inc) || inc == NULL)) {
@@ -336,7 +335,7 @@ object *sp_incf (object *args, object *env) {
       if (INT_MAX - increment < value) *loc = makefloat((float)value + (float)increment);
       else *loc = number(value + increment);
     }
-  } else error2(INCF, notanumber);
+  } else error2(notanumber);
   return *loc;
 }"#)
 
@@ -348,7 +347,7 @@ object *sp_incf (object *args, object *env) {
   The third argument is an optional decrement which defaults to 1.
 */
 object *sp_decf (object *args, object *env) {
-  return incfdecf(DECF, args, -1, env);
+  return incfdecf(args, -1, env);
 }"#)
 
     #+float
@@ -360,8 +359,8 @@ object *sp_decf (object *args, object *env) {
 */
 object *sp_decf (object *args, object *env) {
   int bit;
-  checkargs(DECF, args);
-  object **loc = place(DECF, first(args), env, &bit);
+  checkargs(args);
+  object **loc = place(first(args), env, &bit);
   args = cdr(args);
 
   object *x = *loc;
@@ -369,22 +368,22 @@ object *sp_decf (object *args, object *env) {
 
   if (bit != -1) {
     int decrement;
-    if (dec == NULL) decrement = 1; else decrement = checkbitvalue(DECF, dec);
+    if (dec == NULL) decrement = 1; else decrement = checkbitvalue(dec);
     int newvalue = (((*loc)->integer)>>bit & 1) - decrement;
 
-    if (newvalue & ~1) error2(INCF, PSTR("result is not a bit value"));
+    if (newvalue & ~1) error2(PSTR("result is not a bit value"));
     *loc = number((((*loc)->integer) & ~(1<<bit)) | newvalue<<bit);
     return number(newvalue);
   }
 
   if (floatp(x) || floatp(dec)) {
     float decrement;
-    float value = checkintfloat(DECF, x);
+    float value = checkintfloat(x);
 
-    if (dec == NULL) decrement = 1.0; else decrement = checkintfloat(DECF, dec);
+    if (dec == NULL) decrement = 1.0; else decrement = checkintfloat(dec);
 
     *loc = makefloat(value - decrement);
-  } if (integerp(x) && (integerp(dec) || dec == NULL)) {
+  } else if (integerp(x) && (integerp(dec) || dec == NULL)) {
     int decrement;
     int value = x->integer;
 
@@ -397,7 +396,7 @@ object *sp_decf (object *args, object *env) {
       if (INT_MIN + decrement > value) *loc = makefloat((float)value - (float)decrement);
       else *loc = number(value - decrement);
     }
-  } else error2(DECF, notanumber);
+  } else error2(notanumber);
   return *loc;
 }"#)
 
@@ -410,8 +409,8 @@ object *sp_decf (object *args, object *env) {
 object *sp_setf (object *args, object *env) {
   object *arg = nil;
   while (args != NULL) {
-    if (cdr(args) == NULL) error2(SETF, oddargs);
-    object **loc = place(SETF, first(args), env);
+    if (cdr(args) == NULL) error2(oddargs);
+    object **loc = place(first(args), env);
     arg = eval(second(args), env);
     *loc = arg;
     args = cddr(args);
@@ -429,11 +428,11 @@ object *sp_setf (object *args, object *env) {
   int bit;
   object *arg = nil;
   while (args != NULL) {
-    if (cdr(args) == NULL) error2(SETF, oddargs);
-    object **loc = place(SETF, first(args), env, &bit);
+    if (cdr(args) == NULL) error2(oddargs);
+    object **loc = place(first(args), env, &bit);
     arg = eval(second(args), env);
     if (bit == -1) *loc = arg;
-    else *loc = number((checkinteger(SETF,*loc) & ~(1<<bit)) | checkbitvalue(SETF,arg)<<bit);
+    else *loc = number((checkinteger(*loc) & ~(1<<bit)) | checkbitvalue(arg)<<bit);
     args = cddr(args);
   }
   return arg;
@@ -448,8 +447,7 @@ object *sp_setf (object *args, object *env) {
   It then returns result, or nil if result is omitted.
 */
 object *sp_dolist (object *args, object *env) {
-  if (args == NULL || listlength(DOLIST, first(args)) < 2) error2(DOLIST, noargument);
-  object *params = first(args);
+  object *params = checkarguments(args, 2, 3);
   object *var = first(params);
   object *list = eval(second(params), env);
   push(list, GCStack); // Don't GC the list
@@ -458,7 +456,7 @@ object *sp_dolist (object *args, object *env) {
   params = cdr(cdr(params));
   args = cdr(args);
   while (list != NULL) {
-    if (improperp(list)) error(DOLIST, notproper, list);
+    if (improperp(list)) error(notproper, list);
     cdr(pair) = first(list);
     object *forms = args;
     while (forms != NULL) {
@@ -485,10 +483,9 @@ object *sp_dolist (object *args, object *env) {
   It then returns result, or nil if result is omitted.
 */
 object *sp_dotimes (object *args, object *env) {
-  if (args == NULL || listlength(DOTIMES, first(args)) < 2) error2(DOTIMES, noargument);
-  object *params = first(args);
+  object *params = checkarguments(args, 2, 3);
   object *var = first(params);
-  int count = checkinteger(DOTIMES, eval(second(params), env));
+  int count = checkinteger(eval(second(params), env));
   int index = 0;
   params = cdr(cdr(params));
   object *pair = cons(var,number(0));
@@ -522,7 +519,7 @@ object *sp_trace (object *args, object *env) {
   (void) env;
   while (args != NULL) {
     object *var = first(args);
-    if (!symbolp(var)) error(TRACE, notasymbol, var);
+    if (!symbolp(var)) error(notasymbol, var);
     trace(var->name);
     args = cdr(args);
   }
@@ -552,7 +549,7 @@ object *sp_untrace (object *args, object *env) {
   } else {
     while (args != NULL) {
       object *var = first(args);
-      if (!symbolp(var)) error(UNTRACE, notasymbol, var);
+      if (!symbolp(var)) error(notasymbol, var);
       untrace(var->name);
       args = cdr(args);
     }
@@ -567,11 +564,10 @@ object *sp_untrace (object *args, object *env) {
   Returns the total number of milliseconds taken.
 */
 object *sp_formillis (object *args, object *env) {
-  if (args == NULL) error2(FORMILLIS, noargument);
-  object *param = first(args);
+  object *param = checkarguments(args, 0, 1);
   unsigned long start = millis();
   unsigned long now, total = 0;
-  if (param != NULL) total = checkinteger(FORMILLIS, eval(first(param), env));
+  if (param != NULL) total = checkinteger(eval(first(param), env));
   eval(tf_progn(cdr(args),env), env);
   do {
     now = millis() - start;
@@ -605,20 +601,17 @@ object *sp_time (object *args, object *env) {
   return bsymbol(NOTHING);
 }"#)
 
-      #-avr
       (WITHOUTPUTTOSTRING "with-output-to-string" 1 127 "
 /*
   (with-output-to-string (str) form*)
   Returns a string containing the output to the stream variable str.
 */
 object *sp_withoutputtostring (object *args, object *env) {
-  if (args == NULL) error2(WITHOUTPUTTOSTRING, noargument);
-  object *params = first(args);
-  if (params == NULL) error2(WITHOUTPUTTOSTRING, nostream);
+  object *params = checkarguments(args, 1, 1);
   object *var = first(params);
   object *pair = cons(var, stream(STRINGSTREAM, 0));
   push(pair,env);
-  object *string = startstring(WITHOUTPUTTOSTRING);
+  object *string = startstring();
   push(string, GCStack);
   object *forms = cdr(args);
   eval(tf_progn(forms,env), env);
@@ -633,13 +626,12 @@ object *sp_withoutputtostring (object *args, object *env) {
   The optional baud gives the baud rate divided by 100, default 96.
 */
 object *sp_withserial (object *args, object *env) {
-  object *params = first(args);
-  if (params == NULL) error2(WITHSERIAL, nostream);
+  object *params = checkarguments(args, 2, 3);
   object *var = first(params);
-  int address = checkinteger(WITHSERIAL, eval(second(params), env));
+  int address = checkinteger(eval(second(params), env));
   params = cddr(params);
   int baud = 96;
-  if (params != NULL) baud = checkinteger(WITHSERIAL, eval(first(params), env));
+  if (params != NULL) baud = checkinteger(eval(first(params), env));
   object *pair = cons(var, stream(SERIALSTREAM, address));
   push(pair,env);
   serialbegin(address, baud);
@@ -658,10 +650,9 @@ object *sp_withserial (object *args, object *env) {
   to be read from the stream. The port if specified is ignored.
 */
 object *sp_withi2c (object *args, object *env) {
-  object *params = first(args);
-  if (params == NULL) error2(WITHI2C, nostream);
+  object *params = checkarguments(args, 2, 4);
   object *var = first(params);
-  int address = checkinteger(WITHI2C, eval(second(params), env));
+  int address = checkinteger(eval(second(params), env));
   params = cddr(params);
   if (address == 0 && params != NULL) params = cdr(params); // Ignore port
   int read = 0; // Write
@@ -689,13 +680,12 @@ object *sp_withi2c (object *args, object *env) {
   to be read from the stream. If port is omitted it defaults to 0, otherwise it specifies the port, 0 or 1.
 */
 object *sp_withi2c (object *args, object *env) {
-  object *params = first(args);
-  if (params == NULL) error2(WITHI2C, nostream);
+  object *params = checkarguments(args, 2, 4);
   object *var = first(params);
-  int address = checkinteger(WITHI2C, eval(second(params), env));
+  int address = checkinteger(eval(second(params), env));
   params = cddr(params);
   if ((address == 0 || address == 1) && params != NULL) {
-    address = address * 128 + checkinteger(WITHI2C, eval(first(params), env));
+    address = address * 128 + checkinteger(eval(first(params), env));
     params = cdr(params);
   }
   int read = 0; // Write
@@ -719,9 +709,7 @@ object *sp_withi2c (object *args, object *env) {
   return result;
 }")
 
-      
-
-      #+(or avr esp)
+      #+(or avr avr-nano esp)
       (WITHSPI "with-spi" 1 127 #"
 /*
   (with-spi (str pin [clock] [bitorder] [mode]) form*)
@@ -730,25 +718,24 @@ object *sp_withi2c (object *args, object *env) {
   bitorder 0 for LSBFIRST and 1 for MSBFIRST (default 1), and SPI mode (default 0).
 */
 object *sp_withspi (object *args, object *env) {
-  object *params = first(args);
-  if (params == NULL) error2(WITHSPI, nostream);
+  object *params = checkarguments(args, 2, 6);
   object *var = first(params);
   params = cdr(params);
-  if (params == NULL) error2(WITHSPI, nostream);
-  int pin = checkinteger(WITHSPI, eval(car(params), env));
+  if (params == NULL) error2(nostream);
+  int pin = checkinteger(eval(car(params), env));
   pinMode(pin, OUTPUT);
   digitalWrite(pin, HIGH);
   params = cdr(params);
   int clock = 4000, mode = SPI_MODE0; // Defaults
   int bitorder = MSBFIRST;
   if (params != NULL) {
-    clock = checkinteger(WITHSPI, eval(car(params), env));
+    clock = checkinteger(eval(car(params), env));
     params = cdr(params);
     if (params != NULL) {
-      bitorder = (checkinteger(WITHSPI, eval(car(params), env)) == 0) ? LSBFIRST : MSBFIRST;
+      bitorder = (checkinteger(eval(car(params), env)) == 0) ? LSBFIRST : MSBFIRST;
       params = cdr(params);
       if (params != NULL) {
-        int modeval = checkinteger(WITHSPI, eval(car(params), env));
+        int modeval = checkinteger(eval(car(params), env));
         mode = (modeval == 3) ? SPI_MODE3 : (modeval == 2) ? SPI_MODE2 : (modeval == 1) ? SPI_MODE1 : SPI_MODE0;
       }
     }
@@ -774,29 +761,28 @@ object *sp_withspi (object *args, object *env) {
   bitorder 0 for LSBFIRST and 1 for MSBFIRST (default 1), SPI mode (default 0), and port 0 or 1 (default 0).
 */
 object *sp_withspi (object *args, object *env) {
-  object *params = first(args);
-  if (params == NULL) error2(WITHSPI, nostream);
+  object *params = checkarguments(args, 2, 6);
   object *var = first(params);
   params = cdr(params);
-  if (params == NULL) error2(WITHSPI, nostream);
-  int pin = checkinteger(WITHSPI, eval(car(params), env));
+  if (params == NULL) error2(nostream);
+  int pin = checkinteger(eval(car(params), env));
   pinMode(pin, OUTPUT);
   digitalWrite(pin, HIGH);
   params = cdr(params);
   int clock = 4000, mode = SPI_MODE0, address = 0; // Defaults
   BitOrder bitorder = MSBFIRST;
   if (params != NULL) {
-    clock = checkinteger(WITHSPI, eval(car(params), env));
+    clock = checkinteger(eval(car(params), env));
     params = cdr(params);
     if (params != NULL) {
-      bitorder = (checkinteger(WITHSPI, eval(car(params), env)) == 0) ? LSBFIRST : MSBFIRST;
+      bitorder = (checkinteger(eval(car(params), env)) == 0) ? LSBFIRST : MSBFIRST;
       params = cdr(params);
       if (params != NULL) {
-        int modeval = checkinteger(WITHSPI, eval(car(params), env));
+        int modeval = checkinteger(eval(car(params), env));
         mode = (modeval == 3) ? SPI_MODE3 : (modeval == 2) ? SPI_MODE2 : (modeval == 1) ? SPI_MODE1 : SPI_MODE0;
         params = cdr(params);
         if (params != NULL) {
-          address = checkinteger(WITHSPI, eval(car(params), env));
+          address = checkinteger(eval(car(params), env));
         }
       }
     }
@@ -826,29 +812,28 @@ object *sp_withspi (object *args, object *env) {
   bitorder 0 for LSBFIRST and 1 for MSBFIRST (default 1), SPI mode (default 0), and port 0 or 1 (default 0).
 */
 object *sp_withspi (object *args, object *env) {
-  object *params = first(args);
-  if (params == NULL) error2(WITHSPI, nostream);
+  object *params = checkarguments(args, 2, 6);
   object *var = first(params);
   params = cdr(params);
-  if (params == NULL) error2(WITHSPI, nostream);
-  int pin = checkinteger(WITHSPI, eval(car(params), env));
+  if (params == NULL) error2(nostream);
+  int pin = checkinteger(eval(car(params), env));
   pinMode(pin, OUTPUT);
   digitalWrite(pin, HIGH);
   params = cdr(params);
   int clock = 4000, mode = SPI_MODE0, address = 0; // Defaults
   BitOrder bitorder = MSBFIRST;
   if (params != NULL) {
-    clock = checkinteger(WITHSPI, eval(car(params), env));
+    clock = checkinteger(eval(car(params), env));
     params = cdr(params);
     if (params != NULL) {
-      bitorder = (checkinteger(WITHSPI, eval(car(params), env)) == 0) ? LSBFIRST : MSBFIRST;
+      bitorder = (checkinteger(eval(car(params), env)) == 0) ? LSBFIRST : MSBFIRST;
       params = cdr(params);
       if (params != NULL) {
-        int modeval = checkinteger(WITHSPI, eval(car(params), env));
+        int modeval = checkinteger(eval(car(params), env));
         mode = (modeval == 3) ? SPI_MODE3 : (modeval == 2) ? SPI_MODE2 : (modeval == 1) ? SPI_MODE1 : SPI_MODE0;
         params = cdr(params);
         if (params != NULL) {
-          address = checkinteger(WITHSPI, eval(car(params), env));
+          address = checkinteger(eval(car(params), env));
         }
       }
     }
@@ -875,24 +860,25 @@ object *sp_withspi (object *args, object *env) {
 */
 object *sp_withsdcard (object *args, object *env) {
   #if defined(sdcardsupport)
-  object *params = first(args);
-  if (params == NULL) error2(WITHSDCARD, nostream);
+  object *params = checkarguments(args, 2, 3);
   object *var = first(params);
-  object *filename = eval(second(params), env);
-  params = cddr(params);
+  params = cdr(params);
+  if (params == NULL) error2(PSTR("no filename specified"));
+  object *filename = eval(first(params), env);
+  params = cdr(params);
   SD.begin(SDCARD_SS_PIN);
   int mode = 0;
-  if (params != NULL && first(params) != NULL) mode = checkinteger(WITHSDCARD, first(params));
+  if (params != NULL && first(params) != NULL) mode = checkinteger(first(params));
   int oflag = O_READ;
   if (mode == 1) oflag = O_RDWR | O_CREAT | O_APPEND; else if (mode == 2) oflag = O_RDWR | O_CREAT | O_TRUNC;
   if (mode >= 1) {
     char buffer[BUFFERSIZE];
     SDpfile = SD.open(MakeFilename(filename, buffer), oflag);
-    if (!SDpfile) error2(WITHSDCARD, PSTR("problem writing to SD card or invalid filename"));
+    if (!SDpfile) error2(PSTR("problem writing to SD card or invalid filename"));
   } else {
     char buffer[BUFFERSIZE];
     SDgfile = SD.open(MakeFilename(filename, buffer), oflag);
-    if (!SDgfile) error2(WITHSDCARD, PSTR("problem reading from SD card or invalid filename"));
+    if (!SDgfile) error2(PSTR("problem reading from SD card or invalid filename"));
   }
   object *pair = cons(var, stream(SDSTREAM, 1));
   push(pair,env);
@@ -902,7 +888,7 @@ object *sp_withsdcard (object *args, object *env) {
   return result;
   #else
   (void) args, (void) env;
-  error2(WITHSDCARD, PSTR("not supported"));
+  error2(PSTR("not supported"));
   return nil;
   #endif
 }"#)
@@ -916,23 +902,25 @@ object *sp_withsdcard (object *args, object *env) {
 */
 object *sp_withsdcard (object *args, object *env) {
 #if defined(sdcardsupport)
-  object *params = first(args);
+  object *params = checkarguments(args, 2, 3);
   object *var = first(params);
-  object *filename = eval(second(params), env);
-  params = cddr(params);
+  params = cdr(params);
+  if (params == NULL) error2(PSTR("no filename specified"));
+  object *filename = eval(first(params), env);
+  params = cdr(params);
   SD.begin();
   int mode = 0;
-  if (params != NULL && first(params) != NULL) mode = checkinteger(WITHSDCARD, first(params));
+  if (params != NULL && first(params) != NULL) mode = checkinteger(first(params));
   const char *oflag = FILE_READ;
   if (mode == 1) oflag = FILE_APPEND; else if (mode == 2) oflag = FILE_WRITE;
   if (mode >= 1) {
     char buffer[BUFFERSIZE];
     SDpfile = SD.open(MakeFilename(filename, buffer), oflag);
-    if (!SDpfile) error2(WITHSDCARD, PSTR("problem writing to SD card or invalid filename"));
+    if (!SDpfile) error2(PSTR("problem writing to SD card or invalid filename"));
   } else {
     char buffer[BUFFERSIZE];
     SDgfile = SD.open(MakeFilename(filename, buffer), oflag);
-    if (!SDgfile) error2(WITHSDCARD, PSTR("problem reading from SD card or invalid filename"));
+    if (!SDgfile) error2(PSTR("problem reading from SD card or invalid filename"));
   }
   object *pair = cons(var, stream(SDSTREAM, 1));
   push(pair,env);
@@ -942,30 +930,7 @@ object *sp_withsdcard (object *args, object *env) {
   return result;
 #else
   (void) args, (void) env;
-  error2(WITHSDCARD, PSTR("not supported"));
-  return nil;
-#endif
-}"#)
-
-    #+gfx
-    (WITHGFX "with-gfx" 1 127 #"
-/*
-  (with-gfx (str) form*)
-  Evaluates the forms with str bound to an gfx-stream so you can print text
-  to the graphics display using the standard uLisp print commands.
-*/
-object *sp_withgfx (object *args, object *env) {
-#if defined(gfxsupport)
-  object *params = first(args);
-  object *var = first(params);
-  object *pair = cons(var, stream(GFXSTREAM, 1));
-  push(pair,env);
-  object *forms = cdr(args);
-  object *result = eval(tf_progn(forms,env), env);
-  return result;
-#else
-  (void) args, (void) env;
-  error2(WITHGFX, PSTR("not supported"));
+  error2(PSTR("not supported"));
   return nil;
 #endif
 }"#)
@@ -987,80 +952,6 @@ object *sp_withlcd (object *args, object *env) {
   error(PSTR("with-lcd not supported"));
   return nil;
 #endif
-}"#)
-
-    #+esp
-    (WITHCLIENT "with-client" 1 2 #"
-/*
-  (with-client (str [address port]) form*)
-  Evaluates the forms with str bound to a wifi-stream.
-*/
-object *sp_withclient (object *args, object *env) {
-  object *params = first(args);
-  object *var = first(params);
-  char buffer[BUFFERSIZE];
-  params = cdr(params);
-  int n;
-  if (params == NULL) {
-    client = server.available();
-    if (!client) return nil;
-    n = 2;
-  } else {
-    object *address = eval(first(params), env);
-    object *port = eval(second(params), env);
-    int success;
-    if (stringp(address)) success = client.connect(cstring(WITHCLIENT, address, buffer, BUFFERSIZE), checkinteger(WITHCLIENT, port));
-    else if (integerp(address)) success = client.connect(address->integer, checkinteger(WITHCLIENT, port));
-    else error2(WITHCLIENT, PSTR("invalid address"));
-    if (!success) return nil;
-    n = 1;
-  }
-  object *pair = cons(var, stream(WIFISTREAM, n));
-  push(pair,env);
-  object *forms = cdr(args);
-  object *result = eval(tf_progn(forms,env), env);
-  client.stop();
-  return result;
-}"#)
-
-    #+arm
-    (WITHCLIENT "with-client" 1 2 #"
-/*
-  (with-client (str [address port]) form*)
-  Evaluates the forms with str bound to a wifi-stream.
-*/
-object *sp_withclient (object *args, object *env) {
-  #if defined(ULISP_WIFI)
-  object *params = first(args);
-  object *var = first(params);
-  char buffer[BUFFERSIZE];
-  params = cdr(params);
-  int n;
-  if (params == NULL) {
-    client = server.available();
-    if (!client) return nil;
-    n = 2;
-  } else {
-    object *address = eval(first(params), env);
-    object *port = eval(second(params), env);
-    int success;
-    if (stringp(address)) success = client.connect(cstring(WITHCLIENT, address, buffer, BUFFERSIZE), checkinteger(WITHCLIENT, port));
-    else if (integerp(address)) success = client.connect(address->integer, checkinteger(WITHCLIENT, port));
-    else error2(WITHCLIENT, PSTR("invalid address"));
-    if (!success) return nil;
-    n = 1;
-  }
-  object *pair = cons(var, stream(WIFISTREAM, n));
-  push(pair,env);
-  object *forms = cdr(args);
-  object *result = eval(tf_progn(forms,env), env);
-  client.stop();
-  return result;
-  #else
-  (void) args, (void) env;
-  error2(WITHCLIENT, PSTR("not supported"));
-  return nil;
-  #endif
 }"#)) "sp")
 
     #+(or avr arm stm32 riscv)
@@ -1077,9 +968,9 @@ object *sp_withclient (object *args, object *env) {
 object *sp_defcode (object *args, object *env) {
 #if defined(CODESIZE)
   setflag(NOESC);
-  checkargs(DEFCODE, args);
+  checkargs(args);
   object *var = first(args);
-  if (!symbolp(var)) error(DEFCODE, PSTR("not a symbol"), var);
+  if (!symbolp(var)) error(PSTR("not a symbol"), var);
 
   // Make *p* a local variable for program counter
   object *pcpair = cons(bsymbol(PSTAR), number(0));
@@ -1113,7 +1004,7 @@ object *sp_defcode (object *args, object *env) {
     }
     globals = cdr(globals);
   }
-  if (codesize > CODESIZE) error(DEFCODE, PSTR("not enough room for code"), var);
+  if (codesize > CODESIZE) error(PSTR("not enough room for code"), var);
 
   // Compact the code block, removing gaps
   origin = 0;
@@ -1166,8 +1057,8 @@ object *sp_defcode (object *args, object *env) {
   optiboot_page_write(CODE_ADDRESS);
   #elif defined (CPU_AVR128DX48)
   // Use Flash Writer in DxCore with 512 byte page from CODE_ADDRESS 0x1be00 to 0x1c000
-  if (Flash.checkWritable()) error2(DEFCODE, PSTR("flash write not supported"));
-  if (Flash.erasePage(CODE_ADDRESS, 1)) error2(DEFCODE, PSTR("problem erasing flash"));
+  if (Flash.checkWritable()) error2(PSTR("flash write not supported"));
+  if (Flash.erasePage(CODE_ADDRESS, 1)) error2(PSTR("problem erasing flash"));
   Flash.writeBytes(CODE_ADDRESS, MyCode, CODESIZE);
   #endif
   
@@ -1189,15 +1080,15 @@ object *sp_defcode (object *args, object *env) {
 object *sp_defcode (object *args, object *env) {
 #if defined(CODESIZE)
   setflag(NOESC);
-  checkargs(DEFCODE, args);
+  checkargs(args);
   object *var = first(args);
   object *params = second(args);
-  if (!symbolp(var)) error(DEFCODE, PSTR("not a symbol"), var);
+  if (!symbolp(var)) error(PSTR("not a symbol"), var);
 
   // Make parameters into synonyms for registers r0, r1, etc
   int regn = 0;
   while (params != NULL) {
-    if (regn > 3) error(DEFCODE, PSTR("more than 4 parameters"), var);
+    if (regn > 3) error(PSTR("more than 4 parameters"), var);
     object *regpair = cons(car(params), bsymbol((builtin_t)((toradix40('r')*40+toradix40('0')+regn)*2560000))); // Symbol for r0 etc
     push(regpair,env);
     regn++;
@@ -1237,7 +1128,7 @@ object *sp_defcode (object *args, object *env) {
     }
     globals = cdr(globals);
   }
-  if (codesize > CODESIZE) error(DEFCODE, PSTR("not enough room for code"), var);
+  if (codesize > CODESIZE) error(PSTR("not enough room for code"), var);
   
   // Compact the code block, removing gaps
   origin = 0;
@@ -1285,7 +1176,7 @@ object *sp_defcode (object *args, object *env) {
   clrflag(NOESC);
   return var;
 #else
-  error2(DEFCODE, PSTR("not available"));
+  error2(PSTR("not available"));
   return nil;
 #endif
 }"#)
@@ -1299,15 +1190,15 @@ object *sp_defcode (object *args, object *env) {
 */
 object *sp_defcode (object *args, object *env) {
   setflag(NOESC);
-  checkargs(DEFCODE, args);
+  checkargs(args);
   object *var = first(args);
   object *params = second(args);
-  if (!symbolp(var)) error(DEFCODE, PSTR("not a symbol"), var);
+  if (!symbolp(var)) error(PSTR("not a symbol"), var);
 
   // Make parameters into synonyms for registers a0, a1, etc
   int regn = 0;
   while (params != NULL) {
-    if (regn > 3) error(DEFCODE, PSTR("more than 4 parameters"), var);
+    if (regn > 3) error(PSTR("more than 4 parameters"), var);
     object *regpair = cons(car(params), bsymbol((builtin_t)((toradix40('a')*40+toradix40('0')+regn)*2560000))); // Symbol for a0 etc
     push(regpair,env);
     regn++;
@@ -1346,7 +1237,7 @@ object *sp_defcode (object *args, object *env) {
     }
     globals = cdr(globals);
   }
-  if (codesize > CODESIZE) error(DEFCODE, PSTR("not enough room for code"), var);
+  if (codesize > CODESIZE) error(PSTR("not enough room for code"), var);
   
   // Compact the code block, removing gaps
   origin = 0;
@@ -1396,8 +1287,7 @@ object *sp_defcode (object *args, object *env) {
 }"#)) "sp")
 
     ("Tail-recursive forms"
-     ((TAIL_FORMS "" 0 0 nil)
-      (PROGN nil 0 127 "
+     ((PROGN nil 0 127 "
 /*
   (progn form*)
   Evaluates several forms grouped together into a block, and returns the result of evaluating the last form.
@@ -1421,7 +1311,7 @@ object *tf_progn (object *args, object *env) {
   otherwise the form else is evaluated and returned.
 */
 object *tf_if (object *args, object *env) {
-  if (args == NULL || cdr(args) == NULL) error2(IF, toofewargs);
+  if (args == NULL || cdr(args) == NULL) error2(toofewargs);
   if (eval(first(args), env) != nil) return second(args);
   args = cddr(args);
   return (args != NULL) ? first(args) : nil;
@@ -1437,7 +1327,7 @@ object *tf_if (object *args, object *env) {
 object *tf_cond (object *args, object *env) {
   while (args != NULL) {
     object *clause = first(args);
-    if (!consp(clause)) error(COND, illegalclause, clause);
+    if (!consp(clause)) error(illegalclause, clause);
     object *test = eval(first(clause), env);
     object *forms = cdr(clause);
     if (test != nil) {
@@ -1454,7 +1344,7 @@ object *tf_cond (object *args, object *env) {
   Evaluates the test. If it's non-nil the forms are evaluated and the last value is returned.
 */
 object *tf_when (object *args, object *env) {
-  if (args == NULL) error2(WHEN, noargument);
+  if (args == NULL) error2(noargument);
   if (eval(first(args), env) != nil) return tf_progn(cdr(args),env);
   else return nil;
 }"#)
@@ -1465,7 +1355,7 @@ object *tf_when (object *args, object *env) {
   Evaluates the test. If it's nil the forms are evaluated and the last value is returned.
 */
 object *tf_unless (object *args, object *env) {
-  if (args == NULL) error2(UNLESS, noargument);
+  if (args == NULL) error2(noargument);
   if (eval(first(args), env) != nil) return nil;
   else return tf_progn(cdr(args),env);
 }"#)
@@ -1481,7 +1371,7 @@ object *tf_case (object *args, object *env) {
   args = cdr(args);
   while (args != NULL) {
     object *clause = first(args);
-    if (!consp(clause)) error(CASE, illegalclause, clause);
+    if (!consp(clause)) error(illegalclause, clause);
     object *key = car(clause);
     object *forms = cdr(clause);
     if (consp(key)) {
@@ -1509,29 +1399,10 @@ object *tf_and (object *args, object *env) {
     more = cdr(args);
   }
   return car(args);
-}")
-
-      #+doc
-      (HELP "?" 1 1 #"
-/*
-  (? item)
-  Prints the documentation string of a built-in or user-defined function.
-*/
-object *tf_help (object *args, object *env) {
-  if (args == NULL) error2(HELP, noargument);
-  object *docstring = documentation(HELP, first(args), env);
-  if (docstring) {
-    char temp = Flags;
-    clrflag(PRINTREADABLY);
-    printstring(docstring, pserial);
-    Flags = temp;
-  }
-  return bsymbol(NOTHING);
-}"#)) "tf")
+}")) "tf")
 
     ("Core functions"
-     ((FUNCTIONS "" 0 0 nil)
-      (NOT nil 1 1 "
+     ((NOT nil 1 1 "
 /*
   (not item)
   Returns t if its argument is nil, or nil otherwise. Equivalent to null.
@@ -1595,7 +1466,7 @@ object *fn_symbolp (object *args, object *env) {
   return (arg == NULL || symbolp(arg)) ? tee : nil;
 }"#)
 
-      #-avr
+      #-avr-nano
       (ARRAYP nil 1 1 #"
 /*
   (arrayp item)
@@ -1612,10 +1483,17 @@ object *fn_arrayp (object *args, object *env) {
   Returns t if its argument is a symbol with a value.
 */
 object *fn_boundp (object *args, object *env) {
+  return boundp(first(args), env) ? tee : nil;
+}"#)
+
+(KEYWORDP nil 1 1 #"
+/*
+  (keywordp item)
+  Returns t if its argument is a keyword.
+*/
+object *fn_keywordp (object *args, object *env) {
   (void) env;
-  object *var = first(args);
-  if (!symbolp(var)) error(BOUNDP, notasymbol, var);
-  return boundp(var, env) ? tee : nil;
+  return keywordp(first(args)) ? tee : nil;
 }"#)
 
       (SETFN "set" 2 126 #"
@@ -1626,8 +1504,8 @@ object *fn_boundp (object *args, object *env) {
 object *fn_setfn (object *args, object *env) {
   object *arg = nil;
   while (args != NULL) {
-    if (cdr(args) == NULL) error2(SETFN, oddargs);
-    object *pair = findvalue(SETFN, first(args), env);
+    if (cdr(args) == NULL) error2(oddargs);
+    object *pair = findvalue(first(args), env);
     arg = second(args);
     cdr(pair) = arg;
     args = cddr(args);
@@ -1655,6 +1533,17 @@ object *fn_streamp (object *args, object *env) {
 object *fn_eq (object *args, object *env) {
   (void) env;
   return eq(first(args), second(args)) ? tee : nil;
+}")
+
+      (EQUAL nil 2 2 "
+/*
+  (equal item item)
+  Tests whether the two arguments are the same symbol, same character, equal numbers,
+  or point to the same cons, and returns t or nil as appropriate.
+*/
+object *fn_equal (object *args, object *env) {
+  (void) env;
+  return equal(first(args), second(args)) ? tee : nil;
 }")))
 
     ("List functions"
@@ -1814,8 +1703,8 @@ object *fn_cdddr (object *args, object *env) {
 object *fn_length (object *args, object *env) {
   (void) env;
   object *arg = first(args);
-  if (listp(arg)) return number(listlength(LENGTH, arg));
-  if (!stringp(arg)) error(LENGTH, invalidarg, arg);
+  if (listp(arg)) return number(listlength(arg));
+  if (!stringp(arg)) error(invalidarg, arg);
   return number(stringlength(arg));
 }"#)
       
@@ -1828,9 +1717,9 @@ object *fn_length (object *args, object *env) {
 object *fn_length (object *args, object *env) {
   (void) env;
   object *arg = first(args);
-  if (listp(arg)) return number(listlength(LENGTH, arg));
+  if (listp(arg)) return number(listlength(arg));
   if (stringp(arg)) return number(stringlength(arg));
-  if (!(arrayp(arg) && cdr(cddr(arg)) == NULL)) error(LENGTH, PSTR("argument is not a list, 1d array, or string"), arg);
+  if (!(arrayp(arg) && cdr(cddr(arg)) == NULL)) error(PSTR("argument is not a list, 1d array, or string"), arg);
   return number(abs(first(cddr(arg))->integer));
 }"#)
 
@@ -1843,7 +1732,7 @@ object *fn_length (object *args, object *env) {
 object *fn_arraydimensions (object *args, object *env) {
   (void) env;
   object *array = first(args);
-  if (!arrayp(array)) error(ARRAYDIMENSIONS, PSTR("argument is not an array"), array);
+  if (!arrayp(array)) error(PSTR("argument is not an array"), array);
   object *dimensions = cddr(array);
   return (first(dimensions)->integer < 0) ? cons(number(-(first(dimensions)->integer)), cdr(dimensions)) : dimensions;
 }"#)
@@ -1871,21 +1760,21 @@ object *fn_makearray (object *args, object *env) {
   object *def = nil;
   bool bitp = false;
   object *dims = first(args);
-  if (dims == NULL) error2(MAKEARRAY, PSTR("dimensions can't be nil"));
+  if (dims == NULL) error2(PSTR("dimensions can't be nil"));
   else if (atom(dims)) dims = cons(dims, NULL);
   args = cdr(args);
   while (args != NULL && cdr(args) != NULL) {
     object *var = first(args);
     if (isbuiltin(first(args), INITIALELEMENT)) def = second(args);
     else if (isbuiltin(first(args), ELEMENTTYPE) && isbuiltin(second(args), BIT)) bitp = true;
-    else error(MAKEARRAY, PSTR("argument not recognised"), var);
+    else error(PSTR("argument not recognised"), var);
     args = cddr(args);
   }
   if (bitp) {
     if (def == nil) def = number(0);
-    else def = number(-checkbitvalue(MAKEARRAY, def)); // 1 becomes all ones
+    else def = number(-checkbitvalue(def)); // 1 becomes all ones
   }
-  return makearray(MAKEARRAY, dims, def, bitp);
+  return makearray(dims, def, bitp);
 }"#)
 
       (REVERSE nil 1 1 #"
@@ -1898,7 +1787,7 @@ object *fn_reverse (object *args, object *env) {
   object *list = first(args);
   object *result = NULL;
   while (list != NULL) {
-    if (improperp(list)) error(REVERSE, notproper, list);
+    if (improperp(list)) error(notproper, list);
     push(first(list),result);
     list = cdr(list);
   }
@@ -1912,11 +1801,11 @@ object *fn_reverse (object *args, object *env) {
 */
 object *fn_nth (object *args, object *env) {
   (void) env;
-  int n = checkinteger(NTH, first(args));
-  if (n < 0) error(NTH, indexnegative, first(args));
+  int n = checkinteger(first(args));
+  if (n < 0) error(indexnegative, first(args));
   object *list = second(args);
   while (list != NULL) {
-    if (improperp(list)) error(NTH, notproper, list);
+    if (improperp(list)) error(notproper, list);
     if (n == 0) return car(list);
     list = cdr(list);
     n--;
@@ -1934,8 +1823,8 @@ object *fn_aref (object *args, object *env) {
   (void) env;
   int bit;
   object *array = first(args);
-  if (!arrayp(array)) error(AREF, PSTR("first argument is not an array"), array);
-  object *loc = *getarray(AREF, array, cdr(args), 0, &bit);
+  if (!arrayp(array)) error(PSTR("first argument is not an array"), array);
+  object *loc = *getarray(array, cdr(args), 0, &bit);
   if (bit == -1) return loc;
   else return number((loc->integer)>>bit & 1);
 }"#)
@@ -1964,7 +1853,7 @@ object *fn_member (object *args, object *env) {
   object *item = first(args);
   object *list = second(args);
   while (list != NULL) {
-    if (improperp(list)) error(MEMBER, notproper, list);
+    if (improperp(list)) error(notproper, list);
     if (eq(item,car(list))) return list;
     list = cdr(list);
   }
@@ -1984,9 +1873,9 @@ object *fn_apply (object *args, object *env) {
     last = cdr(last);
   }
   object *arg = car(last);
-  if (!listp(arg)) error(APPLY, notalist, arg);
+  if (!listp(arg)) error(notalist, arg);
   cdr(previous) = arg;
-  return apply(APPLY, first(args), cdr(args), env);
+  return apply(first(args), cdr(args), env);
 }"#)
 
       (FUNCALL nil 1 127 "
@@ -1995,7 +1884,7 @@ object *fn_apply (object *args, object *env) {
   Evaluates function with the specified arguments.
 */
 object *fn_funcall (object *args, object *env) {
-  return apply(FUNCALL, first(args), cdr(args), env);
+  return apply(first(args), cdr(args), env);
 }")
 
       (APPEND nil 0 127 #"
@@ -2009,14 +1898,14 @@ object *fn_append (object *args, object *env) {
   object *tail;
   while (args != NULL) {
     object *list = first(args);
-    if (!listp(list)) error(APPEND, notalist, list);
+    if (!listp(list)) error(notalist, list);
     while (consp(list)) {
       object *obj = cons(car(list), cdr(list));
       if (head == NULL) head = obj;
       else cdr(tail) = obj;
       tail = obj;
       list = cdr(list);
-      if (cdr(args) != NULL && improperp(list)) error(APPEND, notproper, first(args));
+      if (cdr(args) != NULL && improperp(list)) error(notproper, first(args));
     }
     args = cdr(args);
   }
@@ -2033,6 +1922,7 @@ object *fn_mapc (object *args, object *env) {
   object *function = first(args);
   args = cdr(args);
   object *result = first(args);
+  push(result,GCStack);
   object *params = cons(NULL, NULL);
   push(params,GCStack);
   // Make parameters
@@ -2042,16 +1932,16 @@ object *fn_mapc (object *args, object *env) {
     while (lists != NULL) {
       object *list = car(lists);
       if (list == NULL) {
-         pop(GCStack);
+         pop(GCStack); pop(GCStack);
          return result;
       }
-      if (improperp(list)) error(MAPC, notproper, list);
+      if (improperp(list)) error(notproper, list);
       object *obj = cons(first(list),NULL);
       car(lists) = cdr(list);
       cdr(tailp) = obj; tailp = obj;
       lists = cdr(lists);
     }
-    apply(MAPC, function, cdr(params), env);
+    apply(function, cdr(params), env);
   }
 }"#)
 
@@ -2061,7 +1951,7 @@ object *fn_mapc (object *args, object *env) {
   Applies the function to each element in one or more lists, and returns the resulting list.
 */
 object *fn_mapcar (object *args, object *env) {
-  return mapcarcan(MAPCAR, args, env, mapcarfun);
+  return mapcarcan(args, env, mapcarfun);
 }"#)
 
       (MAPCAN nil 2 127 #"
@@ -2071,7 +1961,7 @@ object *fn_mapcar (object *args, object *env) {
   and these are appended together to give the value returned.
 */
 object *fn_mapcan (object *args, object *env) {
-  return mapcarcan(MAPCAN, args, env, mapcanfun);
+  return mapcarcan(args, env, mapcanfun);
 }"#)))
 
     ("Arithmetic functions"
@@ -2087,10 +1977,10 @@ object *fn_add (object *args, object *env) {
   (void) env;
   int result = 0;
   while (args != NULL) {
-    int temp = checkinteger(ADD, car(args));
+    int temp = checkinteger(car(args));
     #if defined(checkoverflow)
-    if (temp < 1) { if (INT_MIN - temp > result) error2(ADD, overflow); }
-    else { if (INT_MAX - temp < result) error2(ADD, overflow); }
+    if (temp < 1) { if (INT_MIN - temp > result) error2(overflow); }
+    else { if (INT_MAX - temp < result) error2(overflow); }
     #endif
     result = result + temp;
     args = cdr(args);
@@ -2117,7 +2007,7 @@ object *fn_add (object *args, object *env) {
       if (val < 1) { if (INT_MIN - val > result) return add_floats(args, (float)result); }
       else { if (INT_MAX - val < result) return add_floats(args, (float)result); }
       result = result + val;
-    } else error(ADD, notanumber, arg);
+    } else error(notanumber, arg);
     args = cdr(args);
   }
   return number(result);
@@ -2132,19 +2022,19 @@ object *fn_add (object *args, object *env) {
 */
 object *fn_subtract (object *args, object *env) {
   (void) env;
-  int result = checkinteger(SUBTRACT, car(args));
+  int result = checkinteger(car(args));
   args = cdr(args);
   if (args == NULL) {
     #if defined(checkoverflow)
-    if (result == INT_MIN) error2(SUBTRACT, overflow);
+    if (result == INT_MIN) error2(overflow);
     #endif
     return number(-result);
   }
   while (args != NULL) {
-    int temp = checkinteger(SUBTRACT, car(args));
+    int temp = checkinteger(car(args));
     #if defined(checkoverflow)
-    if (temp < 1) { if (INT_MAX + temp < result) error2(SUBTRACT, overflow); }
-    else { if (INT_MIN + temp > result) error2(SUBTRACT, overflow); }
+    if (temp < 1) { if (INT_MAX + temp < result) error2(overflow); }
+    else { if (INT_MIN + temp > result) error2(overflow); }
     #endif
     result = result - temp;
     args = cdr(args);
@@ -2177,11 +2067,11 @@ object *fn_subtract (object *args, object *env) {
         if (val < 1) { if (INT_MAX + val < result) return subtract_floats(args, result); }
         else { if (INT_MIN + val > result) return subtract_floats(args, result); }
         result = result - val;
-      } else error(SUBTRACT, notanumber, arg);
+      } else error(notanumber, arg);
       args = cdr(args);
     }
     return number(result);
-  } else error(SUBTRACT, notanumber, arg);
+  } else error(notanumber, arg);
   return nil;
 }"#)
 
@@ -2196,11 +2086,11 @@ object *fn_multiply (object *args, object *env) {
   int result = 1;
   while (args != NULL){
     #if defined(checkoverflow)
-    signed long temp = (signed long) result * checkinteger(MULTIPLY, car(args));
-    if ((temp > INT_MAX) || (temp < INT_MIN)) error2(MULTIPLY, overflow);
+    signed long temp = (signed long) result * checkinteger(car(args));
+    if ((temp > INT_MAX) || (temp < INT_MIN)) error2(overflow);
     result = temp;
     #else
-    result = result * checkinteger(MULTIPLY, car(args));
+    result = result * checkinteger(car(args));
     #endif
     args = cdr(args);
   }
@@ -2225,7 +2115,7 @@ object *fn_multiply (object *args, object *env) {
       int64_t val = result * (int64_t)(arg->integer);
       if ((val > INT_MAX) || (val < INT_MIN)) return multiply_floats(args, result);
       result = val;
-    } else error(MULTIPLY, notanumber, arg);
+    } else error(notanumber, arg);
     args = cdr(args);
   }
   return number(result);
@@ -2239,13 +2129,13 @@ object *fn_multiply (object *args, object *env) {
 */
 object *fn_divide (object *args, object *env) {
   (void) env;
-  int result = checkinteger(DIVIDE, first(args));
+  int result = checkinteger(first(args));
   args = cdr(args);
   while (args != NULL) {
-    int arg = checkinteger(DIVIDE, car(args));
-    if (arg == 0) error2(DIVIDE, divisionbyzero);
+    int arg = checkinteger(car(args));
+    if (arg == 0) error2(divisionbyzero);
     #if defined(checkoverflow)
-    if ((result == INT_MIN) && (arg == -1)) error2(DIVIDE, overflow);
+    if ((result == INT_MIN) && (arg == -1)) error2(overflow);
     #endif
     result = result / arg;
     args = cdr(args);
@@ -2272,14 +2162,14 @@ object *fn_divide (object *args, object *env) {
   if (args == NULL) {
     if (floatp(arg)) {
       float f = arg->single_float;
-      if (f == 0.0) error2(DIVIDE, PSTR("division by zero"));
+      if (f == 0.0) error2(PSTR("division by zero"));
       return makefloat(1.0 / f);
     } else if (integerp(arg)) {
       int i = arg->integer;
-      if (i == 0) error2(DIVIDE, PSTR("division by zero"));
+      if (i == 0) error2(PSTR("division by zero"));
       else if (i == 1) return number(1);
       else return makefloat(1.0 / i);
-    } else error(DIVIDE, notanumber, arg);
+    } else error(notanumber, arg);
   }
   // Multiple arguments
   if (floatp(arg)) return divide_floats(args, arg->single_float);
@@ -2291,15 +2181,15 @@ object *fn_divide (object *args, object *env) {
         return divide_floats(args, result);
       } else if (integerp(arg)) {
         int i = arg->integer;
-        if (i == 0) error2(DIVIDE, PSTR("division by zero"));
+        if (i == 0) error2(PSTR("division by zero"));
         if ((result % i) != 0) return divide_floats(args, result);
         if ((result == INT_MIN) && (i == -1)) return divide_floats(args, result);
         result = result / i;
         args = cdr(args);
-      } else error(DIVIDE, notanumber, arg);
+      } else error(notanumber, arg);
     }
     return number(result);
-  } else error(DIVIDE, notanumber, arg);
+  } else error(notanumber, arg);
   return nil;
 }"#)
 
@@ -2311,9 +2201,9 @@ object *fn_divide (object *args, object *env) {
 */
 object *fn_mod (object *args, object *env) {
   (void) env;
-  int arg1 = checkinteger(MOD, first(args));
-  int arg2 = checkinteger(MOD, second(args));
-  if (arg2 == 0) error2(MOD, divisionbyzero);
+  int arg1 = checkinteger(first(args));
+  int arg2 = checkinteger(second(args));
+  if (arg2 == 0) error2(divisionbyzero);
   int r = arg1 % arg2;
   if ((arg1<0) != (arg2<0)) r = r + arg2;
   return number(r);
@@ -2332,15 +2222,15 @@ object *fn_mod (object *args, object *env) {
   object *arg2 = second(args);
   if (integerp(arg1) && integerp(arg2)) {
     int divisor = arg2->integer;
-    if (divisor == 0) error2(MOD, PSTR("division by zero"));
+    if (divisor == 0) error2(PSTR("division by zero"));
     int dividend = arg1->integer;
     int remainder = dividend % divisor;
     if ((dividend<0) != (divisor<0)) remainder = remainder + divisor;
     return number(remainder);
   } else {
-    float fdivisor = checkintfloat(MOD, arg2);
-    if (fdivisor == 0.0) error2(MOD, PSTR("division by zero"));
-    float fdividend = checkintfloat(MOD, arg1);
+    float fdivisor = checkintfloat(arg2);
+    if (fdivisor == 0.0) error2(PSTR("division by zero"));
+    float fdividend = checkintfloat(arg1);
     float fremainder = fmod(fdividend , fdivisor);
     if ((fdividend<0) != (fdivisor<0)) fremainder = fremainder + fdivisor;
     return makefloat(fremainder);
@@ -2355,9 +2245,9 @@ object *fn_mod (object *args, object *env) {
 */
 object *fn_oneplus (object *args, object *env) {
   (void) env;
-  int result = checkinteger(ONEPLUS, first(args));
+  int result = checkinteger(first(args));
   #if defined(checkoverflow)
-  if (result == INT_MAX) error2(ONEPLUS, overflow);
+  if (result == INT_MAX) error2(overflow);
   #endif
   return number(result + 1);
 }"#)
@@ -2378,7 +2268,7 @@ object *fn_oneplus (object *args, object *env) {
     int result = arg->integer;
     if (result == INT_MAX) return makefloat((arg->integer) + 1.0);
     else return number(result + 1);
-  } else error(ONEPLUS, notanumber, arg);
+  } else error(notanumber, arg);
   return nil;
 }"#)
 
@@ -2390,9 +2280,9 @@ object *fn_oneplus (object *args, object *env) {
 */
 object *fn_oneminus (object *args, object *env) {
   (void) env;
-  int result = checkinteger(ONEMINUS, first(args));
+  int result = checkinteger(first(args));
   #if defined(checkoverflow)
-  if (result == INT_MIN) error2(ONEMINUS, overflow);
+  if (result == INT_MIN) error2(overflow);
   #endif
   return number(result - 1);
 }"#)
@@ -2413,7 +2303,7 @@ object *fn_oneminus (object *args, object *env) {
     int result = arg->integer;
     if (result == INT_MIN) return makefloat((arg->integer) - 1.0);
     else return number(result - 1);
-  } else error(ONEMINUS, notanumber, arg);
+  } else error(notanumber, arg);
   return nil;
 }"#)
 
@@ -2425,9 +2315,9 @@ object *fn_oneminus (object *args, object *env) {
 */
 object *fn_abs (object *args, object *env) {
   (void) env;
-  int result = checkinteger(ABS, first(args));
+  int result = checkinteger(first(args));
   #if defined(checkoverflow)
-  if (result == INT_MIN) error2(ABS, overflow);
+  if (result == INT_MIN) error2(overflow);
   #endif
   return number(abs(result));
 }"#)
@@ -2448,7 +2338,7 @@ object *fn_abs (object *args, object *env) {
     int result = arg->integer;
     if (result == INT_MIN) return makefloat(abs((float)result));
     else return number(abs(result));
-  } else error(ABS, notanumber, arg);
+  } else error(notanumber, arg);
   return nil;
 }"#)
 
@@ -2460,7 +2350,7 @@ object *fn_abs (object *args, object *env) {
 */
 object *fn_random (object *args, object *env) {
   (void) env;
-  int arg = checkinteger(RANDOM, first(args));
+  int arg = checkinteger(first(args));
   return number(pseudoRandom(arg));
 }"#)
 
@@ -2476,7 +2366,7 @@ object *fn_random (object *args, object *env) {
   object *arg = first(args);
   if (integerp(arg)) return number(random(arg->integer));
   else if (floatp(arg)) return makefloat((float)rand()/(float)(RAND_MAX/(arg->single_float)));
-  else error(RANDOM, notanumber, arg);
+  else error(notanumber, arg);
   return nil;
 }"#)
 
@@ -2488,10 +2378,10 @@ object *fn_random (object *args, object *env) {
 */
 object *fn_maxfn (object *args, object *env) {
   (void) env;
-  int result = checkinteger(MAXFN, first(args));
+  int result = checkinteger(first(args));
   args = cdr(args);
   while (args != NULL) {
-    int next = checkinteger(MAXFN, car(args));
+    int next = checkinteger(car(args));
     if (next > result) result = next;
     args = cdr(args);
   }
@@ -2512,7 +2402,7 @@ object *fn_maxfn (object *args, object *env) {
     object *arg = car(args);
     if (integerp(result) && integerp(arg)) {
       if ((arg->integer) > (result->integer)) result = arg;
-    } else if ((checkintfloat(MAXFN, arg) > checkintfloat(MAXFN, result))) result = arg;
+    } else if ((checkintfloat(arg) > checkintfloat(result))) result = arg;
     args = cdr(args);
   }
   return result;
@@ -2526,10 +2416,10 @@ object *fn_maxfn (object *args, object *env) {
 */
 object *fn_minfn (object *args, object *env) {
   (void) env;
-  int result = checkinteger(MINFN, first(args));
+  int result = checkinteger(first(args));
   args = cdr(args);
   while (args != NULL) {
-    int next = checkinteger(MINFN, car(args));
+    int next = checkinteger(car(args));
     if (next < result) result = next;
     args = cdr(args);
   }
@@ -2550,7 +2440,7 @@ object *fn_minfn (object *args, object *env) {
     object *arg = car(args);
     if (integerp(result) && integerp(arg)) {
       if ((arg->integer) < (result->integer)) result = arg;
-    } else if ((checkintfloat(MINFN, arg) < checkintfloat(MINFN, result))) result = arg;
+    } else if ((checkintfloat(arg) < checkintfloat(result))) result = arg;
     args = cdr(args);
   }
   return result;
@@ -2570,10 +2460,10 @@ object *fn_noteq (object *args, object *env) {
   (void) env;
   while (args != NULL) {   
     object *nargs = args;
-    int arg1 = checkinteger(NOTEQ, first(nargs));
+    int arg1 = checkinteger(first(nargs));
     nargs = cdr(nargs);
     while (nargs != NULL) {
-       int arg2 = checkinteger(NOTEQ, first(nargs));
+       int arg2 = checkinteger(first(nargs));
        if (arg1 == arg2) return nil;
        nargs = cdr(nargs);
     }
@@ -2598,7 +2488,7 @@ object *fn_noteq (object *args, object *env) {
       object *arg2 = first(nargs);
       if (integerp(arg1) && integerp(arg2)) {
         if ((arg1->integer) == (arg2->integer)) return nil;
-      } else if ((checkintfloat(NOTEQ, arg1) == checkintfloat(NOTEQ, arg2))) return nil;
+      } else if ((checkintfloat(arg1) == checkintfloat(arg2))) return nil;
       nargs = cdr(nargs);
     }
     args = cdr(args);
@@ -2613,7 +2503,7 @@ object *fn_noteq (object *args, object *env) {
 */
 object *fn_numeq (object *args, object *env) {
   (void) env;
-  return compare(NUMEQ, args, false, false, true);
+  return compare(args, false, false, true);
 }"#)
 
       (LESS "<" 1 127 #"
@@ -2623,7 +2513,7 @@ object *fn_numeq (object *args, object *env) {
 */
 object *fn_less (object *args, object *env) {
   (void) env;
-  return compare(LESS, args, true, false, false);
+  return compare(args, true, false, false);
 }"#)
 
       (LESSEQ "<=" 1 127 #"
@@ -2633,7 +2523,7 @@ object *fn_less (object *args, object *env) {
 */
 object *fn_lesseq (object *args, object *env) {
   (void) env;
-  return compare(LESSEQ, args, true, false, true);
+  return compare(args, true, false, true);
 }"#)
 
       (GREATER ">" 1 127 #"
@@ -2643,7 +2533,7 @@ object *fn_lesseq (object *args, object *env) {
 */
 object *fn_greater (object *args, object *env) {
   (void) env;
-  return compare(GREATER, args, false, true, false);
+  return compare(args, false, true, false);
 }"#)
 
       (GREATEREQ ">=" 1 127 #"
@@ -2653,7 +2543,7 @@ object *fn_greater (object *args, object *env) {
 */
 object *fn_greatereq (object *args, object *env) {
   (void) env;
-  return compare(GREATEREQ, args, false, true, true);
+  return compare(args, false, true, true);
 }"#)
 
       #-float
@@ -2664,7 +2554,7 @@ object *fn_greatereq (object *args, object *env) {
 */
 object *fn_plusp (object *args, object *env) {
   (void) env;
-  int arg = checkinteger(PLUSP, first(args));
+  int arg = checkinteger(first(args));
   if (arg > 0) return tee;
   else return nil;
 }")
@@ -2680,7 +2570,7 @@ object *fn_plusp (object *args, object *env) {
   object *arg = first(args);
   if (floatp(arg)) return ((arg->single_float) > 0.0) ? tee : nil;
   else if (integerp(arg)) return ((arg->integer) > 0) ? tee : nil;
-  else error(PLUSP, notanumber, arg);
+  else error(notanumber, arg);
   return nil;
 }")
 
@@ -2688,7 +2578,7 @@ object *fn_plusp (object *args, object *env) {
       (MINUSP nil 1 1 "
 object *fn_minusp (object *args, object *env) {
   (void) env;
-  int arg = checkinteger(MINUSP, first(args));
+  int arg = checkinteger(first(args));
   if (arg < 0) return tee;
   else return nil;
 }")
@@ -2704,7 +2594,7 @@ object *fn_minusp (object *args, object *env) {
   object *arg = first(args);
   if (floatp(arg)) return ((arg->single_float) < 0.0) ? tee : nil;
   else if (integerp(arg)) return ((arg->integer) < 0) ? tee : nil;
-  else error(MINUSP, notanumber, arg);
+  else error(notanumber, arg);
   return nil;
 }")
 
@@ -2716,7 +2606,7 @@ object *fn_minusp (object *args, object *env) {
 */
 object *fn_zerop (object *args, object *env) {
   (void) env;
-  int arg = checkinteger(ZEROP, first(args));
+  int arg = checkinteger(first(args));
   return (arg == 0) ? tee : nil;
 }")
 
@@ -2731,7 +2621,7 @@ object *fn_zerop (object *args, object *env) {
   object *arg = first(args);
   if (floatp(arg)) return ((arg->single_float) == 0.0) ? tee : nil;
   else if (integerp(arg)) return ((arg->integer) == 0) ? tee : nil;
-  else error(ZEROP, notanumber, arg);
+  else error(notanumber, arg);
   return nil;
 }")
 
@@ -2742,7 +2632,7 @@ object *fn_zerop (object *args, object *env) {
 */
 object *fn_oddp (object *args, object *env) {
   (void) env;
-  int arg = checkinteger(ODDP, first(args));
+  int arg = checkinteger(first(args));
   return ((arg & 1) == 1) ? tee : nil;
 }")
 
@@ -2753,7 +2643,7 @@ object *fn_oddp (object *args, object *env) {
 */
 object *fn_evenp (object *args, object *env) {
   (void) env;
-  int arg = checkinteger(EVENP, first(args));
+  int arg = checkinteger(first(args));
   return ((arg & 1) == 0) ? tee : nil;
 }")))
 
@@ -2822,8 +2712,8 @@ object *fn_atan (object *args, object *env) {
   object *arg = first(args);
   float div = 1.0;
   args = cdr(args);
-  if (args != NULL) div = checkintfloat(ATAN, first(args));
-  return makefloat(atan2(checkintfloat(ATAN, arg), div));
+  if (args != NULL) div = checkintfloat(first(args));
+  return makefloat(atan2(checkintfloat(arg), div));
 }"#)
       
     (SINH nil 1 1 float-function)
@@ -2834,16 +2724,16 @@ object *fn_atan (object *args, object *env) {
 
     (LOG nil 1 2 #"
 /*
-  (number [base])
+  (log number [base])
   Returns the logarithm of number to the specified base. If base is omitted it defaults to e.
 */
 object *fn_log (object *args, object *env) {
   (void) env;
   object *arg = first(args);
-  float fresult = log(checkintfloat(LOG, arg));
+  float fresult = log(checkintfloat(arg));
   args = cdr(args);
   if (args == NULL) return makefloat(fresult);
-  else return makefloat(fresult / log(checkintfloat(LOG, first(args))));
+  else return makefloat(fresult / log(checkintfloat(first(args))));
 }"#)
     
     (EXPT nil 2 2 #"
@@ -2856,13 +2746,13 @@ object *fn_log (object *args, object *env) {
 object *fn_expt (object *args, object *env) {
   (void) env;
   object *arg1 = first(args); object *arg2 = second(args);
-  float float1 = checkintfloat(EXPT, arg1);
-  float value = log(abs(float1)) * checkintfloat(EXPT, arg2);
+  float float1 = checkintfloat(arg1);
+  float value = log(abs(float1)) * checkintfloat(arg2);
   if (integerp(arg1) && integerp(arg2) && ((arg2->integer) >= 0) && (abs(value) < 21.4875))
     return number(intpower(arg1->integer, arg2->integer));
   if (float1 < 0) {
     if (integerp(arg2)) return makefloat((arg2->integer & 1) ? -exp(value) : exp(value));
-    else error2(EXPT, PSTR("invalid result"));
+    else error2(PSTR("invalid result"));
   }
   return makefloat(exp(value));
 }"#)
@@ -2872,28 +2762,28 @@ object *fn_expt (object *args, object *env) {
       
     (TRUNCATE nil 1 2 #"
 /*
-  (truncate number)
-  Returns t if the argument is a floating-point number.
+  (truncate number [divisor])
+  Returns the integer part of number/divisor. If divisor is omitted it defaults to 1.
 */
 object *fn_truncate (object *args, object *env) {
   (void) env;
   object *arg = first(args);
   args = cdr(args);
-  if (args != NULL) return number((int)(checkintfloat(TRUNCATE, arg) / checkintfloat(TRUNCATE, first(args))));
-  else return number((int)(checkintfloat(TRUNCATE, arg)));
+  if (args != NULL) return number((int)(checkintfloat(arg) / checkintfloat(first(args))));
+  else return number((int)(checkintfloat(arg)));
 }"#)
 
     (ROUND nil 1 2 #"
 /*
-  (round number)
-  Returns t if the argument is a floating-point number.
+  (round number [divisor])
+  Returns the integer closest to number/divisor. If divisor is omitted it defaults to 1.
 */
 object *fn_round (object *args, object *env) {
   (void) env;
   object *arg = first(args);
   args = cdr(args);
-  if (args != NULL) return number(myround(checkintfloat(ROUND, arg) / checkintfloat(ROUND, first(args))));
-  else return number(myround(checkintfloat(ROUND, arg)));
+  if (args != NULL) return number(myround(checkintfloat(arg) / checkintfloat(first(args))));
+  else return number(myround(checkintfloat(arg)));
 }"#)))
 
     ("Characters"
@@ -2906,10 +2796,10 @@ object *fn_round (object *args, object *env) {
 object *fn_char (object *args, object *env) {
   (void) env;
   object *arg = first(args);
-  if (!stringp(arg)) error(CHAR, notastring, arg);
+  if (!stringp(arg)) error(notastring, arg);
   object *n = second(args);
-  char c = nthchar(arg, checkinteger(CHAR, n));
-  if (c == 0) error(CHAR, indexrange, n);
+  char c = nthchar(arg, checkinteger(n));
+  if (c == 0) error(indexrange, n);
   return character(c);
 }"#)
 
@@ -2920,7 +2810,7 @@ object *fn_char (object *args, object *env) {
 */
 object *fn_charcode (object *args, object *env) {
   (void) env;
-  return number(checkchar(CHARCODE, first(args)));
+  return number(checkchar(first(args)));
 }"#)
 
       (CODECHAR "code-char" 1 1 #"
@@ -2930,7 +2820,7 @@ object *fn_charcode (object *args, object *env) {
 */
 object *fn_codechar (object *args, object *env) {
   (void) env;
-  return character(checkinteger(CODECHAR, first(args)));
+  return character(checkinteger(first(args)));
 }"#)
 
       (CHARACTERP nil 1 1 #"
@@ -2962,17 +2852,17 @@ object *fn_stringp (object *args, object *env) {
 */
 object *fn_stringeq (object *args, object *env) {
   (void) env;
-  return stringcompare(STRINGEQ, args, false, false, true) ? tee : nil;
+  return stringcompare(args, false, false, true) ? tee : nil;
 }"#)
 
       (STRINGLESS "string<" 2 2 #"
 /*
   (string< string string)
-  Returns t if the first string is alphabetically less than the second string, and nil otherwise. For example:
+  Returns t if the first string is alphabetically less than the second string, and nil otherwise.
 */
 object *fn_stringless (object *args, object *env) {
   (void) env;
-  return stringcompare(STRINGLESS, args, true, false, false) ? tee : nil;
+  return stringcompare(args, true, false, false) ? tee : nil;
 }"#)
 
       (STRINGGREATER "string>" 2 2 #"
@@ -2982,7 +2872,7 @@ object *fn_stringless (object *args, object *env) {
 */
 object *fn_stringgreater (object *args, object *env) {
   (void) env;
-  return stringcompare(STRINGGREATER, args, false, true, false) ? tee : nil;
+  return stringcompare(args, false, true, false) ? tee : nil;
 }"#)
 
       (SORT "sort" 2 2 #"
@@ -3003,7 +2893,7 @@ object *fn_sort (object *args, object *env) {
     while (go != ptr) {
       car(compare) = car(cdr(ptr));
       car(cdr(compare)) = car(cdr(go));
-      if (apply(SORT, predicate, compare, env)) break;
+      if (apply(predicate, compare, env)) break;
       go = cdr(go);
     }
     if (go != ptr) {
@@ -3034,12 +2924,12 @@ object *fn_stringfn (object *args, object *env) {
 object *fn_concatenate (object *args, object *env) {
   (void) env;
   object *arg = first(args);
-  if (builtin(arg->name) != STRINGFN) error2(CONCATENATE, PSTR("only supports strings"));
+  if (builtin(arg->name) != STRINGFN) error2(PSTR("only supports strings"));
   args = cdr(args);
   object *result = newstring();
   object *tail = result;
   while (args != NULL) {
-    object *obj = checkstring(CONCATENATE, first(args));
+    object *obj = checkstring(first(args));
     obj = cdr(obj);
     while (obj != NULL) {
       int quad = obj->chars;
@@ -3057,25 +2947,78 @@ object *fn_concatenate (object *args, object *env) {
 
     (SUBSEQ nil 2 3 #"
 /*
-  (subseq string start [end])
-  Returns a substring from a string, from character start to character end-1:
+  (subseq seq start [end])
+  Returns a subsequence of a list or string from item start to item end-1.
 */
 object *fn_subseq (object *args, object *env) {
   (void) env;
-  object *arg = checkstring(SUBSEQ, first(args));
-  int start = checkinteger(SUBSEQ, second(args));
-  if (start < 0) error(SUBSEQ, indexnegative, second(args));
-  int end;
+  object *arg = first(args);
+  int start = checkinteger(second(args)), end;
+  if (start < 0) error(indexnegative, second(args));
   args = cddr(args);
-  if (args != NULL) end = checkinteger(SUBSEQ, car(args)); else end = stringlength(arg);
-  object *result = newstring();
-  object *tail = result;
-  for (int i=start; i<end; i++) {
-    char ch = nthchar(arg, i);
-    if (ch == 0) error2(SUBSEQ, indexrange);
-    buildstring(ch, &tail);
-  }
-  return result;
+  if (listp(arg)) {
+    int length = listlength(arg);
+    if (args != NULL) end = checkinteger(car(args)); else end = length;
+    if (start > end || end > length) error2(indexrange);
+    object *result = cons(NULL, NULL);
+    object *ptr = result;
+    for (int x = 0; x < end; x++) {
+      if (x >= start) { cdr(ptr) = cons(car(arg), NULL); ptr = cdr(ptr); }
+      arg = cdr(arg);
+    }
+    return cdr(result);
+  } else if (stringp(arg)) {
+    int length = stringlength(arg);
+    if (args != NULL) end = checkinteger(car(args)); else end = length;
+    if (start > end || end > length) error2(indexrange);
+    object *result = newstring();
+    object *tail = result;
+    for (int i=start; i<end; i++) {
+      char ch = nthchar(arg, i);
+      buildstring(ch, &tail);
+    }
+    return result;
+  } else error2(PSTR("argument is not a list or string"));
+  return nil;
+}"#)
+
+    #-avr-nano
+    (SEARCH nil 2 2 #"
+/*
+  (search pattern target)
+  Returns the index of the first occurrence of pattern in target, 
+  which can be lists or strings, or nil if it's not found.
+*/
+object *fn_search (object *args, object *env) {
+  (void) env;
+  object *pattern = first(args);
+  object *target = second(args);
+  if (pattern == NULL) return number(0);
+  else if (target == NULL) return nil;
+  else if (listp(pattern) && listp(target)) {
+    int l = listlength(target);
+    int m = listlength(pattern);
+    for (int i = 0; i <= l-m; i++) {
+      object *target1 = target;
+      while (pattern != NULL && eq(car(target1), car(pattern))) {
+        pattern = cdr(pattern);
+        target1 = cdr(target1);
+      }
+      if (pattern == NULL) return number(i);
+      pattern = first(args); target = cdr(target);
+    }
+    return nil;
+  } else if (stringp(pattern) && stringp(target)) {
+    int l = stringlength(target);
+    int m = stringlength(pattern);
+    for (int i = 0; i <= l-m; i++) {
+      int j = 0;
+      while (j < m && nthchar(target, i+j) == nthchar(pattern, j)) j++;
+      if (j == m) return number(i);
+    }
+    return nil;
+  } else error2(PSTR("arguments are not both lists or strings"));
+  return nil;
 }"#)
 
     (READFROMSTRING "read-from-string" 1 1 #"
@@ -3085,10 +3028,12 @@ object *fn_subseq (object *args, object *env) {
 */
 object *fn_readfromstring (object *args, object *env) {
   (void) env;
-  object *arg = checkstring(READFROMSTRING, first(args));
+  object *arg = checkstring(first(args));
   GlobalString = arg;
   GlobalStringIndex = 0;
-  return read(gstr);
+  object *val = read(gstr);
+  LastChar = 0;
+  return val;
 }"#)
 
     (PRINCTOSTRING "princ-to-string" 1 1 #"
@@ -3099,10 +3044,7 @@ object *fn_readfromstring (object *args, object *env) {
 */
 object *fn_princtostring (object *args, object *env) {
   (void) env;
-  object *arg = first(args);
-  object *obj = startstring(PRINCTOSTRING);
-  prin1object(arg, pstr);
-  return obj;
+  return princtostring(first(args));
 }"#)
 
     (PRIN1TOSTRING "prin1-to-string" 1 1 #"
@@ -3115,7 +3057,7 @@ object *fn_princtostring (object *args, object *env) {
 object *fn_prin1tostring (object *args, object *env) {
   (void) env;
   object *arg = first(args);
-  object *obj = startstring(PRIN1TOSTRING);
+  object *obj = startstring();
   printobject(arg, pstr);
   return obj;
 }"#)))
@@ -3128,14 +3070,12 @@ object *fn_prin1tostring (object *args, object *env) {
       
       (LOGNOT nil 1 1 "
 /*
-  (prin1-to-string item [stream])
-  Prints its argument to a string, and returns the string.
-  Characters and strings are printed with quotation marks and escape characters,
-  in a format that will be suitable for read-from-string.
+  (lognot value)
+  Returns the bitwise logical NOT of the value.
 */
 object *fn_lognot (object *args, object *env) {
   (void) env;
-  int result = checkinteger(LOGNOT, car(args));
+  int result = checkinteger(car(args));
   return number(~result);
 }")
 
@@ -3146,8 +3086,8 @@ object *fn_lognot (object *args, object *env) {
 */
 object *fn_ash (object *args, object *env) {
   (void) env;
-  int value = checkinteger(ASH, first(args));
-  int count = checkinteger(ASH, second(args));
+  int value = checkinteger(first(args));
+  int count = checkinteger(second(args));
   if (count >= 0) return number(value << count);
   else return number(value >> abs(count));
 }")
@@ -3159,8 +3099,8 @@ object *fn_ash (object *args, object *env) {
 */
 object *fn_logbitp (object *args, object *env) {
   (void) env;
-  int index = checkinteger(LOGBITP, first(args));
-  int value = checkinteger(LOGBITP, second(args));
+  int index = checkinteger(first(args));
+  int value = checkinteger(second(args));
   return (bitRead(value, index) == 1) ? tee : nil;
 }")))
 
@@ -3177,12 +3117,18 @@ object *fn_eval (object *args, object *env) {
       (GLOBALS nil 0 0 "
 /*
   (globals)
-  Returns an association list of global variables and their values.
+  Returns a list of global variables.
 */
 object *fn_globals (object *args, object *env) {
-  (void) args;
-  if (GlobalEnv == NULL) return nil;
-  return fn_mapcar(cons(bsymbol(CAR),cons(GlobalEnv,nil)), env);
+  (void) args, (void) env;
+  object *result = cons(NULL, NULL);
+  object *ptr = result;
+  object *arg = GlobalEnv;
+  while (arg != NULL) {
+    cdr(ptr) = cons(car(car(arg)), NULL); ptr = cdr(ptr);
+    arg = cdr(arg);
+  }
+  return cdr(result);
 }")
 
       (LOCALS nil 0 0 "
@@ -3203,7 +3149,7 @@ object *fn_locals (object *args, object *env) {
 object *fn_makunbound (object *args, object *env) {
   (void) env;
   object *var = first(args);
-  if (!symbolp(var)) error(MAKUNBOUND, notasymbol, var);
+  if (!symbolp(var)) error(notasymbol, var);
   delassoc(var, &GlobalEnv);
   return var;
 }"#)
@@ -3322,7 +3268,7 @@ object *fn_readline (object *args, object *env) {
 */
 object *fn_writebyte (object *args, object *env) {
   (void) env;
-  int value = checkinteger(WRITEBYTE, first(args));
+  int value = checkinteger(first(args));
   pfun_t pfun = pstreamfun(cdr(args));
   (pfun)(value);
   return nil;
@@ -3381,7 +3327,7 @@ object *fn_restarti2c (object *args, object *env) {
     read = (rw != NULL);
   }
   int address = stream & 0xFF;
-  if (stream>>8 != I2CSTREAM) error2(RESTARTI2C, PSTR("not an i2c stream"));
+  if (stream>>8 != I2CSTREAM) error2(PSTR("not an i2c stream"));
   TwoWire *port;
   if (address < 128) port = &Wire;
   #if defined(ULISP_I2C1)
@@ -3410,7 +3356,7 @@ object *fn_restarti2c (object *args, object *env) {
     read = (rw != NULL);
   }
   int address = stream & 0xFF;
-  if (stream>>8 != I2CSTREAM) error2(RESTARTI2C, PSTR("not an i2c stream"));
+  if (stream>>8 != I2CSTREAM) error2(PSTR("not an i2c stream"));
   return I2Crestart(address, read) ? tee : nil;
 }"#)
 
@@ -3513,7 +3459,7 @@ object *fn_watchdog (object *args, object *env) {
   return nil;
 }")
 
-      #+(or avr arm esp riscv)
+      #+(or avr avr-nano arm esp riscv)
       (PINMODE nil 2 2 "
 /*
   (pinmode pin mode)
@@ -3523,11 +3469,11 @@ object *fn_watchdog (object *args, object *env) {
 object *fn_pinmode (object *args, object *env) {
   (void) env; int pin;
   object *arg = first(args);
-  if (keywordp(arg)) pin = checkkeyword(NIL, arg);
-  else pin = checkinteger(PINMODE, first(args));
+  if (keywordp(arg)) pin = checkkeyword(arg);
+  else pin = checkinteger(first(args));
   int pm = INPUT;
   arg = second(args);
-  if (keywordp(arg)) pm = checkkeyword(PINMODE, arg);
+  if (keywordp(arg)) pm = checkkeyword(arg);
   else if (integerp(arg)) {
     int mode = arg->integer;
     if (mode == 1) pm = OUTPUT; else if (mode == 2) pm = INPUT_PULLUP;
@@ -3548,11 +3494,11 @@ object *fn_pinmode (object *args, object *env) {
 */
 object *fn_pinmode (object *args, object *env) {
   (void) env;
-  int pin = checkinteger(PINMODE, first(args));
+  int pin = checkinteger(first(args));
   int pm = INPUT;
   object *mode = second(args);
   if (integerp(mode)) {
-    int nmode = checkinteger(PINMODE, mode);
+    int nmode = checkinteger(mode);
     if (nmode == 1) pm = OUTPUT; else if (nmode == 2) pm = INPUT_PULLUP;
     #if defined(INPUT_PULLDOWN)
     else if (nmode == 4) pm = INPUT_PULLDOWN;
@@ -3569,7 +3515,10 @@ object *fn_pinmode (object *args, object *env) {
 */
 object *fn_digitalread (object *args, object *env) {
   (void) env;
-  int pin = checkinteger(DIGITALREAD, first(args));
+  int pin;
+  object *arg = first(args);
+  if (keywordp(arg)) pin = checkkeyword(arg);
+  else pin = checkinteger(arg);
   if (digitalRead(pin) != 0) return tee; else return nil;
 }")
 
@@ -3582,11 +3531,11 @@ object *fn_digitalwrite (object *args, object *env) {
   (void) env;
   int pin;
   object *arg = first(args);
-  if (keywordp(arg)) pin = checkkeyword(NIL, arg);
-  else pin = checkinteger(DIGITALWRITE, arg);
+  if (keywordp(arg)) pin = checkkeyword(arg);
+  else pin = checkinteger(arg);
   arg = second(args);
   int mode;
-  if (keywordp(arg)) mode = checkkeyword(DIGITALWRITE, arg);
+  if (keywordp(arg)) mode = checkkeyword(arg);
   else if (integerp(arg)) mode = arg->integer ? HIGH : LOW;
   else mode = (arg != nil) ? HIGH : LOW;
   digitalWrite(pin, mode);
@@ -3602,15 +3551,15 @@ object *fn_analogread (object *args, object *env) {
   (void) env;
   int pin;
   object *arg = first(args);
-  if (keywordp(arg)) pin = checkkeyword(ANALOGREAD, arg);
+  if (keywordp(arg)) pin = checkkeyword(arg);
   else {
-    pin = checkinteger(ANALOGREAD, arg);
+    pin = checkinteger(arg);
     checkanalogread(pin);
   }
   return number(analogRead(pin));
 }"#)
 
-      #+avr
+      #+(or avr avr-nano)
       (ANALOGREFERENCE nil 1 1 #"
 /*
   (analogreference keyword)
@@ -3619,7 +3568,7 @@ object *fn_analogread (object *args, object *env) {
 object *fn_analogreference (object *args, object *env) {
   (void) env;
   object *arg = first(args);
-  analogReference(checkkeyword(ANALOGREFERENCE, arg));
+  analogReference(checkkeyword(arg));
   return arg;
 }"#)
 
@@ -3633,14 +3582,14 @@ object *fn_analogreference (object *args, object *env) {
   (void) env;
   object *arg = first(args);
   #if defined(ARDUINO_TEENSY40) || defined(ARDUINO_TEENSY41) || defined(MAX32620) || defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_RASPBERRY_PI_PICO_W) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || defined(ARDUINO_ADAFRUIT_QTPY_RP2040)
-  error2(ANALOGREFERENCE, PSTR("not supported"));
+  error2(PSTR("not supported"));
   #else
-  analogReference((eAnalogReference)checkkeyword(ANALOGREFERENCE, arg));
+  analogReference((eAnalogReference)checkkeyword(arg));
   #endif
   return arg;
 }"#)
 
-      #+avr
+      #+(or avr avr-nano)
       (ANALOGREADRESOLUTION nil 1 1 #"
 /*
   (analogreadresolution bits)
@@ -3651,12 +3600,12 @@ object *fn_analogreadresolution (object *args, object *env) {
   (void) env;
   object *arg = first(args);
   #if defined(CPU_AVR128DX48)
-  uint8_t res = checkinteger(ANALOGREADRESOLUTION, arg);
+  uint8_t res = checkinteger(arg);
   if (res == 10) analogReadResolution(10);
   else if (res == 12) analogReadResolution(12);
-  else error(ANALOGREADRESOLUTION, PSTR("invalid resolution"), arg);
+  else error(PSTR("invalid resolution"), arg);
   #else
-  error2(ANALOGREADRESOLUTION, PSTR("not supported"));
+  error2(PSTR("not supported"));
   #endif
   return arg;
 }"#)
@@ -3672,9 +3621,9 @@ object *fn_analogreadresolution (object *args, object *env) {
   (void) env;
   object *arg = first(args);
   #if defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || defined(ARDUINO_ADAFRUIT_QTPY_RP2040)
-  error2(ANALOGREADRESOLUTION, PSTR("not supported"));
+  error2(PSTR("not supported"));
   #else
-  analogReadResolution(checkinteger(ANALOGREADRESOLUTION, arg));
+  analogReadResolution(checkinteger(arg));
   #endif
   return arg;
 }"#)
@@ -3690,9 +3639,9 @@ object *fn_analogreadresolution (object *args, object *env) {
   (void) env;
   object *arg = first(args);
   #if defined(ESP32)
-  analogReadResolution(checkinteger(ANALOGREADRESOLUTION, arg));
+  analogReadResolution(checkinteger(arg));
   #else
-  error2(ANALOGREADRESOLUTION, PSTR("not supported"));
+  error2(PSTR("not supported"));
   #endif
   return arg;
 }"#)
@@ -3707,7 +3656,7 @@ object *fn_analogreadresolution (object *args, object *env) {
 object *fn_analogreadresolution (object *args, object *env) {
   (void) env;
   object *arg = first(args);
-  analogReadResolution(checkinteger(ANALOGREADRESOLUTION, arg));
+  analogReadResolution(checkinteger(arg));
   return arg;
 }"#)
 
@@ -3720,11 +3669,11 @@ object *fn_analogwrite (object *args, object *env) {
   (void) env;
   int pin;
   object *arg = first(args);
-  if (keywordp(arg)) pin = checkkeyword(NIL, arg);
-  else pin = checkinteger(ANALOGWRITE, arg);
+  if (keywordp(arg)) pin = checkkeyword(arg);
+  else pin = checkinteger(arg);
   checkanalogwrite(pin);
   object *value = second(args);
-  analogWrite(pin, checkinteger(ANALOGWRITE, value));
+  analogWrite(pin, checkinteger(value));
   return value;
 }"#)
 
@@ -3737,11 +3686,11 @@ object *fn_analogwrite (object *args, object *env) {
 object *fn_analogwriteresolution (object *args, object *env) {
   (void) env;
   object *arg = first(args);
-  analogWriteResolution(checkinteger(ANALOGWRITERESOLUTION, arg));
+  analogWriteResolution(checkinteger(arg));
   return arg;
 }"#)
 
-      #+avr
+      #+(or avr avr-nano)
       (DACREFERENCE nil 1 1 #"
 /*
   (dacreference value)
@@ -3751,7 +3700,7 @@ object *fn_dacreference (object *args, object *env) {
   (void) env;
   object *arg = first(args);
   #if defined(CPU_AVR128DX48)
-  int ref = checkinteger(DACREFERENCE, arg);
+  int ref = checkinteger(arg);
   DACReference(ref);
   #endif
   return arg;
@@ -3765,7 +3714,7 @@ object *fn_dacreference (object *args, object *env) {
 object *fn_delay (object *args, object *env) {
   (void) env;
   object *arg1 = first(args);
-  delay(checkinteger(DELAY, arg1));
+  delay(checkinteger(arg1));
   return arg1;
 }")
 
@@ -3779,7 +3728,23 @@ object *fn_millis (object *args, object *env) {
   return number(millis());
 }"#)
 
-      (SLEEP nil 1 1 #"
+      #+(or avr avr-nano)
+      (SLEEP nil 0 1 #"
+/*
+  (sleep secs)
+  Puts the processor into a low-power sleep mode for secs.
+  Only supported on some platforms. On other platforms it does delay(1000*secs).
+*/
+object *fn_sleep (object *args, object *env) {
+  (void) env;
+  if (args == NULL || first(args) == NULL) { sleep(); return nil; }
+  object *arg1 = first(args);
+  doze(checkinteger(arg1));
+  return arg1;
+}"#)
+
+     #-(or avr avr-nano)
+     (SLEEP nil 0 1 #"
 /*
   (sleep secs)
   Puts the processor into a low-power sleep mode for secs.
@@ -3788,11 +3753,11 @@ object *fn_millis (object *args, object *env) {
 object *fn_sleep (object *args, object *env) {
   (void) env;
   object *arg1 = first(args);
-  sleep(checkinteger(SLEEP, arg1));
+  doze(checkinteger(arg1));
   return arg1;
 }"#)
 
-      #+ignore
+     #+ignore
       (SHIFTOUT nil 4 4 "
 object *fn_shiftout (object *args, object *env) {
   (void) env;
@@ -3827,17 +3792,17 @@ object *fn_note (object *args, object *env) {
   (void) env;
   static int pin = 255;
   if (args != NULL) {
-    pin = checkinteger(NOTE, first(args));
+    pin = checkinteger(first(args));
     int note = 0;
-    if (cddr(args) != NULL) note = checkinteger(NOTE, second(args));
+    if (cddr(args) != NULL) note = checkinteger(second(args));
     int octave = 0;
-    if (cddr(args) != NULL) octave = checkinteger(NOTE, third(args));
+    if (cddr(args) != NULL) octave = checkinteger(third(args));
     playnote(pin, note, octave);
   } else nonote(pin);
   return nil;
 }"#)
       
-      #+avr
+      #+(or avr avr-nano)
       (REGISTER nil 1 2 #"
 /*
   (register address [value])
@@ -3849,10 +3814,10 @@ object *fn_register (object *args, object *env) {
   (void) env;
   object *arg = first(args);
   int addr;
-  if (keywordp(arg)) addr = checkkeyword(REGISTER, arg);
-  else addr = checkinteger(REGISTER, first(args));
+  if (keywordp(arg)) addr = checkkeyword(arg);
+  else addr = checkinteger(first(args));
   if (cdr(args) == NULL) return number(*(volatile uint8_t *)addr);
-  (*(volatile uint8_t *)addr) = checkinteger(REGISTER, second(args));
+  (*(volatile uint8_t *)addr) = checkinteger(second(args));
   return second(args);
 }"#)
 
@@ -3868,10 +3833,10 @@ object *fn_register (object *args, object *env) {
   (void) env;
   object *arg = first(args);
   int addr;
-  if (keywordp(arg)) addr = checkkeyword(REGISTER, arg);
-  else addr = checkinteger(REGISTER, first(args));
+  if (keywordp(arg)) addr = checkkeyword(arg);
+  else addr = checkinteger(first(args));
   if (cdr(args) == NULL) return number(*(uint32_t *)addr);
-  (*(uint32_t *)addr) = checkinteger(REGISTER, second(args));
+  (*(uint32_t *)addr) = checkinteger(second(args));
   return second(args);
 }"#)
 
@@ -3925,7 +3890,7 @@ object *fn_attachinterrupt (object *args, object *env) {
 */
 object *fn_edit (object *args, object *env) {
   object *fun = first(args);
-  object *pair = findvalue(EDIT, fun, env);
+  object *pair = findvalue(fun, env);
   clrflag(EXITEDITOR);
   object *arg = edit(eval(fun, env));
   cdr(pair) = arg;
@@ -3972,7 +3937,7 @@ object *fn_pprint (object *args, object *env) {
   return bsymbol(NOTHING);
 }"#)
 
-      #+avr
+      #+(or avr avr-nano)
     (PPRINTALL nil 0 1 #"
 /*
   (pprintall [str])
@@ -4104,7 +4069,7 @@ object *fn_pprintall (object *args, object *env) {
 
      ((FORMAT nil 2 127 #"
 /*
-  (format output controlstring arguments*)
+  (format output controlstring [arguments]*)
   Outputs its arguments formatted according to the format directives in controlstring.
 */
 object *fn_format (object *args, object *env) {
@@ -4112,15 +4077,15 @@ object *fn_format (object *args, object *env) {
   pfun_t pfun = pserial;
   object *output = first(args);
   object *obj;
-  if (output == nil) { obj = startstring(FORMAT); pfun = pstr; }
+  if (output == nil) { obj = startstring(); pfun = pstr; }
   else if (output != tee) pfun = pstreamfun(args);
-  object *formatstr = checkstring(FORMAT, second(args));
+  object *formatstr = checkstring(second(args));
   object *save = NULL;
   args = cddr(args);
   int len = stringlength(formatstr);
   uint8_t n = 0, width = 0, w, bra = 0;
   char pad = ' ';
-  bool tilde = false, mute = false, comma, quote;
+  bool tilde = false, mute = false, comma = false, quote = false;
   while (n < len) {
     char ch = nthchar(formatstr, n);
     char ch2 = ch & ~0x20; // force to upper case
@@ -4196,7 +4161,7 @@ object *fn_format (object *args, object *env) {
 object *fn_require (object *args, object *env) {
   object *arg = first(args);
   object *globals = GlobalEnv;
-  if (!symbolp(arg)) error(REQUIRE, notasymbol, arg);
+  if (!symbolp(arg)) error(notasymbol, arg);
   while (globals != NULL) {
     object *pair = first(globals);
     object *var = car(pair);
@@ -4238,36 +4203,239 @@ object *fn_listlibrary (object *args, object *env) {
 
 #+doc
 ("Documentation"
+
+ ((HELP "?" 1 1 #"
+/*
+  (? item)
+  Prints the documentation string of a built-in or user-defined function.
+*/
+object *sp_help (object *args, object *env) {
+  if (args == NULL) error2(noargument);
+  object *docstring = documentation(first(args), env);
+  if (docstring) {
+    char temp = Flags;
+    clrflag(PRINTREADABLY);
+    printstring(docstring, pserial);
+    Flags = temp;
+  }
+  return bsymbol(NOTHING);
+}"#)) "sp")
      
-     (
-     (DOCUMENTATION nil 1 2 #"
+    #+doc
+    (nil
+     ((DOCUMENTATION nil 1 2 #"
 /*
   (documentation 'symbol [type])
   Returns the documentation string of a built-in or user-defined function. The type argument is ignored.
 */
 object *fn_documentation (object *args, object *env) {
-  return documentation(DOCUMENTATION, first(args), env);
+  return documentation(first(args), env);
+}"#)
+
+     (APROPOS nil 1 1 #"
+/*
+  (apropos item)
+  Prints the user-defined and built-in functions whose names contain the specified string or symbol.
+*/
+object *fn_apropos (object *args, object *env) {
+  (void) env;
+  apropos(first(args), true);
+  return bsymbol(NOTHING);
+}"#)
+
+     (APROPOSLIST "apropos-list" 1 1 #"
+/*
+  (apropos-list item)
+  Returns a list of user-defined and built-in functions whose names contain the specified string or symbol.
+*/
+object *fn_aproposlist (object *args, object *env) {
+  (void) env;
+  return apropos(first(args), false);
 }"#)))
 
-#+ethernet
-    ("Wi-fi"
+#+errors
+("Error handling"
      
-     (
+ ((UNWINDPROTECT "unwind-protect" 0 127 #"
+/*
+  (unwind-protect form1 [forms]*)
+  Evaluates form1 and forms in order and returns the value of form1,
+  but guarantees to evaluate forms even if an error occurs in form1.
+*/
+object *sp_unwindprotect (object *args, object *env) {
+  if (args == NULL) error2(toofewargs);
+  object *current_GCStack = GCStack;
+  jmp_buf dynamic_handler;
+  jmp_buf *previous_handler = handler;
+  handler = &dynamic_handler;
+  object *protected_form = first(args);
+  object *result;
 
-      #+esp
-      (AVAILABLE nil 1 1 #"
+  bool signaled = false;
+  if (!setjmp(dynamic_handler)) {
+    result = eval(protected_form, env);
+  } else {
+    GCStack = current_GCStack;
+    signaled = true;
+  }
+  handler = previous_handler;
+
+  object *protective_forms = cdr(args);
+  while (protective_forms != NULL) {
+    eval(car(protective_forms), env);
+    if (tstflag(RETURNFLAG)) break;
+    protective_forms = cdr(protective_forms);
+  }
+
+  if (!signaled) return result;
+  GCStack = NULL;
+  longjmp(*handler, 1);
+}"#)
+
+(IGNOREERRORS "ignore-errors" 0 127 #"
+/*
+  (ignore-errors [forms]*)
+  Evaluates forms ignoring errors.
+*/
+object *sp_ignoreerrors (object *args, object *env) {
+  object *current_GCStack = GCStack;
+  jmp_buf dynamic_handler;
+  jmp_buf *previous_handler = handler;
+  handler = &dynamic_handler;
+  object *result = nil;
+
+  bool muffled = tstflag(MUFFLEERRORS);
+  setflag(MUFFLEERRORS);
+  bool signaled = false;
+  if (!setjmp(dynamic_handler)) {
+    while (args != NULL) {
+      result = eval(car(args), env);
+      if (tstflag(RETURNFLAG)) break;
+      args = cdr(args);
+    }
+  } else {
+    GCStack = current_GCStack;
+    signaled = true;
+  }
+  handler = previous_handler;
+  if (!muffled) clrflag(MUFFLEERRORS);
+
+  if (signaled) return bsymbol(NOTHING);
+  else return result;
+}"#)
+
+(ERROR nil 1 127 #"
+/*
+  (error controlstring [arguments]*)
+  Signals an error. The message is printed by format using the controlstring and arguments.
+*/
+object *sp_error (object *args, object *env) {
+  object *message = eval(cons(bsymbol(FORMAT), cons(nil, args)), env);
+  if (!tstflag(MUFFLEERRORS)) {
+    char temp = Flags;
+    clrflag(PRINTREADABLY);
+    pfstring(PSTR("Error: "), pserial); printstring(message, pserial);
+    Flags = temp;
+    pln(pserial);
+  }
+  GCStack = NULL;
+  longjmp(*handler, 1);
+}"#)) "sp")
+
+#+wifi
+("Wi-Fi"
+      (
+       #+arm
+    (WITHCLIENT "with-client" 1 2 #"
+/*
+  (with-client (str [address port]) form*)
+  Evaluates the forms with str bound to a wifi-stream.
+*/
+object *sp_withclient (object *args, object *env) {
+  #if defined(ULISP_WIFI)
+  object *params = checkarguments(args, 1, 3);
+  object *var = first(params);
+  char buffer[BUFFERSIZE];
+  params = cdr(params);
+  int n;
+  if (params == NULL) {
+    client = server.available();
+    if (!client) return nil;
+    n = 2;
+  } else {
+    object *address = eval(first(params), env);
+    object *port = eval(second(params), env);
+    int success;
+    if (stringp(address)) success = client.connect(cstring(address, buffer, BUFFERSIZE), checkinteger(port));
+    else if (integerp(address)) success = client.connect(address->integer, checkinteger(port));
+    else error2(PSTR("invalid address"));
+    if (!success) return nil;
+    n = 1;
+  }
+  object *pair = cons(var, stream(WIFISTREAM, n));
+  push(pair,env);
+  object *forms = cdr(args);
+  object *result = eval(tf_progn(forms,env), env);
+  client.stop();
+  return result;
+  #else
+  (void) args, (void) env;
+  error2(PSTR("not supported"));
+  return nil;
+  #endif
+}"#)
+
+#+esp
+    (WITHCLIENT "with-client" 1 2 #"
+/*
+  (with-client (str [address port]) form*)
+  Evaluates the forms with str bound to a wifi-stream.
+*/
+object *sp_withclient (object *args, object *env) {
+  object *params = checkarguments(args, 1, 3);
+  object *var = first(params);
+  char buffer[BUFFERSIZE];
+  params = cdr(params);
+  int n;
+  if (params == NULL) {
+    client = server.available();
+    if (!client) return nil;
+    n = 2;
+  } else {
+    object *address = eval(first(params), env);
+    object *port = eval(second(params), env);
+    int success;
+    if (stringp(address)) success = client.connect(cstring(address, buffer, BUFFERSIZE), checkinteger(port));
+    else if (integerp(address)) success = client.connect(address->integer, checkinteger(port));
+    else error2(PSTR("invalid address"));
+    if (!success) return nil;
+    n = 1;
+  }
+  object *pair = cons(var, stream(WIFISTREAM, n));
+  push(pair,env);
+  object *forms = cdr(args);
+  object *result = eval(tf_progn(forms,env), env);
+  client.stop();
+  return result;
+}"#)) "sp")
+
+#+wifi
+(nil
+ (
+  #+esp
+  (AVAILABLE nil 1 1 #"
 /*
   (available stream)
   Returns the number of bytes available for reading from the wifi-stream, or zero if no bytes are available.
 */
 object *fn_available (object *args, object *env) {
   (void) env;
-  if (isstream(first(args))>>8 != WIFISTREAM) error2(AVAILABLE, PSTR("invalid stream"));
+  if (isstream(first(args))>>8 != WIFISTREAM) error2(PSTR("invalid stream"));
   return number(client.available());
 }"#)
 
-      #+arm
-      (AVAILABLE nil 1 1 #"
+ #+arm
+ (AVAILABLE nil 1 1 #"
 /*
   (available stream)
   Returns the number of bytes available for reading from the wifi-stream, or zero if no bytes are available.
@@ -4275,11 +4443,11 @@ object *fn_available (object *args, object *env) {
 object *fn_available (object *args, object *env) {
   #if defined (ULISP_WIFI)
   (void) env;
-  if (isstream(first(args))>>8 != WIFISTREAM) error2(AVAILABLE, PSTR("invalid stream"));
+  if (isstream(first(args))>>8 != WIFISTREAM) error2(PSTR("invalid stream"));
   return number(client.available());
   #else
   (void) args, (void) env;
-  error2(AVAILABLE, PSTR("not supported"));
+  error2(PSTR("not supported"));
   return nil;
   #endif
 }"#)
@@ -4309,7 +4477,7 @@ object *fn_wifiserver (object *args, object *env) {
   return nil;
   #else
   (void) args, (void) env;
-  error2(WIFISERVER, PSTR("not supported"));
+  error2(PSTR("not supported"));
   return nil;
   #endif
 }"#)
@@ -4326,18 +4494,18 @@ object *fn_wifisoftap (object *args, object *env) {
   char ssid[33], pass[65];
   if (args == NULL) return WiFi.softAPdisconnect(true) ? tee : nil;
   object *first = first(args); args = cdr(args);
-  if (args == NULL) WiFi.softAP(cstring(WIFISOFTAP, first, ssid, 33));
+  if (args == NULL) WiFi.softAP(cstring(first, ssid, 33));
   else {
     object *second = first(args);
     args = cdr(args);
     int channel = 1;
     bool hidden = false;
     if (args != NULL) {
-      channel = checkinteger(WIFISOFTAP, first(args));
+      channel = checkinteger(first(args));
       args = cdr(args);
       if (args != NULL) hidden = (first(args) != nil);
     }
-    WiFi.softAP(cstring(WIFISOFTAP, first, ssid, 33), cstring(WIFISOFTAP, second, pass, 65), channel, hidden);
+    WiFi.softAP(cstring(first, ssid, 33), cstring(second, pass, 65), channel, hidden);
   }
   return lispstring((char*)WiFi.softAPIP().toString().c_str());
 }"#)
@@ -4354,21 +4522,21 @@ object *fn_wifisoftap (object *args, object *env) {
   (void) env;
   char ssid[33], pass[65];
   object *first = first(args); args = cdr(args);
-  if (args == NULL) WiFi.beginAP(cstring(WIFISOFTAP, first, ssid, 33));
+  if (args == NULL) WiFi.beginAP(cstring(first, ssid, 33));
   else {
     object *second = first(args);
     args = cdr(args);
     int channel = 1;
     if (args != NULL) {
-      channel = checkinteger(WIFISOFTAP, first(args));
+      channel = checkinteger(first(args));
       args = cdr(args);
     }
-    WiFi.beginAP(cstring(WIFISOFTAP, first, ssid, 33), cstring(WIFISOFTAP, second, pass, 65), channel);
+    WiFi.beginAP(cstring(first, ssid, 33), cstring(second, pass, 65), channel);
   }
   return lispstring((char*)"192.168.4.1");
   #else
   (void) args, (void) env;
-  error2(WIFISOFTAP, PSTR("not supported"));
+  error2(PSTR("not supported"));
   return nil;
   #endif
 }"#)
@@ -4381,7 +4549,7 @@ object *fn_wifisoftap (object *args, object *env) {
 */
 object *fn_connected (object *args, object *env) {
   (void) env;
-  if (isstream(first(args))>>8 != WIFISTREAM) error2(CONNECTED, PSTR("invalid stream"));
+  if (isstream(first(args))>>8 != WIFISTREAM) error2(PSTR("invalid stream"));
   return client.connected() ? tee : nil;
 }"#)
 
@@ -4394,11 +4562,11 @@ object *fn_connected (object *args, object *env) {
 object *fn_connected (object *args, object *env) {
   #if defined (ULISP_WIFI)
   (void) env;
-  if (isstream(first(args))>>8 != WIFISTREAM) error2(CONNECTED, PSTR("invalid stream"));
+  if (isstream(first(args))>>8 != WIFISTREAM) error2(PSTR("invalid stream"));
   return client.connected() ? tee : nil;
   #else
   (void) args, (void) env;
-  error2(CONNECTED, PSTR("not supported"));
+  error2(PSTR("not supported"));
   return nil;
   #endif
 }"#)
@@ -4426,7 +4594,7 @@ object *fn_wifilocalip (object *args, object *env) {
   return lispstring((char*)WiFi.localIP().toString().c_str());
   #else
   (void) args, (void) env;
-  error2(WIFILOCALIP, PSTR("not supported"));
+  error2(PSTR("not supported"));
   return nil;
   #endif
 }"#)
@@ -4453,13 +4621,13 @@ object *fn_wificonnect (object *args, object *env) {
   (void) env;
   char ssid[33], pass[65];
   if (args == NULL) { WiFi.disconnect(true); return nil; }
-  if (cdr(args) == NULL) WiFi.begin(cstring(WIFICONNECT, first(args), ssid, 33));
-  else WiFi.begin(cstring(WIFICONNECT, first(args), ssid, 33), cstring(WIFICONNECT, second(args), pass, 65));
+  if (cdr(args) == NULL) WiFi.begin(cstring(first(args), ssid, 33));
+  else WiFi.begin(cstring(first(args), ssid, 33), cstring(second(args), pass, 65));
   int result = WiFi.waitForConnectResult();
   if (result == WL_CONNECTED) return lispstring((char*)WiFi.localIP().toString().c_str());
-  else if (result == WL_NO_SSID_AVAIL) error2(WIFICONNECT, PSTR("network not found"));
-  else if (result == WL_CONNECT_FAILED) error2(WIFICONNECT, PSTR("connection failed"));
-  else error2(WIFICONNECT, PSTR("unable to connect"));
+  else if (result == WL_NO_SSID_AVAIL) error2(PSTR("network not found"));
+  else if (result == WL_CONNECT_FAILED) error2(PSTR("connection failed"));
+  else error2(PSTR("unable to connect"));
   return nil;
 }"#)
 
@@ -4474,20 +4642,20 @@ object *fn_wificonnect (object *args, object *env) {
   (void) env;
   char ssid[33], pass[65];
   if (args == NULL) { WiFi.disconnect(); return nil; }
-  if (cdr(args) == NULL) WiFi.begin(cstring(WIFICONNECT, first(args), ssid, 33));
+  if (cdr(args) == NULL) WiFi.begin(cstring(first(args), ssid, 33));
   else {
-    if (cddr(args) != NULL) WiFi.config(ipstring(WIFICONNECT, third(args)));
-    WiFi.begin(cstring(WIFICONNECT, first(args), ssid, 33), cstring(WIFICONNECT, second(args), pass, 65));
+    if (cddr(args) != NULL) WiFi.config(ipstring(third(args)));
+    WiFi.begin(cstring(first(args), ssid, 33), cstring(second(args), pass, 65));
   }
   int result = WiFi.waitForConnectResult();
   if (result == WL_CONNECTED) return lispstring((char*)WiFi.localIP().toString().c_str());
-  else if (result == WL_NO_SSID_AVAIL) error2(WIFICONNECT, PSTR("network not found"));
-  else if (result == WL_CONNECT_FAILED) error2(WIFICONNECT, PSTR("connection failed"));
-  else error2(WIFICONNECT, PSTR("unable to connect"));
+  else if (result == WL_NO_SSID_AVAIL) error2(PSTR("network not found"));
+  else if (result == WL_CONNECT_FAILED) error2(PSTR("connection failed"));
+  else error2(PSTR("unable to connect"));
   return nil;
   #else
   (void) args, (void) env;
-  error2(WIFICONNECT, PSTR("not supported"));
+  error2(PSTR("not supported"));
   return nil;
   #endif
 }"#)
@@ -4511,9 +4679,35 @@ object *fn_wificonnect (object *args, object *env) {
   return nil;
 }"#)))
 
-    #+(and gfx (not esp))
+    #+gfx
     ("Graphics functions"
+
+     ((WITHGFX "with-gfx" 1 127 #"
+/*
+  (with-gfx (str) form*)
+  Evaluates the forms with str bound to an gfx-stream so you can print text
+  to the graphics display using the standard uLisp print commands.
+*/
+object *sp_withgfx (object *args, object *env) {
+#if defined(gfxsupport)
+  object *params = checkarguments(args, 1, 1);
+  object *var = first(params);
+  object *pair = cons(var, stream(GFXSTREAM, 1));
+  push(pair,env);
+  object *forms = cdr(args);
+  object *result = eval(tf_progn(forms,env), env);
+  return result;
+#else
+  (void) args, (void) env;
+  error2(PSTR("not supported"));
+  return nil;
+#endif
+}"#)) "sp" )
+
      
+    #+gfx
+    (nil
+
      ((DRAWPIXEL "draw-pixel" 2 3 #"
 /*
   (draw-pixel x y [colour])
@@ -4523,8 +4717,8 @@ object *fn_drawpixel (object *args, object *env) {
   (void) env;
   #if defined(gfxsupport)
   uint16_t colour = COLOR_WHITE;
-  if (cddr(args) != NULL) colour = checkinteger(DRAWPIXEL, third(args));
-  tft.drawPixel(checkinteger(DRAWPIXEL, first(args)), checkinteger(DRAWPIXEL, second(args)), colour);
+  if (cddr(args) != NULL) colour = checkinteger(third(args));
+  tft.drawPixel(checkinteger(first(args)), checkinteger(second(args)), colour);
   #else
   (void) args;
   #endif
@@ -4540,8 +4734,8 @@ object *fn_drawline (object *args, object *env) {
   (void) env;
   #if defined(gfxsupport)
   uint16_t params[4], colour = COLOR_WHITE;
-  for (int i=0; i<4; i++) { params[i] = checkinteger(DRAWLINE, car(args)); args = cdr(args); }
-  if (args != NULL) colour = checkinteger(DRAWLINE, car(args));
+  for (int i=0; i<4; i++) { params[i] = checkinteger(car(args)); args = cdr(args); }
+  if (args != NULL) colour = checkinteger(car(args));
   tft.drawLine(params[0], params[1], params[2], params[3], colour);
   #else
   (void) args;
@@ -4559,8 +4753,8 @@ object *fn_drawrect (object *args, object *env) {
   (void) env;
   #if defined(gfxsupport)
   uint16_t params[4], colour = COLOR_WHITE;
-  for (int i=0; i<4; i++) { params[i] = checkinteger(DRAWRECT, car(args)); args = cdr(args); }
-  if (args != NULL) colour = checkinteger(DRAWRECT, car(args));
+  for (int i=0; i<4; i++) { params[i] = checkinteger(car(args)); args = cdr(args); }
+  if (args != NULL) colour = checkinteger(car(args));
   tft.drawRect(params[0], params[1], params[2], params[3], colour);
   #else
   (void) args;
@@ -4578,8 +4772,8 @@ object *fn_fillrect (object *args, object *env) {
   (void) env;
   #if defined(gfxsupport)
   uint16_t params[4], colour = COLOR_WHITE;
-  for (int i=0; i<4; i++) { params[i] = checkinteger(FILLRECT, car(args)); args = cdr(args); }
-  if (args != NULL) colour = checkinteger(FILLRECT, car(args));
+  for (int i=0; i<4; i++) { params[i] = checkinteger(car(args)); args = cdr(args); }
+  if (args != NULL) colour = checkinteger(car(args));
   tft.fillRect(params[0], params[1], params[2], params[3], colour);
   #else
   (void) args;
@@ -4597,8 +4791,8 @@ object *fn_drawcircle (object *args, object *env) {
   (void) env;
   #if defined(gfxsupport)
   uint16_t params[3], colour = COLOR_WHITE;
-  for (int i=0; i<3; i++) { params[i] = checkinteger(DRAWCIRCLE, car(args)); args = cdr(args); }
-  if (args != NULL) colour = checkinteger(DRAWCIRCLE, car(args));
+  for (int i=0; i<3; i++) { params[i] = checkinteger(car(args)); args = cdr(args); }
+  if (args != NULL) colour = checkinteger(car(args));
   tft.drawCircle(params[0], params[1], params[2], colour);
   #else
   (void) args;
@@ -4616,8 +4810,8 @@ object *fn_fillcircle (object *args, object *env) {
   (void) env;
   #if defined(gfxsupport)
   uint16_t params[3], colour = COLOR_WHITE;
-  for (int i=0; i<3; i++) { params[i] = checkinteger(FILLCIRCLE, car(args)); args = cdr(args); }
-  if (args != NULL) colour = checkinteger(FILLCIRCLE, car(args));
+  for (int i=0; i<3; i++) { params[i] = checkinteger(car(args)); args = cdr(args); }
+  if (args != NULL) colour = checkinteger(car(args));
   tft.fillCircle(params[0], params[1], params[2], colour);
   #else
   (void) args;
@@ -4635,8 +4829,8 @@ object *fn_drawroundrect (object *args, object *env) {
   (void) env;
   #if defined(gfxsupport)
   uint16_t params[5], colour = COLOR_WHITE;
-  for (int i=0; i<5; i++) { params[i] = checkinteger(DRAWROUNDRECT, car(args)); args = cdr(args); }
-  if (args != NULL) colour = checkinteger(DRAWROUNDRECT, car(args));
+  for (int i=0; i<5; i++) { params[i] = checkinteger(car(args)); args = cdr(args); }
+  if (args != NULL) colour = checkinteger(car(args));
   tft.drawRoundRect(params[0], params[1], params[2], params[3], params[4], colour);
   #else
   (void) args;
@@ -4654,8 +4848,8 @@ object *fn_fillroundrect (object *args, object *env) {
   (void) env;
   #if defined(gfxsupport)
   uint16_t params[5], colour = COLOR_WHITE;
-  for (int i=0; i<5; i++) { params[i] = checkinteger(FILLROUNDRECT, car(args)); args = cdr(args); }
-  if (args != NULL) colour = checkinteger(FILLROUNDRECT, car(args));
+  for (int i=0; i<5; i++) { params[i] = checkinteger(car(args)); args = cdr(args); }
+  if (args != NULL) colour = checkinteger(car(args));
   tft.fillRoundRect(params[0], params[1], params[2], params[3], params[4], colour);
   #else
   (void) args;
@@ -4673,8 +4867,8 @@ object *fn_drawtriangle (object *args, object *env) {
   (void) env;
   #if defined(gfxsupport)
   uint16_t params[6], colour = COLOR_WHITE;
-  for (int i=0; i<6; i++) { params[i] = checkinteger(DRAWTRIANGLE, car(args)); args = cdr(args); }
-  if (args != NULL) colour = checkinteger(DRAWTRIANGLE, car(args));
+  for (int i=0; i<6; i++) { params[i] = checkinteger(car(args)); args = cdr(args); }
+  if (args != NULL) colour = checkinteger(car(args));
   tft.drawTriangle(params[0], params[1], params[2], params[3], params[4], params[5], colour);
   #else
   (void) args;
@@ -4692,8 +4886,8 @@ object *fn_filltriangle (object *args, object *env) {
   (void) env;
   #if defined(gfxsupport)
   uint16_t params[6], colour = COLOR_WHITE;
-  for (int i=0; i<6; i++) { params[i] = checkinteger(FILLTRIANGLE, car(args)); args = cdr(args); }
-  if (args != NULL) colour = checkinteger(FILLTRIANGLE, car(args));
+  for (int i=0; i<6; i++) { params[i] = checkinteger(car(args)); args = cdr(args); }
+  if (args != NULL) colour = checkinteger(car(args));
   tft.fillTriangle(params[0], params[1], params[2], params[3], params[4], params[5], colour);
   #else
   (void) args;
@@ -4715,15 +4909,15 @@ object *fn_drawchar (object *args, object *env) {
   uint16_t colour = COLOR_WHITE, bg = COLOR_BLACK, size = 1;
   object *more = cdr(cddr(args));
   if (more != NULL) {
-    colour = checkinteger(DRAWCHAR, car(more));
+    colour = checkinteger(car(more));
     more = cdr(more);
     if (more != NULL) {
-      bg = checkinteger(DRAWCHAR, car(more));
+      bg = checkinteger(car(more));
       more = cdr(more);
-      if (more != NULL) size = checkinteger(DRAWCHAR, car(more));
+      if (more != NULL) size = checkinteger(car(more));
     }
   }
-  tft.drawChar(checkinteger(DRAWCHAR, first(args)), checkinteger(DRAWCHAR, second(args)), checkchar(DRAWCHAR, third(args)),
+  tft.drawChar(checkinteger(first(args)), checkinteger(second(args)), checkchar(third(args)),
     colour, bg, size);
   #else
   (void) args;
@@ -4739,7 +4933,7 @@ object *fn_drawchar (object *args, object *env) {
 object *fn_setcursor (object *args, object *env) {
   (void) env;
   #if defined(gfxsupport)
-  tft.setCursor(checkinteger(SETCURSOR, first(args)), checkinteger(SETCURSOR, second(args)));
+  tft.setCursor(checkinteger(first(args)), checkinteger(second(args)));
   #else
   (void) args;
   #endif
@@ -4754,8 +4948,8 @@ object *fn_setcursor (object *args, object *env) {
 object *fn_settextcolor (object *args, object *env) {
   (void) env;
   #if defined(gfxsupport)
-  if (cdr(args) != NULL) tft.setTextColor(checkinteger(SETTEXTCOLOR, first(args)), checkinteger(SETTEXTCOLOR, second(args)));
-  else tft.setTextColor(checkinteger(SETTEXTCOLOR, first(args)));
+  if (cdr(args) != NULL) tft.setTextColor(checkinteger(first(args)), checkinteger(second(args)));
+  else tft.setTextColor(checkinteger(first(args)));
   #else
   (void) args;
   #endif
@@ -4770,7 +4964,7 @@ object *fn_settextcolor (object *args, object *env) {
 object *fn_settextsize (object *args, object *env) {
   (void) env;
   #if defined(gfxsupport)
-  tft.setTextSize(checkinteger(SETTEXTSIZE, first(args)));
+  tft.setTextSize(checkinteger(first(args)));
   #else
   (void) args;
   #endif
@@ -4801,7 +4995,7 @@ object *fn_fillscreen (object *args, object *env) {
   (void) env;
   #if defined(gfxsupport)
   uint16_t colour = COLOR_BLACK;
-  if (args != NULL) colour = checkinteger(FILLSCREEN, first(args));
+  if (args != NULL) colour = checkinteger(first(args));
   tft.fillScreen(colour);
   #else
   (void) args;
@@ -4817,7 +5011,7 @@ object *fn_fillscreen (object *args, object *env) {
 object *fn_setrotation (object *args, object *env) {
   (void) env;
   #if defined(gfxsupport)
-  tft.setRotation(checkinteger(SETROTATION, first(args)));
+  tft.setRotation(checkinteger(first(args)));
   #else
   (void) args;
   #endif
@@ -4863,7 +5057,7 @@ uint16_t Technoblogy_ST7735::getPixel (uint16_t x, uint16_t y) {
 object *fn_getpixel (object *args, object *env) {
   #if defined(gfxsupport)
   (void) env;
-  return number(tft.getPixel(checkinteger(DRAWPIXEL, first(args)), checkinteger(DRAWPIXEL, second(args))));
+  return number(tft.getPixel(checkinteger(first(args)), checkinteger(second(args))));
   #endif
 }"#)
 
@@ -4872,7 +5066,7 @@ object *fn_getpixel (object *args, object *env) {
 object *fn_getpixel (object *args, object *env) {
   #if defined(gfxsupport)
   (void) args, (void) env;
-  error2(GETPIXEL, PSTR("not supported"));
+  error2(PSTR("not supported"));
   #endif
   return nil;
 }"#)
@@ -4895,8 +5089,8 @@ object *fn_xorpixel (object *args, object *env) {
   #if defined(gfxsupport)
   (void) env;
   uint16_t colour = COLOR_WHITE;
-  if (cddr(args) != NULL) colour = checkinteger(XORPIXEL, third(args));
-  tft.xorPixel(checkinteger(XORPIXEL, first(args)), checkinteger(XORPIXEL, second(args)), colour);
+  if (cddr(args) != NULL) colour = checkinteger(third(args));
+  tft.xorPixel(checkinteger(first(args)), checkinteger(second(args)), colour);
   #endif
   return nil;
 }"#)
@@ -4906,7 +5100,7 @@ object *fn_xorpixel (object *args, object *env) {
 object *fn_xorpixel (object *args, object *env) {
   #if defined(gfxsupport)
   (void) args, (void) env;
-  error2(XORPIXEL, PSTR("not supported"));
+  error2(PSTR("not supported"));
   #endif
   return nil;
 }"#)
@@ -4957,8 +5151,8 @@ object *fn_xorsprite (object *args, object *env) {
   #if defined(gfxsupport)
   (void) env;
   uint32_t params[4]; uint16_t colour = COLOR_WHITE;
-  for (int i=0; i<4; i++) { params[i] = checkinteger(XORSPRITE, car(args)); args = cdr(args); }
-  if (args != NULL) colour = checkinteger(XORSPRITE, car(args));
+  for (int i=0; i<4; i++) { params[i] = checkinteger(car(args)); args = cdr(args); }
+  if (args != NULL) colour = checkinteger(car(args));
   tft.xorSprite(params[0], params[1], params[2], params[3], colour);
   #endif
   return nil;
@@ -4969,12 +5163,12 @@ object *fn_xorsprite (object *args, object *env) {
 object *fn_xorsprite (object *args, object *env) {
   #if defined(gfxsupport)
   (void) args, (void) env;
-  error2(XORSPRITE, PSTR("not supported"));
+  error2(PSTR("not supported"));
   #endif
   return nil;
 }"#)))
 
-    #+(and gfx esp)
+    #+ignore
     ("Graphics functions"
      
      ((DRAWPIXEL "draw-pixel" 2 3 #"
@@ -4986,8 +5180,8 @@ object *fn_drawpixel (object *args, object *env) {
   #if defined(gfxsupport)
   (void) env;
   uint16_t colour = COLOR_WHITE;
-  if (cddr(args) != NULL) colour = checkinteger(DRAWPIXEL, third(args));
-  tft.drawPixel(checkinteger(DRAWPIXEL, first(args)), checkinteger(DRAWPIXEL, second(args)), colour);
+  if (cddr(args) != NULL) colour = checkinteger(third(args));
+  tft.drawPixel(checkinteger(first(args)), checkinteger(second(args)), colour);
   tft.display();
   #else
   (void) args, (void) env;
@@ -5004,8 +5198,8 @@ object *fn_drawline (object *args, object *env) {
   #if defined(gfxsupport)
   (void) env;
   uint16_t params[4], colour = COLOR_WHITE;
-  for (int i=0; i<4; i++) { params[i] = checkinteger(DRAWLINE, car(args)); args = cdr(args); }
-  if (args != NULL) colour = checkinteger(DRAWLINE, car(args));
+  for (int i=0; i<4; i++) { params[i] = checkinteger(car(args)); args = cdr(args); }
+  if (args != NULL) colour = checkinteger(car(args));
   tft.drawLine(params[0], params[1], params[2], params[3], colour);
   tft.display();
   #else
@@ -5024,8 +5218,8 @@ object *fn_drawrect (object *args, object *env) {
   #if defined(gfxsupport)
   (void) env;
   uint16_t params[4], colour = COLOR_WHITE;
-  for (int i=0; i<4; i++) { params[i] = checkinteger(DRAWRECT, car(args)); args = cdr(args); }
-  if (args != NULL) colour = checkinteger(DRAWRECT, car(args));
+  for (int i=0; i<4; i++) { params[i] = checkinteger(car(args)); args = cdr(args); }
+  if (args != NULL) colour = checkinteger(car(args));
   tft.drawRect(params[0], params[1], params[2], params[3], colour);
   tft.display();
   #else
@@ -5044,8 +5238,8 @@ object *fn_fillrect (object *args, object *env) {
   #if defined(gfxsupport)
   (void) env;
   uint16_t params[4], colour = COLOR_WHITE;
-  for (int i=0; i<4; i++) { params[i] = checkinteger(FILLRECT, car(args)); args = cdr(args); }
-  if (args != NULL) colour = checkinteger(FILLRECT, car(args));
+  for (int i=0; i<4; i++) { params[i] = checkinteger(car(args)); args = cdr(args); }
+  if (args != NULL) colour = checkinteger(car(args));
   tft.fillRect(params[0], params[1], params[2], params[3], colour);
   tft.display();
   #else
@@ -5064,8 +5258,8 @@ object *fn_drawcircle (object *args, object *env) {
   #if defined(gfxsupport)
   (void) env;
   uint16_t params[3], colour = COLOR_WHITE;
-  for (int i=0; i<3; i++) { params[i] = checkinteger(DRAWCIRCLE, car(args)); args = cdr(args); }
-  if (args != NULL) colour = checkinteger(DRAWCIRCLE, car(args));
+  for (int i=0; i<3; i++) { params[i] = checkinteger(car(args)); args = cdr(args); }
+  if (args != NULL) colour = checkinteger(car(args));
   tft.drawCircle(params[0], params[1], params[2], colour);
   tft.display();
   #else
@@ -5084,8 +5278,8 @@ object *fn_fillcircle (object *args, object *env) {
   #if defined(gfxsupport)
   (void) env;
   uint16_t params[3], colour = COLOR_WHITE;
-  for (int i=0; i<3; i++) { params[i] = checkinteger(FILLCIRCLE, car(args)); args = cdr(args); }
-  if (args != NULL) colour = checkinteger(FILLCIRCLE, car(args));
+  for (int i=0; i<3; i++) { params[i] = checkinteger(car(args)); args = cdr(args); }
+  if (args != NULL) colour = checkinteger(car(args));
   tft.fillCircle(params[0], params[1], params[2], colour);
   tft.display();
   #else
@@ -5104,8 +5298,8 @@ object *fn_drawroundrect (object *args, object *env) {
   #if defined(gfxsupport)
   (void) env;
   uint16_t params[5], colour = COLOR_WHITE;
-  for (int i=0; i<5; i++) { params[i] = checkinteger(DRAWROUNDRECT, car(args)); args = cdr(args); }
-  if (args != NULL) colour = checkinteger(DRAWROUNDRECT, car(args));
+  for (int i=0; i<5; i++) { params[i] = checkinteger(car(args)); args = cdr(args); }
+  if (args != NULL) colour = checkinteger(car(args));
   tft.drawRoundRect(params[0], params[1], params[2], params[3], params[4], colour);
   tft.display();
   #else
@@ -5124,8 +5318,8 @@ object *fn_fillroundrect (object *args, object *env) {
   #if defined(gfxsupport)
   (void) env;
   uint16_t params[5], colour = COLOR_WHITE;
-  for (int i=0; i<5; i++) { params[i] = checkinteger(FILLROUNDRECT, car(args)); args = cdr(args); }
-  if (args != NULL) colour = checkinteger(FILLROUNDRECT, car(args));
+  for (int i=0; i<5; i++) { params[i] = checkinteger(car(args)); args = cdr(args); }
+  if (args != NULL) colour = checkinteger(car(args));
   tft.fillRoundRect(params[0], params[1], params[2], params[3], params[4], colour);
   tft.display();
   #else
@@ -5144,8 +5338,8 @@ object *fn_drawtriangle (object *args, object *env) {
   #if defined(gfxsupport)
   (void) env;
   uint16_t params[6], colour = COLOR_WHITE;
-  for (int i=0; i<6; i++) { params[i] = checkinteger(DRAWTRIANGLE, car(args)); args = cdr(args); }
-  if (args != NULL) colour = checkinteger(DRAWTRIANGLE, car(args));
+  for (int i=0; i<6; i++) { params[i] = checkinteger(car(args)); args = cdr(args); }
+  if (args != NULL) colour = checkinteger(car(args));
   tft.drawTriangle(params[0], params[1], params[2], params[3], params[4], params[5], colour);
   tft.display();
   #else
@@ -5164,8 +5358,8 @@ object *fn_filltriangle (object *args, object *env) {
   #if defined(gfxsupport)
   (void) env;
   uint16_t params[6], colour = COLOR_WHITE;
-  for (int i=0; i<6; i++) { params[i] = checkinteger(FILLTRIANGLE, car(args)); args = cdr(args); }
-  if (args != NULL) colour = checkinteger(FILLTRIANGLE, car(args));
+  for (int i=0; i<6; i++) { params[i] = checkinteger(car(args)); args = cdr(args); }
+  if (args != NULL) colour = checkinteger(car(args));
   tft.fillTriangle(params[0], params[1], params[2], params[3], params[4], params[5], colour);
   tft.display();
   #else
@@ -5188,15 +5382,15 @@ object *fn_drawchar (object *args, object *env) {
   uint16_t colour = COLOR_WHITE, bg = COLOR_BLACK, size = 1;
   object *more = cdr(cddr(args));
   if (more != NULL) {
-    colour = checkinteger(DRAWCHAR, car(more));
+    colour = checkinteger(car(more));
     more = cdr(more);
     if (more != NULL) {
-      bg = checkinteger(DRAWCHAR, car(more));
+      bg = checkinteger(car(more));
       more = cdr(more);
-      if (more != NULL) size = checkinteger(DRAWCHAR, car(more));
+      if (more != NULL) size = checkinteger(car(more));
     }
   }
-  tft.drawChar(checkinteger(DRAWCHAR, first(args)), checkinteger(DRAWCHAR, second(args)), checkchar(DRAWCHAR, third(args)),
+  tft.drawChar(checkinteger(first(args)), checkinteger(second(args)), checkchar(DRAWCHAR, third(args)),
     colour, bg, size);
   tft.display();
   #else
@@ -5213,7 +5407,7 @@ object *fn_drawchar (object *args, object *env) {
 object *fn_setcursor (object *args, object *env) {
   #if defined(gfxsupport)
   (void) env;
-  tft.setCursor(checkinteger(SETCURSOR, first(args)), checkinteger(SETCURSOR, second(args)));
+  tft.setCursor(checkinteger(first(args)), checkinteger(second(args)));
   #endif
   return nil;
 }"#)
@@ -5226,8 +5420,8 @@ object *fn_setcursor (object *args, object *env) {
 object *fn_settextcolor (object *args, object *env) {
   #if defined(gfxsupport)
   (void) env;
-  if (cdr(args) != NULL) tft.setTextColor(checkinteger(SETTEXTCOLOR, first(args)), checkinteger(SETTEXTCOLOR, second(args)));
-  else tft.setTextColor(checkinteger(SETTEXTCOLOR, first(args)));
+  if (cdr(args) != NULL) tft.setTextColor(checkinteger(first(args)), checkinteger(second(args)));
+  else tft.setTextColor(checkinteger(first(args)));
   #else
   (void) args, (void) env;
   #endif
@@ -5242,7 +5436,7 @@ object *fn_settextcolor (object *args, object *env) {
 object *fn_settextsize (object *args, object *env) {
   #if defined(gfxsupport)
   (void) env;
-  tft.setTextSize(checkinteger(SETTEXTSIZE, first(args)));
+  tft.setTextSize(checkinteger(first(args)));
   #else
   (void) args, (void) env;
   #endif
@@ -5273,7 +5467,7 @@ object *fn_fillscreen (object *args, object *env) {
   #if defined(gfxsupport)
   (void) env;
   uint16_t colour = COLOR_BLACK;
-  if (args != NULL) colour = checkinteger(FILLSCREEN, first(args));
+  if (args != NULL) colour = checkinteger(first(args));
   tft.fillScreen(colour);
   tft.display();
   #else
@@ -5290,7 +5484,7 @@ object *fn_fillscreen (object *args, object *env) {
 object *fn_setrotation (object *args, object *env) {
   #if defined(gfxsupport)
   (void) env;
-  tft.setRotation(checkinteger(SETROTATION, first(args)));
+  tft.setRotation(checkinteger(first(args)));
   tft.display();
   #else
   (void) args, (void) env;
@@ -5338,7 +5532,7 @@ uint16_t Technoblogy_ST7735::getPixel (uint16_t x, uint16_t y) {
 object *fn_getpixel (object *args, object *env) {
   #if defined(gfxsupport)
   (void) env;
-  return number(tft.getPixel(checkinteger(DRAWPIXEL, first(args)), checkinteger(DRAWPIXEL, second(args))));
+  return number(tft.getPixel(checkinteger(first(args)), checkinteger(second(args))));
   #endif
 }"#)
 
@@ -5347,7 +5541,7 @@ object *fn_getpixel (object *args, object *env) {
 object *fn_getpixel (object *args, object *env) {
   #if defined(gfxsupport)
   (void) args, (void) env;
-  error2(GETPIXEL, PSTR("not supported"));
+  error2(PSTR("not supported"));
   return nil;
   #endif
 }"#)
@@ -5370,8 +5564,8 @@ object *fn_xorpixel (object *args, object *env) {
   #if defined(gfxsupport)
   (void) env;
   uint16_t colour = COLOR_WHITE;
-  if (cddr(args) != NULL) colour = checkinteger(XORPIXEL, third(args));
-  tft.xorPixel(checkinteger(XORPIXEL, first(args)), checkinteger(XORPIXEL, second(args)), colour);
+  if (cddr(args) != NULL) colour = checkinteger(third(args));
+  tft.xorPixel(checkinteger(first(args)), checkinteger(second(args)), colour);
   #endif
   return nil;
 }"#)
@@ -5381,7 +5575,7 @@ object *fn_xorpixel (object *args, object *env) {
 object *fn_xorpixel (object *args, object *env) {
   #if defined(gfxsupport)
   (void) args, (void) env;
-  error2(XORPIXEL, PSTR("not supported"));
+  error2(PSTR("not supported"));
   return nil;
   #endif
 }"#)
@@ -5432,8 +5626,8 @@ object *fn_xorsprite (object *args, object *env) {
   #if defined(gfxsupport)
   (void) env;
   uint32_t params[4]; uint16_t colour = COLOR_WHITE;
-  for (int i=0; i<4; i++) { params[i] = checkinteger(XORSPRITE, car(args)); args = cdr(args); }
-  if (args != NULL) colour = checkinteger(XORSPRITE, car(args));
+  for (int i=0; i<4; i++) { params[i] = checkinteger(car(args)); args = cdr(args); }
+  if (args != NULL) colour = checkinteger(car(args));
   tft.xorSprite(params[0], params[1], params[2], params[3], colour);
   return nil;
   #endif
@@ -5444,7 +5638,7 @@ object *fn_xorsprite (object *args, object *env) {
 object *fn_xorsprite (object *args, object *env) {
   #if defined(gfxsupport)
   (void) args, (void) env;
-  error2(XORSPRITE, PSTR("not supported"));
+  error2(PSTR("not supported"));
   #endif
   return nil;
 }"#)))
@@ -5472,14 +5666,14 @@ object *fn_plot (object *args, object *env) {
   int xaxis = -1, yaxis = -1;
   delay(20);
   ClearDisplay(0); // Clear display
-  if (args != NULL && integerp(first(args))) { xaxis = checkinteger(PLOT, first(args)); args = cdr(args); }
-  if (args != NULL && integerp(first(args))) { yaxis = checkinteger(PLOT, first(args)); args = cdr(args); }
-  int nargs = min(listlength(PLOT, args),4);
+  if (args != NULL && integerp(first(args))) { xaxis = checkinteger(first(args)); args = cdr(args); }
+  if (args != NULL && integerp(first(args))) { yaxis = checkinteger(first(args)); args = cdr(args); }
+  int nargs = min(listlength(args),4);
   for (int x=0; x<256; x++) {
     object *rest = args;
     for (int n=0; n<nargs; n++) {
       object *function = first(rest);
-      int y = checkinteger(PLOT, apply(PLOT, function, cons(number(x), NULL), env));
+      int y = checkinteger(apply(function, cons(number(x), NULL), env));
       plotsub(x, y, n+1, ys);
       rest = cdr(rest);
     }
@@ -5503,7 +5697,7 @@ object *fn_plot3d (object *args, object *env) {
     object *function = first(args);
     for (int y=0; y<64; y++) {
       for (int x=0; x<256; x++) {
-        int z = checkinteger(PLOT3D, apply(PLOT3D, function, cons(number(x), cons(number(y), NULL)), env));
+        int z = checkinteger(PLOT3D, apply(function, cons(number(x), cons(number(y), NULL)), env));
         if (x == xaxis || y == yaxis) z = 0xF;
         if ((x&1) == 0) blob = z<<4; else blob = blob | (z&0xF);
         PlotByte(x>>1, y, blob);
@@ -5521,8 +5715,8 @@ object *fn_glyphpixel (object *args, object *env) {
   (void) env;
   uint8_t c = 0, x = 6, y = 8;
   c = checkchar(GLYPHPIXEL, first(args));
-  x = checkinteger(GLYPHPIXEL, second(args));
-  y = checkinteger(GLYPHPIXEL, third(args));
+  x = checkinteger(second(args));
+  y = checkinteger(third(args));
   if (x > 5 || y > 7) return number(0);
   return pgm_read_byte(&CharMap[(c & 0x7f) - 32][x]) & 1 << (7 - y) ? number(15) : number(0);
 }"#)
@@ -5530,11 +5724,11 @@ object *fn_glyphpixel (object *args, object *env) {
      (PLOTPIXEL "plot-pixel" 2 3 #"
 object *fn_plotpixel (object *args, object *env) {
   (void) env;
-  int x = checkinteger(PLOTPIXEL, first(args));
-  int y = checkinteger(PLOTPIXEL, second(args));
+  int x = checkinteger(first(args));
+  int y = checkinteger(second(args));
   args = cddr(args);
   uint8_t grey = 0xff;
-  if (args != NULL) grey = checkinteger(PLOTPIXEL, first(args));
+  if (args != NULL) grey = checkinteger(first(args));
   PlotByte(x, y, grey);
   return nil;
 }"#)
@@ -5543,10 +5737,9 @@ object *fn_plotpixel (object *args, object *env) {
 object *fn_fillscreen (object *args, object *env) {
   (void) env;
   uint8_t grey = 0;
-  if (args != NULL) grey = checkinteger(FILLSCREEN, first(args));
+  if (args != NULL) grey = checkinteger(first(args));
   ClearDisplay(grey);
   return nil;
 }"#)))
 
-    (nil
-     ((KEYWORDS "" 0 0 nil)))))
+))

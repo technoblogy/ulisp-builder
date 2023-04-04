@@ -106,7 +106,12 @@
 (aeq 'let 83 (let ((1- 83)) 1-))
 (aeq 'let 13 (let ((12a 13)) 12a))
 (aeq 'let 17 (let ((-1- 17)) -1-))
-(aeq 'let 23 (let ((abracadabra 23)) abracadabra))
+(aeq 'let 66 (let ((abcdef 66)) abcdef))
+(aeq 'let 77 (let ((abcdefg 77)) abcdefg))
+(aeq 'let 88 (let ((abcdefgh 88)) abcdefgh))
+(aeq 'let 99 (let ((abcdefghi 99)) abcdefghi))
+(aeq 'let 1010 (let ((abcdefghij 1010)) abcdefghij))
+(aeq 'let "ab9" (princ-to-string 'ab9))
 
 #| Arithmetic |#
 
@@ -377,7 +382,8 @@
 
 #| in-place operations |#
 
-(aeq 'incf 6 (let ((x 0)) (+ (incf x) (incf x) (incf x))))
+(aeq 'incf 5 (let ((x 0)) (+ (incf x) (incf x 2) (incf x -2))))
+(aeq 'decf -5 (let ((x 0)) (+ (decf x) (decf x 2) (decf x -2))))
 (aeq 'incf 12 (let ((x 0)) (+ (incf x 2) (incf x 2) (incf x 2))))
 (aeq 'incf 36 (let ((n 10)) (let* ((f1 (lambda () (incf n) n))) (+ (funcall f1) (funcall f1) (funcall f1)))))
 (aeq 'setf 25 (let ((a 3) (b 4)) (setf a (* a 3) b (* b 4)) (+ a b)))
@@ -402,6 +408,17 @@
 (aeq 'princ "hello \"David\"" (princ-to-string "hello \"David\""))
 (aeq 'prin1 "\"hello\"" (prin1-to-string "hello"))
 (aeq 'prin1 "\"hello \\\"David\\\"\"" (prin1-to-string "hello \"David\""))
+
+#| prettyprinting |#
+
+(aeq 'princ "hello" (princ-to-string "hello"))
+(aeq 'pprint 10996 (let ((n 0) (st (with-output-to-string (str) (pprint aeq str)))) (dotimes (i (length st) n) (incf n (char-code (char st i))))))
+
+#| documentation |#
+
+(aeq 'apropos '(progn apropos apropos-list unwind-protect) (apropos-list 'pro))
+(aeq 'apropos '(progn apropos apropos-list unwind-protect) (apropos-list "pro"))
+(aeq 'documentation 7397 (let ((n 0)) (let ((st (documentation '?))) (dotimes (i (length st) n) (incf n (char-code (char st i)))))))
 
 #| format |#
 
@@ -429,8 +446,6 @@
 (aeq 'eq t (let ((a "hello")) (eq a a)))
 (aeq 'length 0 (length ""))
 (aeq 'length 5 (length "hello"))
-(aeq 'subseq "hello" (subseq "hellofromdavid" 0 5))
-(aeq 'subseq "fromdavid" (subseq "hellofromdavid" 5))
 (aeq 'concatenate t (string= (concatenate 'string "A" "B") "AB"))
 (aeq 'concatenate 3 (length (concatenate 'string "A" "BC")))
 (aeq 'concatenate 0 (length (concatenate 'string)))
@@ -447,6 +462,19 @@
 (aeq 'string "x" (string #\x))
 (aeq 'string "cat" (string 'cat))
 (aeq 'string "albatross" (string 'albatross))
+
+#| subseq and search |#
+
+(aeq 'subseq "hello" (subseq "hellofromdavid" 0 5))
+(aeq 'subseq "fromdavid" (subseq "hellofromdavid" 5))
+(aeq 'subseq '(2 3 4) (subseq '(0 1 2 3 4) 2))
+(aeq 'subseq '(2) (subseq '(0 1 2 3 4) 2 3))
+(aeq 'subseq nil (subseq '() 0))
+(aeq 'search 4 (search "cat" "the cat sat on the mat"))
+(aeq 'search 19 (search "mat" "the cat sat on the mat"))
+(aeq 'search nil (search "hat" "the cat sat on the mat"))
+(aeq 'search 1 (search '(1 2) '( 0 1 2 3 4)))
+(aeq 'search nil (search '(2 1 2 3 4 5) '(2 1 2 3 4)))
 
 #| characters |#
 
@@ -509,8 +537,290 @@
 (aeq 'array 1 (let ((a (make-array 40 :element-type 'bit :initial-element 0))) (incf (aref a 39)) (aref a 39)))
 (aeq 'array 0 (let ((a (make-array 40 :element-type 'bit :initial-element 0))) (incf (aref a 39)) (decf (aref a 39)) (aref a 39)))
 
-"#)
+#| repl |#
 
+(aeq 'repl 23 (read-from-string "23(2)"))
+(aeq 'repl nil (read-from-string "()23"))
+(aeq 'repl 23 (read-from-string "23\"Hi\""))
+(aeq 'repl "Hi" (read-from-string "\"Hi\"23"))
+(aeq 'repl #\1 (read-from-string " #\\1\"Hi\""))
+(aeq 'repl "Hi" (read-from-string (format nil "\"Hi\"~a~a"  #\# "*0101")))
+
+#| subseq |#
+
+(aeq 'equal t (equal '(1 2 3) '(1 2 3)))
+(aeq 'equal t (equal '(1 2 (4) 3) '(1 2 (4) 3)))
+(aeq 'equal nil (equal '(1 2 (4) 3) '(1 2 (4 nil) 3)))
+(aeq 'equal t (equal "cat" "cat"))
+(aeq 'equal nil (equal "cat" "Cat"))
+(aeq 'equal t (equal 'cat 'Cat))
+(aeq 'equal t (equal 2 (+ 1 1)))
+
+#| keywords |#
+
+(aeq 'keywordp t (keywordp :led-builtin))
+(aeq 'keywordp nil (keywordp print))
+(aeq 'keywordp nil (keywordp nil))
+(aeq 'keywordp nil (keywordp 12))
+
+#| errors |#
+
+(aeq 'error 7 (let ((x 7)) (ignore-errors (setq x (/ 1 0))) x))
+(aeq 'error 5 (unwind-protect (+ 2 3) 13))
+
+#| Printing floats |#
+
+(aeq 'print t (string= (princ-to-string 101.0) "101.0"))
+(aeq 'print t (string= (princ-to-string 1010.0) "1010.0"))
+(aeq 'print t (string= (princ-to-string 10100.0) "10100.0"))
+(aeq 'print t (string= (princ-to-string 101000.0) "1.01e5"))
+(aeq 'print t (string= (princ-to-string 1010000.0) "1.01e6"))
+(aeq 'print t (string= (princ-to-string 1.01E7) "1.01e7"))
+(aeq 'print t (string= (princ-to-string 1.01E8) "1.01e8"))
+(aeq 'print t (string= (princ-to-string 7.0) "7.0"))
+(aeq 'print t (string= (princ-to-string 70.0) "70.0"))
+(aeq 'print t (string= (princ-to-string 700.0) "700.0"))
+(aeq 'print t (string= (princ-to-string 7000.0) "7000.0"))
+(aeq 'print t (string= (princ-to-string 70000.0) "70000.0"))
+(aeq 'print t (string= (princ-to-string 700000.0) "7.0e5"))
+(aeq 'print t (string= (princ-to-string 0.7) "0.7"))
+(aeq 'print t (string= (princ-to-string 0.07) "0.07"))
+(aeq 'print t (string= (princ-to-string 0.007) "0.007"))
+(aeq 'print t (string= (princ-to-string 7.0E-4) "7.0e-4"))
+(aeq 'print t (string= (princ-to-string 7.0E-5) "7.0e-5"))
+(aeq 'print t (string= (princ-to-string 7.0E-6) "7.0e-6"))
+(aeq 'print t (string= (princ-to-string 0.9) "0.9"))
+(aeq 'print t (string= (princ-to-string 0.99) "0.99"))
+(aeq 'print t (string= (princ-to-string 0.999) "0.999"))
+(aeq 'print t (string= (princ-to-string 0.9999) "0.9999"))
+(aeq 'print t (string= (princ-to-string 0.99999) "0.99999"))
+(aeq 'print t (string= (princ-to-string 0.999999) "0.999999"))
+(aeq 'print t (string= (princ-to-string 0.9999999) "1.0"))
+(aeq 'print t (string= (princ-to-string 1.0) "1.0"))
+(aeq 'print t (string= (princ-to-string 10.0) "10.0"))
+(aeq 'print t (string= (princ-to-string 100.0) "100.0"))
+(aeq 'print t (string= (princ-to-string 1000.0) "1000.0"))
+(aeq 'print t (string= (princ-to-string 10000.0) "10000.0"))
+(aeq 'print t (string= (princ-to-string 100000.0) "1.0e5"))
+(aeq 'print t (string= (princ-to-string 9.0) "9.0"))
+(aeq 'print t (string= (princ-to-string 90.0) "90.0"))
+(aeq 'print t (string= (princ-to-string 900.0) "900.0"))
+(aeq 'print t (string= (princ-to-string 9000.0) "9000.0"))
+(aeq 'print t (string= (princ-to-string 90000.0) "90000.0"))
+(aeq 'print t (string= (princ-to-string 900000.0) "9.0e5"))
+(aeq 'print t (string= (princ-to-string -9.0) "-9.0"))
+(aeq 'print t (string= (princ-to-string -90.0) "-90.0"))
+(aeq 'print t (string= (princ-to-string -900.0) "-900.0"))
+(aeq 'print t (string= (princ-to-string -9000.0) "-9000.0"))
+(aeq 'print t (string= (princ-to-string -90000.0) "-90000.0"))
+(aeq 'print t (string= (princ-to-string -900000.0) "-9.0e5"))
+(aeq 'print t (string= (princ-to-string 1.0) "1.0"))
+(aeq 'print t (string= (princ-to-string 1.01) "1.01"))
+(aeq 'print t (string= (princ-to-string 1.001) "1.001"))
+(aeq 'print t (string= (princ-to-string 1.0001) "1.0001"))
+(aeq 'print t (string= (princ-to-string 1.00001) "1.00001"))
+(aeq 'print t (string= (princ-to-string 1.000001) "1.0"))
+(aeq 'print t (string= (princ-to-string 0.0012345678) "0.00123457"))
+(aeq 'print t (string= (princ-to-string 1.2345678E-4) "1.23457e-4"))
+(aeq 'print t (string= (princ-to-string 1234567.9) "1.23457e6"))
+(aeq 'print t (string= (princ-to-string 1.2345679E7) "1.23457e7"))
+(aeq 'print t (string= (princ-to-string 1.2E-9) "1.2e-9"))
+(aeq 'print t (string= (princ-to-string 9.9E-8) "9.9e-8"))
+(aeq 'print t (string= (princ-to-string 9.9999E-5) "9.9999e-5"))
+(aeq 'print t (string= (princ-to-string 9.01) "9.01"))
+(aeq 'print t (string= (princ-to-string 0.9999999) "1.0"))
+(aeq 'print t (string= (princ-to-string 0.8999999) "0.9"))
+(aeq 'print t (string= (princ-to-string 0.01) "0.01"))
+(aeq 'print t (string= (princ-to-string 1.2345679) "1.23457"))
+(aeq 'print t (string= (princ-to-string 12.345679) "12.3457"))
+(aeq 'print t (string= (princ-to-string 123.45679) "123.457"))
+(aeq 'print t (string= (princ-to-string 1234.5679) "1234.57"))
+(aeq 'print t (string= (princ-to-string 12345.679) "12345.7"))
+(aeq 'print t (string= (princ-to-string 123456.79) "1.23457e5"))
+(aeq 'print t (string= (princ-to-string 1234567.9) "1.23457e6"))
+(aeq 'print t (string= (princ-to-string 0.12345679) "0.123457"))
+(aeq 'print t (string= (princ-to-string 0.012345679) "0.0123457"))
+(aeq 'print t (string= (princ-to-string 0.0012345678) "0.00123457"))
+(aeq 'print t (string= (princ-to-string 1.2345679E-4) "1.23457e-4"))
+
+#| Arithmetic |#
+
+(aeq '= t (= (- 4 2 1 1) 0))
+(aeq '* 9 (* -3 -3))
+(aeq '* 32580 (* 180 181))
+(aeq '* 1 (*))
+(aeq '*  t (string= "-4.29497e9" (princ-to-string (* 2 -2147483648))))
+(aeq '* -2147483648 (* 2 -1073741824))
+(aeq '+ 32767 (+ 32765 1 1))
+(aeq '+ 0 (+))
+(aeq '+ -2 (+ -1 -1))
+(aeq '- -4 (- 4))
+(aeq '/ 2 (/ 60 10 3))
+(aeq '1+ 2.5 (1+ 1.5))
+(aeq '1+ 2147483647 (1+ 2147483646))
+(aeq '1+ t (string= "2.14748e9" (princ-to-string (1+ 2147483647))))
+(aeq '1- 0.5 (1- 1.5))
+(aeq '1- -2147483648 (1- -2147483647))
+(aeq '1- t (string= "-2.14748e9" (princ-to-string (1- -2147483648))))
+
+#| Arithmetic |#
+
+(aeq '/ 1.75 (/ 3.5 2))
+(aeq '/ 1.75 (/ 3.5 2.0))
+(aeq '/ 0.0625 (/ 1 16))
+(aeq '/ 0.0625 (/ 1.0 16))
+(aeq '/ 0.0625 (/ 1 16.0))
+(aeq '/ 2 (/ 12 2 3))
+(aeq '/ 2.0 (/ 12.0 2 3))
+(aeq '/ 2.0 (/ 12 2.0 3))
+(aeq '/ 2.0 (/ 12 2 3.0))
+(aeq '/ 1 (/ 1))
+(aeq '/ t (string= "2.14748e9" (princ-to-string (/ -2147483648 -1))))
+(aeq '/ 2147483647 (/ -2147483647 -1))
+(aeq '/ 0.5 (/ 2))
+(aeq '* 1.0 (* 0.0625 16))
+(aeq '* 1.0 (* 0.0625 16.0))
+
+#| Place |#
+
+(aeq 'incf 5.4 (let ((x 0)) (+ (incf x) (incf x 0.2) (incf x 2))))
+(aeq 'decf -5.4 (let ((x 0)) (+ (decf x) (decf x 0.2) (decf x 2))))
+(aeq 'incf 30.6 (let ((n 10)) (let* ((f1 (lambda () (incf n 0.1) n))) (+ (funcall f1) (funcall f1) (funcall f1)))))
+
+#| Comparisons |#
+
+(aeq '< t (< 1 2 3 4))
+(aeq '< nil (< 1 2 3 2))
+(aeq '< t (< 1.0 2 3 4))
+(aeq '< nil (< 1 2 3 2))
+(aeq '< t (< 1.0 1.001 3 4))
+(aeq '< nil (< 1.001 1.0 3 4))
+(aeq '< t (< 1.001 1.002 1.003 1.004))
+(aeq '< t (< 1. 2. 3. 4.))
+(aeq '< nil (< 1. 2. 2. 4.))
+(aeq '< t (<= 1. 2. 2. 4.))
+(aeq '< nil (<= 1. 3. 2. 4.))
+(aeq '< t (> 4. 3. 2. 1.))
+(aeq '< nil (> 4. 2. 2. 1.))
+(aeq '< t (>= 4. 2. 2. 1.))
+(aeq '< nil (>= 4. 2. 3. 1.))
+(aeq '/= t (= 1. 1. 1. 1.))
+(aeq '/= nil (= 1. 1. 2. 1.))
+(aeq '/= nil (/= 1. 2. 3. 1.))
+(aeq '/= t (/= 1. 2. 3. 4.))
+
+#| Transcendental |#
+
+(aeq 'sin 0.84147096 (sin 1))
+(aeq 'sin 0.0 (sin 0))
+(aeq 'sin 0.84147096 (sin 1.0))
+(aeq 'sin 0.0 (sin 0.0))
+(aeq 'cos 0.540302 (cos 1))
+(aeq 'cos 0.540302 (cos 1.0))
+(aeq 'tan 1.55741 (tan 1))
+(aeq 'tan 1.55741 (tan 1.0))
+(aeq 'asin 1.5707964 (asin 1))
+(aeq 'asin 1.5707964 (asin 1))
+(aeq 'asin 0.0 (asin 0))
+(aeq 'asin 0.0 (asin 0.0))
+(aeq 'acos 0.0 (acos 1))
+(aeq 'acos 0.0 (acos 1.0))
+(aeq 'acos 1.0471976 (acos 0.5))
+(aeq 'atan 0.4636476 (atan 0.5))
+(aeq 'atan 0.110657 (atan 1 9))
+(aeq 'atan 0.049958397 (atan 1 20))
+(aeq 'atan 0.785398 (atan 1 1))
+(aeq 'atan 0.785398 (atan .5 .5))x
+(aeq 'sinh 1.1752 (sinh 1))
+(aeq 'sinh 1.1752 (sinh 1.0))
+(aeq 'sinh 0.0 (sinh 0))
+(aeq 'sinh 0.0 (sin 0.0))
+(aeq 'cosh 1.5430807 (cosh 1))
+(aeq 'cosh 1.5430807 (cosh 1.0))
+(aeq 'tanh 0.7615942 (tanh 1))
+(aeq 'tanh 0.7615942 (tanh 1.0))
+
+#| Rounding |#
+
+(aeq 'truncate 3 (truncate 10 3))
+(aeq 'truncate 3 (truncate 3.3333333))
+(aeq 'ceiling 4 (ceiling 10 3))
+(aeq 'ceiling 4 (ceiling 3.3333333))
+(aeq 'round 3 (round 10 3))
+(aeq 'round 3 (round 3.3333333))
+(aeq 'floor 3 (floor 10 3))
+(aeq 'floor 3 (floor 3.3333333))
+(aeq 'truncate -3 (truncate -10 3))
+(aeq 'truncate -3 (truncate -3.3333333))
+(aeq 'ceiling -3 (ceiling -10 3))
+(aeq 'ceiling -3 (ceiling -3.3333333))
+(aeq 'round -3 (round -10 3))
+(aeq 'round -3 (round -3.3333333))
+(aeq 'floor -4 (floor -10 3))
+(aeq 'floor -4 (floor -3.3333333))
+(aeq 'abs 10.0 (abs 10.0))
+(aeq 'abs 10.0 (abs -10.0))
+(aeq 'abs t (string= "2.14748e9" (princ-to-string (abs -2147483648))))
+(aeq 'abs 2147483647 (abs -2147483647))
+(aeq 'mod 1.0 (mod 13.0 4))
+(aeq 'mod 3.0 (mod -13.0 4))
+(aeq 'mod -3.0 (mod 13.0 -4))
+(aeq 'mod -1.0 (mod -13.0 -4))
+(aeq 'mod -3.0 (mod 13.0 -4))
+(aeq 'mod 1.0 (mod -12.5 1.5))
+(aeq 'mod 0.5 (mod 12.5 1.5))
+
+#| Log and exp |#
+
+(aeq 'exp 2.7182818 (exp 1))
+(aeq 'exp 2.7182818 (exp 1.0))
+(aeq 'exp 0.36787945 (exp -1))
+(aeq 'exp 0.36787945 (exp -1.0))
+(aeq 'exp 0.36787945 (exp -1.0))
+(aeq 'log 0.0 (log 1.0))
+(aeq 'log 4.0 (log 16 2))
+(aeq 'log 4.0 (log 16.0 2))
+(aeq 'log 4.0 (log 16 2.0))
+(aeq 'log 4.0 (log 16.0 2.0))
+(aeq 'log 1.0 (log 2 2))
+(aeq 'log 1.0 (log 2.5 2.5))
+(aeq 'log 2.3025852 (log 10))
+(aeq 'log 2.3025852 (log 10))
+(aeq 'expt 1024 (expt 2 10))
+(aeq 'expt 1024.0 (expt 2.0 10.0))
+(aeq 'expt 1073741824 (expt 2 30))
+(aeq 'expt  t (string= "2.14748e9" (princ-to-string (expt 2 31))))
+(aeq 'expt  t (string= "4.29497e9" (princ-to-string (expt 2 32))))
+(aeq 'expt 1024 (expt -2 10))
+(aeq 'expt -2048 (expt -2 11))
+
+#| Tests |#
+
+(aeq 'floatp nil (floatp 1))
+(aeq 'floatp nil (floatp nil))
+(aeq 'floatp t (floatp 2.3))
+(aeq 'integerp t (integerp 1))
+(aeq 'integerp nil (integerp nil))
+(aeq 'integerp nil (integerp 2.3))
+
+#| parameter checks |#
+
+(aeq 'dolist nothing (ignore-errors (dolist 12 (print x))))
+(aeq 'dolist nothing (ignore-errors (dolist () (print x))))
+(aeq 'dolist nothing (ignore-errors (dolist (x) (print x))))
+(aeq 'dolist nothing (ignore-errors (dolist (x nil x x) (print x))))
+(aeq 'dotimes nothing (ignore-errors (dotimes 12 (print x))))
+(aeq 'dotimes nothing (ignore-errors (dotimes () (print x))))
+(aeq 'dotimes nothing (ignore-errors (dotimes (x) (print x))))
+(aeq 'dotimes nothing (ignore-errors (dotimes (x 1 x x) (print x))))
+(aeq 'for-millis nothing (ignore-errors (for-millis 12 (print 12))))
+(aeq 'for-millis nothing (ignore-errors (for-millis (12 12) (print 12))))
+
+#| errors |#
+
+(aeq 'errors 0 ers)
+
+"#)
 
 (defun run-tests (&optional usb)
   (let ((name (cond
@@ -549,22 +859,12 @@
       (serial-write-exp "(defvar ers 0)" s)
       (echo s)
       (serial-write-exp 
-       "(defun teq (a b)
-         (cond
-          ((and (stringp a) (stringp b)) (string= a b))
-          ((and (atom a) (atom b)) (eq a b))
-          ((null a) nil)
-          ((null b) nil)
-          (t (and 
-              (teq (car a) (car b)) 
-              (teq (cdr a) (cdr b))))))"
-       s)
-      (echo s)
-      (serial-write-exp 
        "(defun aeq (tst x y)
-          (unless (teq x y)
+          (unless (or
+              (and (floatp x) (floatp y) (< (abs (- x y)) 0.000005))
+              (equal x y))
             (incf ers)
-              (princ tst) (princ '=) (princ x) (princ '/) y))"
+              (format t \"~a=~a/~a~%\" tst x y)))"
        s)
       (echo s)
       ;;

@@ -36,6 +36,7 @@
 
 ;; (wildcards (if wildcard (reduce #'+ (map 'list #'(lambda (x) (1- (length x))) (cadar keywords))) 0))
 
+#|
 (defun do-keyword-enums (str keywords)
   (let* ((wildcard (null (caar keywords)))
          (only-wildcard (and wildcard (null (cdr keywords)))))
@@ -45,6 +46,7 @@
           (unless (and wildcard (zerop n)) (format str "#~[~:;el~]if defined(~a)~%" (if wildcard (1- n) n) cpu))
           (format str "~{~a~%~}" (split-into-lines (format nil "~{K_~a,~^ ~}" klist))))))
     (unless only-wildcard (format str "#endif~%"))))
+|#
 
 (defun do-keyword-progmems (str keywords i)
   (let* ((wildcard (null (caar keywords)))
@@ -60,9 +62,9 @@
             (format str "const char string~a[] PROGMEM = \":~a\";~%" j 
                     (substitute #\- #\_ (string-downcase (if (consp k) (car k) k))))
             (incf j))
-          (when cpu (format str "const char string~a[] PROGMEM = \"\";~%" j)))
+          #|(when cpu (format str "const char string~a[] PROGMEM = \"\";~%" j))|#)
         (unless cpu (setq i j))))
-    (if only-wildcard (format str "const char string~a[] PROGMEM = \"\";~%" j)
+    (if only-wildcard nil #|(format str "const char string~a[] PROGMEM = \"\";~%" j)|#
       (format str "#endif~%"))))
 
 (defun needs-&-prefix (a b)
@@ -110,172 +112,190 @@
             (destructuring-bind (a . b) k
               (if documentation
                   (format str "  { string~a, (fn_ptr_type)~:[~;&~]~a, ~a, ~:[NULL~;doc~a~] },~%"
-                      j (needs-&-prefix a b) (if (listp b) (second b) b) (or a 0) docstring j)
+                          j (needs-&-prefix a b) (if (listp b) (second b) b) (or a 0) docstring j)
                 (format str "  { string~a, (fn_ptr_type)~:[~;&~]~a, ~a },~%"
-                      j (needs-&-prefix a b) (if (listp b) (second b) b) (or a 0)))
-              (incf j)))
-          (when cpu 
-            (if documentation
-                (format str "  { string~a, NULL, 0x00, ~:[NULL~;doc~a~] },~%" j docstring j)
-              (format str "  { string~a, NULL, 0x00 },~%" j))))
+                        j (needs-&-prefix a b) (if (listp b) (second b) b) (or a 0)))
+              (incf j))))
         (unless cpu (setq i j))))
-    (if only-wildcard
-         (if documentation
-             (format str "  { string~a, NULL, 0x00, ~:[NULL~;doc~a~] },~%" j docstring j)
-           (format str "  { string~a, NULL, 0x00 },~%" j))
-      (format str "#endif~%")))) 
+    (if only-wildcard nil
+      (format str "#endif~%"))))
 
-(defun build (&optional (platform :avr) (comments nil) (documentation t))
+(defparameter *enums* '(NIL TEE NOTHING OPTIONAL INITIALELEMENT ELEMENTTYPE BIT AMPREST LAMBDA LET
+                            LETSTAR CLOSURE PSTAR QUOTE CAR FIRST CDR REST NTH DEFUN DEFVAR DEFCODE AREF STRINGFN FORMAT
+                            PINMODE DIGITALWRITE ANALOGREAD REGISTER ANALOGREFERENCE))
+
+(defun build (&optional (platform :avr) (comments nil) (documentation (find :doc *features*)))
   (let* ((maxsymbol 0)
          (definitions *definitions*)
          (keywords (eval (intern (format nil "*KEYWORDS-~a*" platform) :cl-user))))
-   (flet ((include (section str)
-           (let ((special (intern (format nil "*~a-~a*" section platform) :cl-user))
-                 (default (intern (format nil "*~a*" section) :cl-user)))
-             (cond
-              ((boundp special) 
-               (let ((inc (eval special)))
-                 (cond
-                  ((listp inc) (map nil #'(lambda (x) (write-no-comments str x comments)) inc))
-                  (t (write-no-comments str inc comments)))))
-              ((boundp default) 
-               (let ((inc (eval default)))
-                 (cond
-                  ((listp inc) (map nil #'(lambda (x) (write-no-comments str x comments)) inc))
-                  (t (write-no-comments str inc comments)))))
-              (t nil)))))
-    ;;           
-  (with-open-file (str (capi:prompt-for-file "Output File" :operation :save :pathname "/Users/david/Desktop/") :direction :output)
-    ;; Write preamble
+    (flet ((include (section str)
+             (let ((special (intern (format nil "*~a-~a*" section platform) :cl-user))
+                   (default (intern (format nil "*~a*" section) :cl-user)))
+               (cond
+                ((boundp special) 
+                 (let ((inc (eval special)))
+                   (cond
+                    ((listp inc) (map nil #'(lambda (x) (write-no-comments str x comments)) inc))
+                    (t (write-no-comments str inc comments)))))
+                ((boundp default) 
+                 (let ((inc (eval default)))
+                   (cond
+                    ((listp inc) (map nil #'(lambda (x) (write-no-comments str x comments)) inc))
+                    (t (write-no-comments str inc comments)))))
+                (t nil)))))
+      ;;           
+      (with-open-file (str (capi:prompt-for-file "Output File" :operation :save :pathname "/Users/david/Desktop/") :direction :output)
+        ;; Write preamble
     ; (include :header str)
-    (write-no-comments str (eval (intern (format nil "*~a-~a*" :header platform) :cl-user)) t)
-    (include :workspace str)
-    (include :macros str)
-    (include :constants str)
-    (include :typedefs str)
+        (format str (eval (intern (format nil "*~a-~a*" :title platform) :cl-user)) *release* *date*)
+        (terpri str)
+        (include :header str)
+        (include :workspace str)
+        (include :macros str)
+        (include :constants str)
+        (include :typedefs str)
 
-    ;; Write enum declarations
-    (let ((enums
-           (split-into-lines (format nil "~{~a, ~}" (map 'list #'car (apply #'append (mapcar #'cadr definitions)))) 16)))
-      (format str "~%enum builtin_t { ~{~a~%~}" enums)
-      ; Do keywords
-      (do-keyword-enums str keywords)
-      (format str "USERFUNCTIONS, ENDFUNCTIONS, SET_SIZE = INT_MAX };~%"))
-    ;;
-    (include :global-variables str)
-    (include :error-handling str)
-    (include :setup-workspace str)
-    (include :make-objects str)
-    ;; Write utilities
-    (include :garbage-collection str)
-    (include :compactimage str)
-    (include :make-filename str)
-    (include :saveimage str)
-    (include :tracing str)
-    (include :helper-functions str)
-    (include :association-lists str)
-    (include :array-utilities str)
-    (include :string-utilities str)
-    (include :closures str)
-    (include :in-place str)
-    (include :i2c-interface str)
-    (include :stream-interface str)
+        ;; Collect enums we need to use in the C functions
+        (let (enumlist)
+          (dolist (section definitions)
+            (destructuring-bind (comment defs &optional prefix) section
+              (declare (ignore comment prefix))
+              (dolist (item defs)
+                (destructuring-bind (enum string min max definition) item
+                  (declare (ignore string min max definition))        
+                  (when (member enum *enums*) (push enum enumlist))))))
+ 
+          ;; Write enum declarations
+          (let ((enums (split-into-lines (format nil "~{~a, ~}" (reverse enumlist)) 12)))
+            (format str "~%enum builtins: builtin_t { ~{~a~%~} };~%" enums)))
+
+        ;;
+        (include :global-variables str)
+        (include :error-handling str)
+        (include :setup-workspace str)
+        (include :make-objects str)
+        ;; Write utilities
+        (include :garbage-collection str)
+        (include :compactimage str)
+        (include :make-filename str)
+        (include :saveimage str)
+        (include :tracing str)
+        (include :helper-functions str)
+        (include :association-lists str)
+        (include :array-utilities str)
+        (include :string-utilities str)
+        (include :closures str)
+        (include :in-place str)
+        (include :i2c-interface str)
+        (include :stream-interface str)
     ; (include :watchdog str)
-    (include :check-pins str)
-    (include :note str)
-    (include :sleep str)
-    (include :prettyprint str)
-    (include :assembler str)
-    #+interrupts
-    (include :interrupts str)
+        (include :check-pins str)
+        (include :note str)
+        (include :sleep str)
+        (include :prettyprint str)
+        (include :assembler str)
+        #+interrupts
+        (include :interrupts str)
 
-    ;; Write function definitions
-    (dolist (section definitions)
-      (destructuring-bind (comment defs &optional prefix) section
-        (declare (ignore prefix))
-        (when comment (format str "~%// ~a~%" comment))
-        (dolist (item defs)
-          (destructuring-bind (enum string min max definition) item
-            (declare (ignore min max))
-            (cond
-             ((null (definition-p definition)) nil)
-             ((stringp definition)
-              (write-no-comments str definition comments))
-             ((keywordp definition) nil)
-             ((symbolp definition)
-              (funcall definition str enum string comments)
-              (format str "~%"))
-             (t nil))))))
-    (format str "~%// Insert your own function definitions here~%")
-
-    ;; Write PROGMEM strings
-    (format str "~%// Built-in symbol names~%")
-    (let ((i 0))
-      (dolist (section definitions)
-        (destructuring-bind (comment defs &optional prefix) section
-          (declare (ignore comment prefix))
-          (dolist (item defs)
-            (destructuring-bind (enum string min max definition) item
-              (declare (ignore definition min max))
-              (let ((lower (string-downcase enum)))
-                (format str "const char string~a[] PROGMEM = \"~a\";~%" i (or string lower))
-                (setq maxsymbol (max maxsymbol (length (or string lower))))
-                (incf i))))))
-      ; Do keywords
-      (do-keyword-progmems str keywords i))
-    (format str "~%// Insert your own function names here~%")
-
-    ;; Write documentation strings
-    (when documentation
-      (format str "~%// Documentation strings~%")
-      (let ((i 0))
+        ;; Write function definitions
         (dolist (section definitions)
           (destructuring-bind (comment defs &optional prefix) section
-            (declare (ignore comment prefix))
+            (declare (ignore prefix))
+            (when comment (format str "~%// ~a~%" comment))
             (dolist (item defs)
               (destructuring-bind (enum string min max definition) item
                 (declare (ignore min max))
-                (let ((docstring (docstring definition enum string)))
-                  (when docstring 
-                    (format str "const char doc~a[] PROGMEM = \"~a\";~%"
-                            i (replace-linebreaks docstring)))
-                  (incf i)))))))
-      (format str "~%// Insert your own function documentation here~%"))
+                (cond
+                 ((null (definition-p definition)) nil)
+                 ((stringp definition)
+                  (write-no-comments str definition comments))
+                 ((keywordp definition) nil)
+                 ((symbolp definition)
+                  (funcall definition str enum string comments)
+                  (format str "~%"))
+                 (t nil))))))
 
-    ;; Write table
-    (format str "~%// Built-in symbol lookup table~%")
-    (let ((i 0))
-      (format str "const tbl_entry_t lookup_table[] PROGMEM = {~%")
-      (dolist (section definitions)
-        (destructuring-bind (comment defs &optional (prefix "fn")) section
-          (declare (ignore comment))
-          (dolist (item defs)
-            (destructuring-bind (enum string min max definition) item
-              (let ((docstring (docstring definition enum string))
-                    (lower (cond
-                            ((consp definition) (string-downcase (car definition)))
-                            ((keywordp definition) definition)
-                            (t (string-downcase enum)))))
-                (if documentation
-                    (format str "  { string~a, ~:[NULL~2*~;~a_~a~], 0x~2,'0x, ~:[NULL~;doc~a~] },~%" 
-                        i (definition-p definition) prefix lower (+ (ash min 4) (min max 15)) docstring i)
-                  (format str "  { string~a, ~:[NULL~2*~;~a_~a~], 0x~2,'0x },~%" 
-                        i (definition-p definition) prefix lower (+ (ash min 4) (min max 15))))
-                (incf i))))))
+        ;; Write symbol names
+        (format str "~%// Built-in symbol names~%")
+        (let ((i 0))
+          (dotimes (pass 2)
+            (dolist (section definitions)
+              (destructuring-bind (comment defs &optional prefix) section
+                (declare (ignore comment prefix))
+                (dolist (item defs)
+                  (destructuring-bind (enum string min max definition) item
+                    (declare (ignore definition min max))        
+                    (when (eq (plusp pass) (not (member enum *enums*)))
+                      (let ((lower (string-downcase enum)))
+                        (format str "const char string~a[] PROGMEM = \"~a\";~%" i (or string lower))
+                        (setq maxsymbol (max maxsymbol (length (or string lower))))
+                        (incf i))))))))
+          ;; Do keywords
+          (do-keyword-progmems str keywords i))
+
+        ;; Write documentation strings
+        (when documentation
+          (format str "~%// Documentation strings~%")
+          (let ((i 0))
+            (dotimes (pass 2)
+              (dolist (section definitions)
+                (destructuring-bind (comment defs &optional prefix) section
+                  (declare (ignore comment prefix))
+                  (dolist (item defs)
+                    (destructuring-bind (enum string min max definition) item
+                      (declare (ignore min max))
+                      (when (eq (plusp pass) (not (member enum *enums*)))
+                        (let ((docstring (docstring definition enum string)))
+                          (when docstring 
+                            (format str "const char doc~a[] PROGMEM = \"~a\";~%"
+                                    i (replace-linebreaks docstring)))
+                          (incf i))))))))))
+
+        ;; Write table
+        (format str "~%// Built-in symbol lookup table~%")
+        (flet ((minmax (prefix min max)
+                 (let ((pre (cond
+                             ((string= prefix "fn") 2)
+                             ((string= prefix "sp") 3)
+                             ((string= prefix "tf") 1)
+                             (t 0))))
+                   (+ (ash pre 6) (ash min 3) (min max 7)))))
+          (let ((i 0))
+            (format str "const tbl_entry_t lookup_table[] PROGMEM = {~%")
+            (dotimes (pass 2)
+              (dolist (section definitions)
+                (destructuring-bind (comment defs &optional (prefix "fn")) section
+                  (declare (ignore comment))
+                  (dolist (item defs)
+                    (destructuring-bind (enum string min max definition) item
+                      (when (eq (plusp pass) (not (member enum *enums*)))
+                        (let ((docstring (docstring definition enum string))
+                              (lower (cond
+                                      ((consp definition) (string-downcase (car definition)))
+                                      ((keywordp definition) definition)
+                                      (t (string-downcase enum)))))
+                          (if documentation
+                              (format str "  { string~a, ~:[NULL~2*~;~a_~a~], 0~3,'0o, ~:[NULL~;doc~a~] },~%" 
+                                      i (definition-p definition) prefix lower (minmax prefix min max) docstring i)
+                            (format str "  { string~a, ~:[NULL~2*~;~a_~a~], 0~3,'0o },~%" 
+                                    i (definition-p definition) prefix lower (minmax prefix min max)))
+                          (incf i))))))))
       ; Do keywords
-      (do-keyword-table str keywords i documentation)
-      (format str "~%~a~%~%};~%" "// Insert your own table entries here"))
+            (do-keyword-table str keywords i documentation)
+            (format str "};~%")))
 
-    ;; Write rest
-    (include :table str)
-    (include :eval str)
-    (include :print-functions str)
-    (include :read-functions str)
-    (when (eq platform :badge) (write-string *lisp-badge* str))
-    (include :setup str)
-    (include :repl str)
-    (include :loop str)
-  maxsymbol))))
+        ;; Write rest
+        (include :table str)
+        (include :eval str)
+        (include :print-functions str)
+        (include :read-functions str)
+        (when (eq platform :badge) (write-string *lisp-badge* str))
+        (include :setup1 str)
+        (format str (eval (intern (format nil "*~a*" :setup2) :cl-user)) *release*)
+        (terpri str)
+        (include :repl str)
+        (include :loop str)
+        maxsymbol))))
 
         
         
