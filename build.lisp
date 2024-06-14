@@ -81,7 +81,7 @@
     (unless only-wildcard (format str "#endif~%"))))
 |#
 
-(defun do-keyword-progmems (str keywords i)
+(defun do-keyword-progmems (str keywords i progmem)
   (let* ((wildcard (null (caar keywords)))
          (only-wildcard (and wildcard (null (cdr keywords))))
          (j i))
@@ -92,13 +92,11 @@
             (setq j i)
             (format str "#~[~:;el~]if defined(~a)~%" (if wildcard (1- n) n) cpu))
           (dolist (k klist)
-            (format str "const char string~a[] PROGMEM = \":~a\";~%" j 
+            (format str "const char string~a[] ~a= \":~a\";~%" j progmem
                     (substitute #\- #\_ (string-downcase (if (consp k) (car k) k))))
-            (incf j))
-          #|(when cpu (format str "const char string~a[] PROGMEM = \"\";~%" j))|#)
+            (incf j)))
         (unless cpu (setq i j))))
-    (if only-wildcard nil #|(format str "const char string~a[] PROGMEM = \"\";~%" j)|#
-      (format str "#endif~%"))))
+    (if only-wildcard nil (format str "#endif~%"))))
 
 (defun needs-&-prefix (a b)
   (or
@@ -160,6 +158,7 @@
 (defun build (&optional (platform :avr) (comments nil) (documentation (find :doc *features*)))
   (let* ((maxsymbol 0)
          (definitions *definitions*)
+         (progmem (if (or (eq platform :arm) (eq platform :esp) (eq platform :riscv)) "" "PROGMEM "))
          (keywords (eval (intern (format nil "*KEYWORDS-~a*" platform) :cl-user))))
     (flet ((include (section str)
              (let ((special (intern (format nil "*~a-~a*" section platform) :cl-user))
@@ -261,11 +260,11 @@
                     (declare (ignore definition min max))        
                     (when (eq (plusp pass) (not (member enum *enums*)))
                       (let ((lower (string-downcase enum)))
-                        (format str "const char string~a[] PROGMEM = \"~a\";~%" i (or string lower))
+                        (format str "const char string~a[] ~a= \"~a\";~%" i progmem (or string lower))
                         (setq maxsymbol (max maxsymbol (length (or string lower))))
                         (incf i))))))))
           ;; Do keywords
-          (do-keyword-progmems str keywords i))
+          (do-keyword-progmems str keywords i progmem))
 
         ;; Write documentation strings
         (when documentation
@@ -281,8 +280,7 @@
                       (when (eq (plusp pass) (not (member enum *enums*)))
                         (let ((docstring (docstring definition enum string)))
                           (when docstring 
-                            (format str "const char doc~a[] PROGMEM = \"~a\";~%"
-                                    i (replace-linebreaks docstring)))
+                            (format str "const char doc~a[] ~a= \"~a\";~%" i progmem (replace-linebreaks docstring)))
                           (incf i))))))))))
 
         ;; Write table
@@ -295,7 +293,7 @@
                              (t 0))))
                    (+ (ash pre 6) (ash min 3) (min max 7)))))
           (let ((i 0))
-            (format str "const tbl_entry_t lookup_table[] PROGMEM = {~%")
+            (format str "const tbl_entry_t lookup_table[] ~a= {~%" progmem)
             (dotimes (pass 2)
               (dolist (section definitions)
                 (destructuring-bind (comment defs &optional (prefix "fn")) section

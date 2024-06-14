@@ -1141,7 +1141,7 @@ int intpower (int base, int exp) {
 }"#))
 
 #+avr-nano
-(defparameter *association-lists* #"
+(defparameter *association-lists* '(#"
 // Association lists
 
 /*
@@ -1161,10 +1161,10 @@ object *delassoc (object *key, object **alist) {
     list = cdr(list);
   }
   return nil;
-}"#)
+}"#))
 
 #-avr-nano
-(defparameter *association-lists* #"
+(defparameter *association-lists* '(#"
 // Association lists
 
 #-avr-nano
@@ -1198,7 +1198,7 @@ object *delassoc (object *key, object **alist) {
     list = cdr(list);
   }
   return nil;
-}"#)
+}"#))
 
 (defparameter *array-utilities* '(
 
