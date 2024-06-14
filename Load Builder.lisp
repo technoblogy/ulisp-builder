@@ -2,8 +2,8 @@
 
 (push :avr-nano *features*)
 
-(defparameter *release* "4.4b")
-(defparameter *date* "3rd April 2023")
+(defparameter *release* "4.6")
+(defparameter *date* "13th June 2024")
  
 ;***************************************
 

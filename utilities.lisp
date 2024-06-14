@@ -173,7 +173,7 @@ void initworkspace () {
   myalloc - returns the first object from the linked list of free objects
 */
 object *myalloc () {
-  if (Freespace == 0) error2(PSTR("no room"));
+  if (Freespace == 0) { Context = NIL; error2(PSTR("no room")); }
   object *temp = Freelist;
   Freelist = cdr(Freelist);
   Freespace--;
@@ -484,6 +484,126 @@ void gc (object *form, object *env) {
   #endif
 }"#))
 
+#+avr
+(defparameter *feature-list* #"
+// Features
+
+const char arrays[] PROGMEM = ":arrays";
+const char doc[] PROGMEM = ":documentation";
+const char machinecode[] PROGMEM = ":machine-code";
+const char errorhandling[] PROGMEM = ":error-handling";
+
+/*
+  copyprogmemstring - copy a PROGMEM string to RAM.
+*/
+char *copyprogmemstring (PGM_P s, char *buffer) {
+  int max = BUFFERSIZE-1;
+  int i = 0;
+  do {
+    char c = pgm_read_byte(s++);
+    buffer[i++] = c;
+    if (c == 0) break;
+  } while (i<max);
+  return buffer;
+}
+
+/*
+  features - create a list of features symbols from const strings.
+*/
+object *features () {
+  char buffer[BUFFERSIZE];
+  object *result = NULL;
+  push(internlong(copyprogmemstring(errorhandling, buffer)), result);
+  #if defined(CODESIZE)
+  push(internlong(copyprogmemstring(machinecode, buffer)), result);
+  #endif
+  push(internlong(copyprogmemstring(doc, buffer)), result);
+  push(internlong(copyprogmemstring(arrays, buffer)), result);
+  return result;
+}"#)
+
+#+avr-nano
+(defparameter *feature-list* "")
+
+#+arm
+(defparameter *feature-list* #"
+// Features
+
+const char floatingpoint[] = ":floating-point";
+const char arrays[] = ":arrays";
+const char doc[] = ":documentation";
+const char machinecode[] = ":machine-code";
+const char errorhandling[] = ":error-handling";
+const char wifi[] = ":wi-fi";
+const char gfx[] = ":gfx";
+
+/*
+  features - create a list of features symbols from const strings.
+*/
+object *features () {
+  object *result = NULL;
+  push(internlong((char *)gfx), result);
+  push(internlong((char *)wifi), result);
+  push(internlong((char *)errorhandling), result);
+  push(internlong((char *)machinecode), result);
+  push(internlong((char *)doc), result);
+  push(internlong((char *)arrays), result);
+  push(internlong((char *)floatingpoint), result);
+  return result;
+}"#)
+
+#+esp
+(defparameter *feature-list* #"
+// Features
+
+const char floatingpoint[] = ":floating-point";
+const char arrays[] = ":arrays";
+const char doc[] = ":documentation";
+const char errorhandling[] = ":error-handling";
+const char wifi[] = ":wi-fi";
+const char gfx[] = ":gfx";
+
+/*
+  features - create a list of features symbols from const strings.
+*/
+object *features () {
+  object *result = NULL;
+  push(internlong((char *)gfx), result);
+  push(internlong((char *)wifi), result);
+  push(internlong((char *)errorhandling), result);
+  push(internlong((char *)doc), result);
+  push(internlong((char *)arrays), result);
+  push(internlong((char *)floatingpoint), result);
+  return result;
+}"#)
+
+#+riscv
+(defparameter *feature-list* #"
+// Features
+
+const char floatingpoint[] = ":floating-point";
+const char arrays[] = ":arrays";
+const char doc[] = ":documentation";
+const char machinecode[] = ":machine-code";
+const char errorhandling[] = ":error-handling";
+const char wifi[] = ":wi-fi";
+const char gfx[] = ":gfx";
+
+/*
+  features - create a list of features symbols from const strings.
+*/
+object *features () {
+  object *result = NULL;
+  push(internlong((char *)gfx), result);
+  push(internlong((char *)wifi), result);
+  push(internlong((char *)errorhandling), result);
+  push(internlong((char *)machinecode), result);
+  push(internlong((char *)doc), result);
+  push(internlong((char *)arrays), result);
+  push(internlong((char *)floatingpoint), result);
+  return result;
+}"#)
+
 (defparameter *tracing* #"
 // Tracing
 
@@ -509,7 +629,7 @@ void trace (symbol_t name) {
     if (TraceFn[i] == 0) { TraceFn[i] = name; TraceDepth[i] = 0; return; }
     i++;
   }
-  error2(PSTR("already tracing 3 functions"));
+  error2(PSTR("already tracing " stringify(TRACEMAX) " functions"));
 }
 
 /*
@@ -797,12 +917,24 @@ boolean eq (object *arg1, object *arg2) {
   return false;
 }"#
 
+    #+avr-nano
     #"
 /*
   equal - implements Lisp equal
 */
-boolean equal (object *arg1, object *arg2) {
+bool equal (object *arg1, object *arg2) {
   if (stringp(arg1) && stringp(arg2)) return stringcompare(cons(arg1, cons(arg2, nil)), false, false, true);
+  if (consp(arg1) && consp(arg2)) return (equal(car(arg1), car(arg2)) && equal(cdr(arg1), cdr(arg2)));
+  return eq(arg1, arg2);
+}"#
+
+    #-avr-nano
+    #"
+/*
+  equal - implements Lisp equal
+*/
+bool equal (object *arg1, object *arg2) {
+  if (stringp(arg1) && stringp(arg2)) return (stringcompare(cons(arg1, cons(arg2, nil)), false, false, true) != -1);
   if (consp(arg1) && consp(arg2)) return (equal(car(arg1), car(arg2)) && equal(cdr(arg1), cdr(arg2)));
   return eq(arg1, arg2);
 }"#
@@ -940,14 +1072,6 @@ object *divide_floats (object *args, float fresult) {
     args = cdr(args);
   }
   return makefloat(fresult);
-}
-
-/*
-  myround - rounds
-  Returns t if the argument is a floating-point number.
-*/
-int myround (float number) {
-  return (number >= 0) ? (int)(number + 0.5) : (int)(number - 0.5);
 }"#
 
  #+(or avr avr-nano)
@@ -1016,21 +1140,45 @@ int intpower (int base, int exp) {
   return result;
 }"#))
 
+#+avr-nano
 (defparameter *association-lists* #"
 // Association lists
 
 /*
-  assoc - looks for key in an association list and returns the matching pair, or nil if not found
+  delassoc - deletes the pair matching key from an association list and returns the key, or nil if not found
 */
-object *assoc (object *key, object *list) {
+object *delassoc (object *key, object **alist) {
+  object *list = *alist;
+  object *prev = NULL;
   while (list != NULL) {
-    if (improperp(list)) error(notproper, list);
     object *pair = first(list);
-    if (!listp(pair)) error(PSTR("element is not a list"), pair);
-    if (pair != NULL && eq(key,car(pair))) return pair;
+    if (eq(key,car(pair))) {
+      if (prev == NULL) *alist = cdr(list);
+      else cdr(prev) = cdr(list);
+      return key;
+    }
+    prev = list;
     list = cdr(list);
   }
   return nil;
+}"#)
+
+#-avr-nano
+(defparameter *association-lists* #"
+// Association lists
+
+#-avr-nano
+/*
+  testargument - handles the :test argument for functions that accept it
+*/
+object *testargument (object *args) {
+  object *test = bsymbol(EQ);
+  if (args != NULL) {
+    if (cdr(args) == NULL) error2(PSTR("unpaired keyword"));
+    if ((isbuiltin(first(args), TEST))) test = second(args);
+    else error(PSTR("unsupported keyword"), first(args));
+  }
+  return test;
 }
 
 /*
@@ -1308,7 +1456,7 @@ void buildstring (char ch, object **tail) {
   if (cdr(*tail) == NULL) {
     cell = myalloc(); cdr(*tail) = cell;
   } else if (((*tail)->chars & 0xFF) == 0) {
-    (*tail)->chars = (*tail)->chars | ch; return;
+    (*tail)->chars |= ch; return;
   } else {
     cell = myalloc(); car(*tail) = cell;
   }
@@ -1322,16 +1470,16 @@ void buildstring (char ch, object **tail) {
   buildstring - adds a character on the end of a string
   Handles Lisp strings packed four characters per 32-bit word
 */
-void buildstring (char ch, object **tail) {
-  object *cell;
+void buildstring (char ch, object** tail) {
+  object* cell;
   if (cdr(*tail) == NULL) {
     cell = myalloc(); cdr(*tail) = cell;
   } else if (((*tail)->chars & 0xFFFFFF) == 0) {
-    (*tail)->chars = (*tail)->chars | ch<<16; return;
+    (*tail)->chars |= ch<<16; return;
   } else if (((*tail)->chars & 0xFFFF) == 0) {
-    (*tail)->chars = (*tail)->chars | ch<<8; return;
+    (*tail)->chars |= ch<<8; return;
   } else if (((*tail)->chars & 0xFF) == 0) {
-    (*tail)->chars = (*tail)->chars | ch; return;
+    (*tail)->chars |= ch; return;
   } else {
     cell = myalloc(); car(*tail) = cell;
   }
@@ -1360,13 +1508,13 @@ object *copystring (object *arg) {
   readstring - reads characters from an input stream up to delimiter delim
   and returns a Lisp string
 */
-object *readstring (uint8_t delim, gfun_t gfun) {
+object *readstring (uint8_t delim, bool esc, gfun_t gfun) {
   object *obj = newstring();
   object *tail = obj;
   int ch = gfun();
   if (ch == -1) return nil;
   while ((ch != delim) && (ch != -1)) {
-    if (ch == '\\') ch = gfun();
+    if (esc && ch == '\\') ch = gfun();
     buildstring(ch, &tail);
     ch = gfun();
   }
@@ -1388,11 +1536,12 @@ int stringlength (object *form) {
     form = car(form);
   }
   return length;
-}
+}"#
 
+#+avr-nano
+#"
 /*
   nthchar - returns the nth character from a Lisp string
-  Handles Lisp strings packed two characters per 16-bit word, or four characters per 32-bit word
 */
 uint8_t nthchar (object *string, int n) {
   object *arg = cdr(string);
@@ -1405,8 +1554,38 @@ uint8_t nthchar (object *string, int n) {
   }
   if (arg == NULL) return 0;
   return (arg->chars)>>(n*8) & 0xFF;
+}"#
+
+#-avr-nano
+#"
+/*
+  getcharplace - gets character n in a Lisp string, and sets shift to (- the shift position -2)
+  Handles Lisp strings packed two characters per 16-bit word, or four characters per 32-bit word.
+*/
+object **getcharplace (object *string, int n, int *shift) {
+  object **arg = &cdr(string);
+  int top;
+  if (sizeof(int) == 4) { top = n>>2; *shift = 3 - (n&3); }
+  else { top = n>>1; *shift = 1 - (n&1); }
+  *shift = - (*shift + 2);
+  for (int i=0; i<top; i++) {
+    if (*arg == NULL) break;
+    arg = &car(*arg);
+  }
+  return arg;
 }
 
+/*
+  nthchar - returns the nth character from a Lisp string
+*/
+uint8_t nthchar (object *string, int n) {
+  int shift;
+  object **arg = getcharplace(string, n, &shift);
+  if (*arg == NULL) return 0;
+  return (((*arg)->chars)>>((-shift-2)<<3)) & 0xFF;
+}"#
+
+#"
 /*
   gstr - reads a character from a string stream
 */
@@ -1441,8 +1620,10 @@ object *lispstring (char *s) {
     buildstring(ch, &tail);
   }
   return obj;
-}
+}"#
 
+#+avr-nano
+#"
 /*
   stringcompare - a generic string compare function
   Used to implement the other string comparison functions.
@@ -1464,6 +1645,33 @@ bool stringcompare (object *args, bool lt, bool gt, bool eq) {
     arg2 = car(arg2);
   }
   return eq;
+}"#
+
+#-avr-nano
+#"
+/*
+  stringcompare - a generic string compare function
+  Used to implement the other string comparison functions.
+  Returns -1 if the comparison is false, or the index of the first mismatch if it is true.
+  If lt is true the result is true if the first argument is less than the second argument.
+  If gt is true the result is true if the first argument is greater than the second argument.
+  If eq is true the result is true if the first argument is equal to the second argument.
+*/
+int stringcompare (object *args, bool lt, bool gt, bool eq) {
+  object *arg1 = checkstring(first(args));
+  object *arg2 = checkstring(second(args));
+  arg1 = cdr(arg1); arg2 = cdr(arg2);
+  int m = 0; chars_t a = 0, b = 0;
+  while ((arg1 != NULL) || (arg2 != NULL)) {
+    if (arg1 == NULL) return lt ? m : -1;
+    if (arg2 == NULL) return gt ? m : -1;
+    a = arg1->chars; b = arg2->chars;
+    if (a < b) { if (lt) { m = m + sizeof(int); while (a != b) { m--; a = a >> 8; b = b >> 8; } return m; } else return -1; }
+    if (a > b) { if (gt) { m = m + sizeof(int); while (a != b) { m--; a = a >> 8; b = b >> 8; } return m; } else return -1; }
+    arg1 = car(arg1); arg2 = car(arg2);
+    m = m + sizeof(int);
+  }
+  if (eq) { m = m - sizeof(int); while (a != 0) { m++; a = a << 8;} return m;} else return -1;
 }"#
 
 #+(and doc (or avr esp))
@@ -1496,6 +1704,7 @@ object *documentation (object *arg, object *env) {
   documentation - returns the documentation string of a built-in or user-defined function.
 */
 object *documentation (object *arg, object *env) {
+  if (arg == NULL) return nil;
   if (!symbolp(arg)) error(notasymbol, arg);
   object *pair = findpair(arg, env);
   if (pair != NULL) {
@@ -1508,7 +1717,9 @@ object *documentation (object *arg, object *env) {
   if (!builtinp(docname)) return nil;
   char *docstring = lookupdoc(builtin(docname));
   if (docstring == NULL) return nil;
-  return lispstring(docstring);
+  object *obj = startstring();
+  pfstring(docstring, pstr);
+  return obj;
 }"#
 
 #+doc
@@ -1541,6 +1752,7 @@ object *apropos (object *arg, bool print) {
       }
     }
     globals = cdr(globals);
+    testescape();
   }
   // Built-in?
   int entries = tablesize(0) + tablesize(1);
@@ -1557,6 +1769,7 @@ object *apropos (object *arg, bool print) {
         cdr(ptr) = cons(bsymbol(i), NULL); ptr = cdr(ptr);
       }
     }
+    testescape();
   }
   return cdr(result);
 }"#
@@ -1587,6 +1800,20 @@ char *cstring (object *form, char *buffer, int buflen) {
 
 #+wifi
 #"
+/*
+  iptostring - converts a 32-bit IP address to a lisp string
+*/
+object *iptostring (uint32_t ip) {
+  union { uint32_t data2; uint8_t u8[4]; };
+  object *obj = startstring();
+  data2 = ip;
+  for (int i=0; i<4; i++) {
+    if (i) pstr('.');
+    pintbase(u8[i], 10, pstr);
+  }
+  return obj;
+}
+
 /*
   ipstring - parses an IP address from a Lisp string and returns it as an IPAddress type (uint32_t)
   Handles Lisp strings packed two characters per 16-bit word, or four characters per 32-bit word
@@ -1742,13 +1969,13 @@ object *apply (object *function, object *args, object *env) {
 #"
 // In-place operations"#
 
-#+avr-nano
+#+avr-nano ; no arrays or char
 #"
 /*
   place - returns a pointer to an object referenced in the second argument of an
   in-place operation such as setf.
 */
-object **place (object *args, object *env) {
+object **place (object *args, object *env, int *bit) {
   if (atom(args)) return &cdr(findvalue(args, env));
   object* function = first(args);
   if (symbolp(function)) {
@@ -1766,11 +1993,12 @@ object **place (object *args, object *env) {
     if (sname == sym(NTH)) {
       int index = checkinteger(eval(second(args), env));
       object *list = eval(third(args), env);
-      if (atom(list)) error(PSTR("second argument to nth is not a list"), list);
-      while (index > 0) {
+      if (atom(list)) { Context = NTH; error(PSTR("second argument is not a list"), list); }
+      int i = index;
+      while (i > 0) {
         list = cdr(list);
-        if (list == NULL) error2(PSTR("index to nth is out of range"));
-        index--;
+        if (list == NULL) { Context = NTH; error(indexrange, number(index)); }
+        i--;
       }
       return &car(list);
     }
@@ -1804,17 +2032,25 @@ object **place (object *args, object *env, int *bit) {
     if (sname == sym(NTH)) {
       int index = checkinteger(eval(second(args), env));
       object *list = eval(third(args), env);
-      if (atom(list)) error(PSTR("second argument to nth is not a list"), list);
-      while (index > 0) {
+      if (atom(list)) { Context = NTH; error(PSTR("second argument is not a list"), list); }
+      int i = index;
+      while (i > 0) {
         list = cdr(list);
-        if (list == NULL) error2(PSTR("index to nth is out of range"));
-        index--;
+        if (list == NULL) { Context = NTH; error(indexrange, number(index)); }
+        i--;
       }
       return &car(list);
     }
+    if (sname == sym(CHAR)) {
+      int index = checkinteger(eval(third(args), env));
+      object *string = checkstring(eval(second(args), env));
+      object **loc = getcharplace(string, index, bit);
+      if ((*loc) == NULL || (((((*loc)->chars)>>((-(*bit)-2)<<3)) & 0xFF) == 0)) { Context = CHAR; error(indexrange, number(index)); }
+      return loc;
+    }
     if (sname == sym(AREF)) {
       object *array = eval(second(args), env);
-      if (!arrayp(array)) error(PSTR("first argument is not an array"), array);
+      if (!arrayp(array)) { Context = AREF; error(PSTR("first argument is not an array"), array); }
       return getarray(array, cddr(args), env, bit);
     }
   }
@@ -1829,8 +2065,9 @@ object **place (object *args, object *env, int *bit) {
   Calls place() to get a pointer to the numeric value.
 */
 object *incfdecf (object *args, int increment, object *env) {
-  checkargs(args);
-  object **loc = place(first(args), env);
+  int bit;
+  object **loc = place(first(args), env, &bit);
+  if (bit < -1) error2(notanumber);
   int result = checkinteger(*loc);
   args = cdr(args);
   if (args != NULL) increment = checkinteger(eval(first(args), env)) * increment;
@@ -1851,8 +2088,8 @@ object *incfdecf (object *args, int increment, object *env) {
 */
 object *incfdecf (object *args, int increment, object *env) {
   int bit;
-  checkargs(args);
   object **loc = place(first(args), env, &bit);
+  if (bit < -1) error2(notanumber);
   int result = checkinteger(*loc);
   args = cdr(args);
   object *inc = (args != NULL) ? eval(first(args), env) : NULL;
@@ -1908,10 +2145,43 @@ object *cxxxr (object *args, uint8_t pattern) {
     pattern = pattern>>1;
   }
   return arg;
-}
+}#"
 
+#"
 // Mapping helper functions
 
+/*
+  mapcl - handles either mapc when mapl=false, or mapl when mapl=true
+*/
+object *mapcl (object *args, object *env, bool mapl) {
+  object *function = first(args);
+  args = cdr(args);
+  object *result = first(args);
+  protect(result);
+  object *params = cons(NULL, NULL);
+  protect(params);
+  // Make parameters
+  while (true) {
+    object *tailp = params;
+    object *lists = args;
+    while (lists != NULL) {
+      object *list = car(lists);
+      if (list == NULL) {
+         unprotect(); unprotect();
+         return result;
+      }
+      if (improperp(list)) error(notproper, list);
+      object *item = mapl ? list : first(list);
+      object *obj = cons(item, NULL);
+      car(lists) = cdr(list);
+      cdr(tailp) = obj; tailp = obj;
+      lists = cdr(lists);
+    }
+    apply(function, cdr(params), env);
+  }
+}"#
+
+#"
 /*
   mapcarfun - function specifying how to combine the results in mapcar
 */
@@ -1929,19 +2199,20 @@ void mapcanfun (object *result, object **tail) {
     cdr(*tail) = result; *tail = result;
     result = cdr(result);
   }
-}
+}"#
 
+#"
 /*
-  mapcarcan - function used by marcar and mapcan
-  It takes the arguments, the env, and a function specifying how the results are combined.
+  mapcarcan - function used by marcar and mapcan when maplist=false, and maplist when maplist=true
+  It takes the arguments, the env, a function specifying how the results are combined, and a bool.
 */
-object *mapcarcan (object *args, object *env, mapfun_t fun) {
+object *mapcarcan (object *args, object *env, mapfun_t fun, bool maplist) {
   object *function = first(args);
   args = cdr(args);
   object *params = cons(NULL, NULL);
-  push(params,GCStack);
+  protect(params);
   object *head = cons(NULL, NULL);
-  push(head,GCStack);
+  protect(head);
   object *tail = head;
   // Make parameters
   while (true) {
@@ -1950,11 +2221,12 @@ object *mapcarcan (object *args, object *env, mapfun_t fun) {
     while (lists != NULL) {
       object *list = car(lists);
       if (list == NULL) {
-         pop(GCStack); pop(GCStack);
+         unprotect(); unprotect();
          return cdr(head);
       }
       if (improperp(list)) error(notproper, list);
-      object *obj = cons(first(list),NULL);
+      object *item = maplist ? list : first(list);
+      object *obj = cons(item, NULL);
       car(lists) = cdr(list);
       cdr(tailp) = obj; tailp = obj;
       lists = cdr(lists);
@@ -1962,5 +2234,76 @@ object *mapcarcan (object *args, object *env, mapfun_t fun) {
     object *result = apply(function, cdr(params), env);
     fun(result, &tail);
   }
+}"#
+
+#-avr-nano
+#"
+/*
+  dobody - function used by do when star=false and do* when star=true
+*/
+object *dobody (object *args, object *env, bool star) {
+  object *varlist = first(args), *endlist = second(args);
+  object *head = cons(NULL, NULL);
+  protect(head);
+  object *ptr = head;
+  object *newenv = env;
+  while (varlist != NULL) {
+    object *varform = first(varlist);
+    object *var, *init = NULL, *step = NULL;
+    if (atom(varform)) var = varform;
+    else {
+      var = first(varform);
+      varform = cdr(varform);
+      if (varform != NULL) {  
+        init = eval(first(varform), env);
+        varform = cdr(varform);
+        if (varform != NULL) step = cons(first(varform), NULL);
+      }
+    }  
+    object *pair = cons(var, init);
+    push(pair, newenv);
+    if (star) env = newenv;
+    object *cell = cons(cons(step, pair), NULL);
+    cdr(ptr) = cell; ptr = cdr(ptr);
+    varlist = cdr(varlist);
+  }
+  env = newenv;
+  head = cdr(head);
+  object *endtest = first(endlist), *results = cdr(endlist);
+  while (eval(endtest, env) == NULL) {
+    object *forms = cddr(args);
+    while (forms != NULL) {
+    object *result = eval(car(forms), env);
+      if (tstflag(RETURNFLAG)) {
+        clrflag(RETURNFLAG);
+        return result;
+      }
+      forms = cdr(forms);
+    }
+    object *varlist = head;
+    int count = 0;
+    while (varlist != NULL) {
+      object *varform = first(varlist);
+      object *step = car(varform), *pair = cdr(varform);
+      if (step != NULL) {
+        object *val = eval(first(step), env);
+        if (star) {
+          cdr(pair) = val;
+        } else {
+          push(val, GCStack);
+          push(pair, GCStack);
+          count++;
+        }
+      } 
+      varlist = cdr(varlist);
+    }
+    while (count > 0) {
+      cdr(car(GCStack)) = car(cdr(GCStack));
+      pop(GCStack); pop(GCStack);
+      count--;
+    }
+  }
+  unprotect();
+  return eval(tf_progn(results, env), env);
 }"#))
         

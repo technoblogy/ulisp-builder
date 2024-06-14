@@ -32,11 +32,21 @@
   Can be followed by one or more optional parameters in a lambda or defun parameter list.
 */"#)
 
+      #-avr-nano
+      (FEATURES "*features*" 0 0 #"
+/*
+  *features*
+  Returns a list of keywords representing features supported by this platform.
+*/"#)
+
       #+arrays
       (INITIALELEMENT ":initial-element" 0 0 nil)
 
       #+arrays
       (ELEMENTTYPE ":element-type" 0 0 nil)
+
+      #-avr-nano
+      (TEST ":test" 0 0 nil)
 
       #+arrays
       (BIT nil 0 0 nil)
@@ -82,7 +92,6 @@
      ((QUOTE nil 1 1 "
 object *sp_quote (object *args, object *env) {
   (void) env;
-  checkargs(args);
   return first(args);
 }")
 
@@ -113,7 +122,6 @@ object *sp_lambda (object *args, object *env) {
 */
 object *sp_defun (object *args, object *env) {
   (void) env;
-  checkargs(args);
   object *var = first(args);
   if (!symbolp(var)) error(notasymbol, var);
   object *val = cons(bsymbol(LAMBDA), cdr(args));
@@ -129,7 +137,6 @@ object *sp_defun (object *args, object *env) {
   Defines a global variable.
 */
 object *sp_defvar (object *args, object *env) {
-  checkargs(args);
   object *var = first(args);
   if (!symbolp(var)) error(notasymbol, var);
   object *val = NULL;
@@ -178,6 +185,7 @@ object *sp_loop (object *args, object *env) {
       }
       args = cdr(args);
     }
+    testescape();
   }
 }")
 
@@ -201,36 +209,10 @@ object *sp_loop (object *args, object *env) {
       }
       args = cdr(args);
     }
+    testescape();
   }
 }")
 
-      (RETURN nil 0 127 "
-/*
-  (return [value])
-  Exits from a (dotimes ...), (dolist ...), or (loop ...) loop construct and returns value.
-*/
-object *sp_return (object *args, object *env) {
-  object *result = eval(tf_progn(args,env), env);
-  setflag(RETURNFLAG);
-  return result;
-}")
-
-     #-arrays
-     (PUSH nil 2 2 "
-/*
-  (push item place)
-  Modifies the value of place, which should be a list, to add item onto the front of the list,
-  and returns the new list.
-*/
-object *sp_push (object *args, object *env) {
-  checkargs(args);
-  object *item = eval(first(args), env);
-  object **loc = place(second(args), env);
-  push(item, *loc);
-  return *loc;
-}")
-
-     #+arrays
      (PUSH nil 2 2 "
 /*
   (push item place)
@@ -239,37 +221,26 @@ object *sp_push (object *args, object *env) {
 */
 object *sp_push (object *args, object *env) {
   int bit;
-  checkargs(args);
   object *item = eval(first(args), env);
   object **loc = place(second(args), env, &bit);
+  if (bit != -1) error2(invalidarg);
   push(item, *loc);
   return *loc;
 }")
 
-     #-arrays
      (POP nil 1 1 "
 /*
   (pop place)
-  Modifies the value of place, which should be a list, to remove its first item, and returns that item.
-*/
-object *sp_pop (object *args, object *env) {
-  checkargs(args);
-  object **loc = place(first(args), env);
-  object *result = car(*loc);
-  pop(*loc);
-  return result;
-}")
-
-     #+arrays
-     (POP nil 1 1 "
-/*
-  (pop place)
-  Modifies the value of place, which should be a list, to remove its first item, and returns that item.
+  Modifies the value of place, which should be a non-nil list, to remove its first item,
+  and returns that item.
 */
 object *sp_pop (object *args, object *env) {
   int bit;
-  checkargs(args);
-  object **loc = place(first(args), env, &bit);
+  object *arg = first(args);
+  if (arg == NULL) error2(invalidarg);
+  object **loc = place(arg, env, &bit);
+  if (bit < -1) error(invalidarg, arg);
+  if (!consp(*loc)) error(notalist, *loc);
   object *result = car(*loc);
   pop(*loc);
   return result;
@@ -298,8 +269,8 @@ object *sp_incf (object *args, object *env) {
 */
 object *sp_incf (object *args, object *env) {
   int bit;
-  checkargs(args);
   object **loc = place(first(args), env, &bit);
+  if (bit < -1) error2(notanumber);
   args = cdr(args);
 
   object *x = *loc;
@@ -359,8 +330,8 @@ object *sp_decf (object *args, object *env) {
 */
 object *sp_decf (object *args, object *env) {
   int bit;
-  checkargs(args);
   object **loc = place(first(args), env, &bit);
+  if (bit < -1) error2(notanumber);
   args = cdr(args);
 
   object *x = *loc;
@@ -400,17 +371,18 @@ object *sp_decf (object *args, object *env) {
   return *loc;
 }"#)
 
-     #-arrays
+     #+avr-nano
      (SETF nil 2 126 #"
 /*
   (setf place value [place value]*)
   For each pair of arguments modifies a place to the result of evaluating value.
 */
 object *sp_setf (object *args, object *env) {
+  int bit;
   object *arg = nil;
   while (args != NULL) {
     if (cdr(args) == NULL) error2(oddargs);
-    object **loc = place(first(args), env);
+    object **loc = place(first(args), env, &bit);
     arg = eval(second(args), env);
     *loc = arg;
     args = cddr(args);
@@ -418,7 +390,7 @@ object *sp_setf (object *args, object *env) {
   return arg;
 }"#)
 
-     #+arrays
+     #-avr-nano
      (SETF nil 2 126 #"
 /*
   (setf place value [place value]*)
@@ -432,6 +404,7 @@ object *sp_setf (object *args, object *env) {
     object **loc = place(first(args), env, &bit);
     arg = eval(second(args), env);
     if (bit == -1) *loc = arg;
+    else if (bit < -1) (*loc)->chars = ((*loc)->chars & ~(0xff<<((-bit-2)<<3))) | checkchar(arg)<<((-bit-2)<<3);
     else *loc = number((checkinteger(*loc) & ~(1<<bit)) | checkbitvalue(arg)<<bit);
     args = cddr(args);
   }
@@ -450,10 +423,10 @@ object *sp_dolist (object *args, object *env) {
   object *params = checkarguments(args, 2, 3);
   object *var = first(params);
   object *list = eval(second(params), env);
-  push(list, GCStack); // Don't GC the list
+  protect(list); // Don't GC the list
   object *pair = cons(var,nil);
   push(pair,env);
-  params = cdr(cdr(params));
+  params = cddr(params);
   args = cdr(args);
   while (list != NULL) {
     if (improperp(list)) error(notproper, list);
@@ -463,7 +436,7 @@ object *sp_dolist (object *args, object *env) {
       object *result = eval(car(forms), env);
       if (tstflag(RETURNFLAG)) {
         clrflag(RETURNFLAG);
-        pop(GCStack);
+        unprotect();
         return result;
       }
       forms = cdr(forms);
@@ -471,12 +444,12 @@ object *sp_dolist (object *args, object *env) {
     list = cdr(list);
   }
   cdr(pair) = nil;
-  pop(GCStack);
+  unprotect();
   if (params == NULL) return nil;
   return eval(car(params), env);
 }"#)
 
-      (DOTIMES nil 1 127 "
+      (DOTIMES nil 1 127 #"
 /*
   (dotimes (var number [result]) form*)
   Executes the forms number times, with the local variable var set to each integer from 0 to number-1 in turn.
@@ -487,7 +460,7 @@ object *sp_dotimes (object *args, object *env) {
   object *var = first(params);
   int count = checkinteger(eval(second(params), env));
   int index = 0;
-  params = cdr(cdr(params));
+  params = cddr(params);
   object *pair = cons(var,number(0));
   push(pair,env);
   args = cdr(args);
@@ -507,7 +480,29 @@ object *sp_dotimes (object *args, object *env) {
   cdr(pair) = number(index);
   if (params == NULL) return nil;
   return eval(car(params), env);
-}")
+}"#)
+
+      #-avr-nano
+      (DO nil 2 127 #"
+/*
+  (do ((var [init [step]])*) (end-test result*) form*)
+  Accepts an arbitrary number of iteration vars, which are initialised to init and stepped by step sequentially.
+  The forms are executed until end-test is true. It returns result.
+*/
+object *sp_do (object *args, object *env) {
+  return dobody(args, env, false);
+}"#)
+
+      #-avr-nano
+      (DOSTAR "do*" 1 127 #"
+/*
+  (do* ((var [init [step]])*) (end-test result*) form*)
+  Accepts an arbitrary number of iteration vars, which are initialised to init and stepped by step in parallel.
+  The forms are executed until end-test is true. It returns result.
+*/
+object *sp_dostar (object *args, object *env) {
+  return dobody(args, env, true);
+}"#)
 
       (TRACE nil 0 1 #"
 /*
@@ -531,7 +526,7 @@ object *sp_trace (object *args, object *env) {
   return args;
 }"#)
 
-      (UNTRACE nil 0 1 "
+      (UNTRACE nil 0 1 #"
 /*
   (untrace [function]*)
   Turns off tracing of up to TRACEMAX user-defined functions, and returns a list of the functions untraced.
@@ -555,7 +550,7 @@ object *sp_untrace (object *args, object *env) {
     }
   }
   return args;
-}")
+}"#)
 
       (FORMILLIS "for-millis" 1 127 "
 /*
@@ -612,10 +607,10 @@ object *sp_withoutputtostring (object *args, object *env) {
   object *pair = cons(var, stream(STRINGSTREAM, 0));
   push(pair,env);
   object *string = startstring();
-  push(string, GCStack);
+  protect(string);
   object *forms = cdr(args);
   eval(tf_progn(forms,env), env);
-  pop(GCStack);
+  unprotect();
   return string;
 }")
 
@@ -641,7 +636,7 @@ object *sp_withserial (object *args, object *env) {
   return result;
 }")
 
-      #-arm
+      #-(or arm esp)
      (WITHI2C "with-i2c" 1 127 "
 /*
   (with-i2c (str [port] address [read-p]) form*)
@@ -671,7 +666,7 @@ object *sp_withi2c (object *args, object *env) {
   return result;
 }")
 
-     #+arm
+     #+(or arm esp)
      (WITHI2C "with-i2c" 1 127 "
 /*
   (with-i2c (str [port] address [read-p]) form*)
@@ -709,7 +704,7 @@ object *sp_withi2c (object *args, object *env) {
   return result;
 }")
 
-      #+(or avr avr-nano esp)
+      #+(or avr avr-nano)
       (WITHSPI "with-spi" 1 127 #"
 /*
   (with-spi (str pin [clock] [bitorder] [mode]) form*)
@@ -790,7 +785,7 @@ object *sp_withspi (object *args, object *env) {
   object *pair = cons(var, stream(SPISTREAM, pin + 128*address));
   push(pair,env);
   SPIClass *spiClass = &SPI;
-  #if defined(ARDUINO_NRF52840_CLUE) || defined(ARDUINO_GRAND_CENTRAL_M4) || defined(ARDUINO_PYBADGE_M4) || defined(ARDUINO_PYGAMER_M4) || defined(ARDUINO_TEENSY40) || defined(ARDUINO_TEENSY41)
+  #if defined(ULISP_SPI1)
   if (address == 1) spiClass = &SPI1;
   #endif
   spiClass->begin();
@@ -864,7 +859,10 @@ object *sp_withsdcard (object *args, object *env) {
   object *var = first(params);
   params = cdr(params);
   if (params == NULL) error2(PSTR("no filename specified"));
+  builtin_t temp = Context;
   object *filename = eval(first(params), env);
+  Context = temp;
+  if (!stringp(filename)) error(PSTR("filename is not a string"), filename);
   params = cdr(params);
   SD.begin(SDCARD_SS_PIN);
   int mode = 0;
@@ -901,12 +899,15 @@ object *sp_withsdcard (object *args, object *env) {
   If mode is omitted the file is read, otherwise 0 means read, 1 write-append, or 2 write-overwrite.
 */
 object *sp_withsdcard (object *args, object *env) {
-#if defined(sdcardsupport)
+  #if defined(sdcardsupport)
   object *params = checkarguments(args, 2, 3);
   object *var = first(params);
   params = cdr(params);
   if (params == NULL) error2(PSTR("no filename specified"));
+  builtin_t temp = Context;
   object *filename = eval(first(params), env);
+  Context = temp;
+  if (!stringp(filename)) error(PSTR("filename is not a string"), filename);
   params = cdr(params);
   SD.begin();
   int mode = 0;
@@ -928,11 +929,11 @@ object *sp_withsdcard (object *args, object *env) {
   object *result = eval(tf_progn(forms,env), env);
   if (mode >= 1) SDpfile.close(); else SDgfile.close();
   return result;
-#else
+  #else
   (void) args, (void) env;
   error2(PSTR("not supported"));
   return nil;
-#endif
+  #endif
 }"#)
 
     #+msp430
@@ -968,7 +969,6 @@ object *sp_withlcd (object *args, object *env) {
 object *sp_defcode (object *args, object *env) {
 #if defined(CODESIZE)
   setflag(NOESC);
-  checkargs(args);
   object *var = first(args);
   if (!symbolp(var)) error(PSTR("not a symbol"), var);
 
@@ -1080,7 +1080,6 @@ object *sp_defcode (object *args, object *env) {
 object *sp_defcode (object *args, object *env) {
 #if defined(CODESIZE)
   setflag(NOESC);
-  checkargs(args);
   object *var = first(args);
   object *params = second(args);
   if (!symbolp(var)) error(PSTR("not a symbol"), var);
@@ -1190,7 +1189,6 @@ object *sp_defcode (object *args, object *env) {
 */
 object *sp_defcode (object *args, object *env) {
   setflag(NOESC);
-  checkargs(args);
   object *var = first(args);
   object *params = second(args);
   if (!symbolp(var)) error(PSTR("not a symbol"), var);
@@ -1297,7 +1295,7 @@ object *tf_progn (object *args, object *env) {
   object *more = cdr(args);
   while (more != NULL) {
     object *result = eval(car(args),env);
-    if (tstflag(RETURNFLAG)) return result;
+    if (tstflag(RETURNFLAG)) return quote(result);
     args = more;
     more = cdr(args);
   }
@@ -1486,7 +1484,8 @@ object *fn_boundp (object *args, object *env) {
   return boundp(first(args), env) ? tee : nil;
 }"#)
 
-(KEYWORDP nil 1 1 #"
+      #+avr-nano
+      (KEYWORDP nil 1 1 #"
 /*
   (keywordp item)
   Returns t if its argument is a keyword.
@@ -1496,6 +1495,20 @@ object *fn_keywordp (object *args, object *env) {
   return keywordp(first(args)) ? tee : nil;
 }"#)
 
+      #-avr-nano
+      (KEYWORDP nil 1 1 #"
+/*
+  (keywordp item)
+  Returns t if its argument is a built-in or user-defined keyword.
+*/
+object *fn_keywordp (object *args, object *env) {
+  (void) env;
+  object *arg = first(args);
+  if (!symbolp(arg)) return nil;
+  return (keywordp(arg) || colonp(arg->name)) ? tee : nil;
+}"#)
+
+      #-avr-nano
       (SETFN "set" 2 126 #"
 /*
   (set symbol value [symbol value]*)
@@ -1747,6 +1760,25 @@ object *fn_list (object *args, object *env) {
   return args;
 }")
 
+      #-avr-nano
+      (COPYLIST "copy-list" 1 1 "
+/*
+  (copy-list list)
+  Returns a copy of a list.
+*/
+object *fn_copylist (object *args, object *env) {
+  (void) env;
+  object *arg = first(args);
+  if (!listp(arg)) error(notalist, arg);
+  object *result = cons(NULL, NULL);
+  object *ptr = result;
+  while (arg != NULL) {
+    cdr(ptr) = cons(car(arg), NULL); 
+    ptr = cdr(ptr); arg = cdr(arg);
+  }
+  return cdr(result);
+}")
+
       #+arrays
       (MAKEARRAY "make-array" 1 5 #"
 /*
@@ -1829,7 +1861,8 @@ object *fn_aref (object *args, object *env) {
   else return number((loc->integer)>>bit & 1);
 }"#)
 
-      (ASSOC nil 2 2 #"
+      #+avr-nano
+      (ASSOC nil 2 4 #"
 /*
   (assoc key list)
   Looks up a key in an association list of (key . value) pairs,
@@ -1839,10 +1872,40 @@ object *fn_assoc (object *args, object *env) {
   (void) env;
   object *key = first(args);
   object *list = second(args);
-  return assoc(key,list);
+  while (list != NULL) {
+    if (improperp(list)) error(notproper, list);
+    object *pair = first(list);
+    if (!listp(pair)) error(PSTR("element is not a list"), pair);
+    if (pair != NULL && eq(key,car(pair))) return pair;
+    list = cdr(list);
+  }
+  return nil;
 }"#)
 
-      (MEMBER nil 2 2 #"
+      #-avr-nano
+      (ASSOC nil 2 4 #"
+/*
+  (assoc key list [:test function])
+  Looks up a key in an association list of (key . value) pairs, using eq or the specified test function,
+  and returns the matching pair, or nil if no pair is found.
+*/
+object *fn_assoc (object *args, object *env) {
+  (void) env;
+  object *key = first(args);
+  object *list = second(args);
+  object *test = testargument(cddr(args));
+  while (list != NULL) {
+    if (improperp(list)) error(notproper, list);
+    object *pair = first(list);
+    if (!listp(pair)) error(PSTR("element is not a list"), pair);
+    if (pair != NULL && apply(test, cons(key, cons(car(pair), NULL)), env) != NULL) return pair;
+    list = cdr(list);
+  }
+  return nil;
+}"#)
+
+      #+avr-nano
+      (MEMBER nil 2 4 #"
 /*
   (member item list)
   Searches for an item in a list, using eq, and returns the list starting from the first occurrence of the item,
@@ -1855,6 +1918,26 @@ object *fn_member (object *args, object *env) {
   while (list != NULL) {
     if (improperp(list)) error(notproper, list);
     if (eq(item,car(list))) return list;
+    list = cdr(list);
+  }
+  return nil;
+}"#)
+
+      #-avr-nano
+      (MEMBER nil 2 4 #"
+/*
+  (member item list [:test function])
+  Searches for an item in a list, using eq or the specified test function, and returns the list starting
+  from the first occurrence of the item, or nil if it is not found.
+*/
+object *fn_member (object *args, object *env) {
+  (void) env;
+  object *item = first(args);
+  object *list = second(args);
+  object *test = testargument(cddr(args));
+  while (list != NULL) {
+    if (improperp(list)) error(notproper, list);
+    if (apply(test, cons(item, cons(car(list), NULL)), env) != NULL) return list;
     list = cdr(list);
   }
   return nil;
@@ -1919,30 +2002,18 @@ object *fn_append (object *args, object *env) {
   It returns the first list argument.
 */
 object *fn_mapc (object *args, object *env) {
-  object *function = first(args);
-  args = cdr(args);
-  object *result = first(args);
-  push(result,GCStack);
-  object *params = cons(NULL, NULL);
-  push(params,GCStack);
-  // Make parameters
-  while (true) {
-    object *tailp = params;
-    object *lists = args;
-    while (lists != NULL) {
-      object *list = car(lists);
-      if (list == NULL) {
-         pop(GCStack); pop(GCStack);
-         return result;
-      }
-      if (improperp(list)) error(notproper, list);
-      object *obj = cons(first(list),NULL);
-      car(lists) = cdr(list);
-      cdr(tailp) = obj; tailp = obj;
-      lists = cdr(lists);
-    }
-    apply(function, cdr(params), env);
-  }
+  return mapcl(args, env, false);
+}"#)
+
+      #-avr-nano
+      (MAPL nil 2 127 #"
+/*
+  (mapl function list1 [list]*)
+  Applies the function to one or more lists and then successive cdrs of those lists,
+  ignoring the results. It returns the first list argument.
+*/
+object *fn_mapl (object *args, object *env) {
+  return mapcl(args, env, true);
 }"#)
 
       (MAPCAR nil 2 127 #"
@@ -1951,17 +2022,39 @@ object *fn_mapc (object *args, object *env) {
   Applies the function to each element in one or more lists, and returns the resulting list.
 */
 object *fn_mapcar (object *args, object *env) {
-  return mapcarcan(args, env, mapcarfun);
+  return mapcarcan(args, env, mapcarfun, false);
 }"#)
 
       (MAPCAN nil 2 127 #"
 /*
   (mapcan function list1 [list]*)
   Applies the function to each element in one or more lists. The results should be lists,
-  and these are appended together to give the value returned.
+  and these are destructively concatenated together to give the value returned.
 */
 object *fn_mapcan (object *args, object *env) {
-  return mapcarcan(args, env, mapcanfun);
+  return mapcarcan(args, env, mapcanfun, false);
+}"#)
+
+      #-avr-nano
+      (MAPLIST nil 2 127 #"
+/*
+  (maplist function list1 [list]*)
+  Applies the function to one or more lists and then successive cdrs of those lists,
+  and returns the resulting list.
+*/
+object *fn_maplist (object *args, object *env) {
+  return mapcarcan(args, env, mapcarfun, true);
+}"#)
+
+      #-avr-nano
+      (MAPCON nil 2 127 #"
+/*
+  (mapcon function list1 [list]*)
+  Applies the function to one or more lists and then successive cdrs of those lists,
+  and these are destructively concatenated together to give the value returned.
+*/
+object *fn_mapcon (object *args, object *env) {
+  return mapcarcan(args, env, mapcanfun, true);
 }"#)))
 
     ("Arithmetic functions"
@@ -2782,8 +2875,8 @@ object *fn_round (object *args, object *env) {
   (void) env;
   object *arg = first(args);
   args = cdr(args);
-  if (args != NULL) return number(myround(checkintfloat(arg) / checkintfloat(first(args))));
-  else return number(myround(checkintfloat(arg)));
+  if (args != NULL) return number(round(checkintfloat(arg) / checkintfloat(first(args))));
+  else return number(round(checkintfloat(arg)));
 }"#)))
 
     ("Characters"
@@ -2845,34 +2938,115 @@ object *fn_stringp (object *args, object *env) {
   return stringp(first(args)) ? tee : nil;
 }")
 
+      #+avr-nano
       (STRINGEQ "string=" 2 2 #"
 /*
   (string= string string)
-  Tests whether two strings are the same.
+  Returns t if the two strings are the same, or nil otherwise.
 */
 object *fn_stringeq (object *args, object *env) {
   (void) env;
   return stringcompare(args, false, false, true) ? tee : nil;
 }"#)
 
+      #-avr-nano
+      (STRINGEQ "string=" 2 2 #"
+/*
+  (string= string string)
+  Returns t if the two strings are the same, or nil otherwise.
+*/
+object *fn_stringeq (object *args, object *env) {
+  (void) env;
+  int m = stringcompare(args, false, false, true);
+  return m == -1 ? nil : tee;
+}"#)
+
+      #+avr-nano
       (STRINGLESS "string<" 2 2 #"
 /*
   (string< string string)
-  Returns t if the first string is alphabetically less than the second string, and nil otherwise.
+  Returns t if the first string is alphabetically less than the second string,
+  or nil otherwise.
 */
 object *fn_stringless (object *args, object *env) {
   (void) env;
   return stringcompare(args, true, false, false) ? tee : nil;
 }"#)
 
+      #-avr-nano
+      (STRINGLESS "string<" 2 2 #"
+/*
+  (string< string string)
+  Returns the index to the first mismatch if the first string is alphabetically less than the second string,
+  or nil otherwise.
+*/
+object *fn_stringless (object *args, object *env) {
+  (void) env;
+  int m = stringcompare(args, true, false, false);
+  return m == -1 ? nil : number(m);
+}"#)
+
+      #+avr-nano
       (STRINGGREATER "string>" 2 2 #"
 /*
   (string> string string)
-  Returns t if the first string is alphabetically greater than the second string, and nil otherwise.
+  Returns t if the first string is alphabetically greater than the second string,
+  or nil otherwise. 
 */
 object *fn_stringgreater (object *args, object *env) {
   (void) env;
   return stringcompare(args, false, true, false) ? tee : nil;
+}"#)
+
+      #-avr-nano
+      (STRINGGREATER "string>" 2 2 #"
+/*
+  (string> string string)
+  Returns the index to the first mismatch if the first string is alphabetically greater than the second string,
+  or nil otherwise. 
+*/
+object *fn_stringgreater (object *args, object *env) {
+  (void) env;
+  int m = stringcompare(args, false, true, false);
+  return m == -1 ? nil : number(m);
+}"#)
+
+      #-avr-nano
+      (STRINGNOTEQ "string/=" 2 2 #"
+/*
+  (string/= string string)
+  Returns the index to the first mismatch if the two strings are not the same, or nil otherwise.
+*/
+object *fn_stringnoteq (object *args, object *env) {
+  (void) env;
+  int m = stringcompare(args, true, true, false);
+  return m == -1 ? nil : number(m);
+}"#)
+
+      #-avr-nano
+      (STRINGLESSEQ "string<=" 2 2 #"
+/*
+  (string<= string string)
+  Returns the index to the first mismatch if the first string is alphabetically less than or equal to
+  the second string, or nil otherwise. 
+*/
+object *fn_stringlesseq (object *args, object *env) {
+  (void) env;
+  int m = stringcompare(args, true, false, true);
+  return m == -1 ? nil : number(m);
+}"#)
+
+      #-avr-nano
+      (STRINGGREATEREQ "string>=" 2 2 #"
+/*
+  (string>= string string)
+  Returns the index to the first mismatch if the first string is alphabetically greater than or equal to
+  the second string, or nil otherwise.
+*/
+object *fn_stringgreatereq (object *args, object *env) {
+  (void) env;
+  int m = stringcompare(args, false, true, true);
+  return m == -1 ? nil : number(m);
 }"#)
 
       (SORT "sort" 2 2 #"
@@ -2883,10 +3057,10 @@ object *fn_stringgreater (object *args, object *env) {
 object *fn_sort (object *args, object *env) {
   if (first(args) == NULL) return nil;
   object *list = cons(nil,first(args));
-  push(list,GCStack);
+  protect(list);
   object *predicate = second(args);
   object *compare = cons(NULL, cons(NULL, NULL));
-  push(compare,GCStack);
+  protect(compare);
   object *ptr = cdr(list);
   while (cdr(ptr) != NULL) {
     object *go = list;
@@ -2903,7 +3077,7 @@ object *fn_sort (object *args, object *env) {
       cdr(go) = obj;
     } else ptr = cdr(ptr);
   }
-  pop(GCStack); pop(GCStack);
+  unprotect(); unprotect();
   return cdr(list);
 }"#)
 
@@ -2983,11 +3157,11 @@ object *fn_subseq (object *args, object *env) {
 }"#)
 
     #-avr-nano
-    (SEARCH nil 2 2 #"
+    (SEARCH nil 2 4 #"
 /*
-  (search pattern target)
-  Returns the index of the first occurrence of pattern in target, 
-  which can be lists or strings, or nil if it's not found.
+  (search pattern target [:test function])
+  Returns the index of the first occurrence of pattern in target, or nil if it's not found.
+  The target can be a list or string. If it's a list a test function can be specified; default eq.
 */
 object *fn_search (object *args, object *env) {
   (void) env;
@@ -2995,12 +3169,14 @@ object *fn_search (object *args, object *env) {
   object *target = second(args);
   if (pattern == NULL) return number(0);
   else if (target == NULL) return nil;
+  
   else if (listp(pattern) && listp(target)) {
+    object *test = testargument(cddr(args));
     int l = listlength(target);
     int m = listlength(pattern);
     for (int i = 0; i <= l-m; i++) {
       object *target1 = target;
-      while (pattern != NULL && eq(car(target1), car(pattern))) {
+      while (pattern != NULL && apply(test, cons(car(target1), cons(car(pattern), NULL)), env) != NULL) {
         pattern = cdr(pattern);
         target1 = cdr(target1);
       }
@@ -3008,7 +3184,9 @@ object *fn_search (object *args, object *env) {
       pattern = first(args); target = cdr(target);
     }
     return nil;
+
   } else if (stringp(pattern) && stringp(target)) {
+    if (cddr(args) != NULL) error2(PSTR("keyword argument not supported for strings"));
     int l = stringlength(target);
     int m = stringlength(pattern);
     for (int i = 0; i <= l-m; i++) {
@@ -3112,6 +3290,17 @@ object *fn_logbitp (object *args, object *env) {
 */
 object *fn_eval (object *args, object *env) {
   return eval(first(args), env);
+}")
+
+      (RETURN nil 0 1 "
+/*
+  (return [value])
+  Exits from a (dotimes ...), (dolist ...), or (loop ...) loop construct and returns value.
+*/
+object *fn_return (object *args, object *env) {
+  (void) env;
+  setflag(RETURNFLAG);
+  if (args == NULL) return nil; else return first(args);
 }")
 
       (GLOBALS nil 0 0 "
@@ -3258,7 +3447,7 @@ object *fn_readbyte (object *args, object *env) {
 object *fn_readline (object *args, object *env) {
   (void) env;
   gfun_t gfun = gstreamfun(args);
-  return readstring('\n', gfun);
+  return readstring('\n', false, gfun);
 }"#)
 
     (WRITEBYTE "write-byte" 1 2 #"
@@ -3307,7 +3496,7 @@ object *fn_writeline (object *args, object *env) {
   return nil;
 }"#)
 
-      #+arm
+      #+(or arm esp)
       (RESTARTI2C "restart-i2c" 1 2 #"
 /*
   (restart-i2c stream [read-p])
@@ -3317,7 +3506,7 @@ object *fn_writeline (object *args, object *env) {
 */
 object *fn_restarti2c (object *args, object *env) {
   (void) env;
-  int stream = first(args)->integer;
+  int stream = isstream(first(args));
   args = cdr(args);
   int read = 0; // Write
   I2Ccount = 0;
@@ -3336,7 +3525,7 @@ object *fn_restarti2c (object *args, object *env) {
   return I2Crestart(port, address & 0x7F, read) ? tee : nil;
 }"#)
 
-      #-arm
+      #-(or arm esp)
       (RESTARTI2C "restart-i2c" 1 2 #"
 /*
   (restart-i2c stream [read-p])
@@ -3346,7 +3535,7 @@ object *fn_restarti2c (object *args, object *env) {
 */
 object *fn_restarti2c (object *args, object *env) {
   (void) env;
-  int stream = first(args)->integer;
+  int stream = isstream(first(args));
   args = cdr(args);
   int read = 0; // Write
   I2Ccount = 0;
@@ -3714,7 +3903,10 @@ object *fn_dacreference (object *args, object *env) {
 object *fn_delay (object *args, object *env) {
   (void) env;
   object *arg1 = first(args);
-  delay(checkinteger(arg1));
+  unsigned long start = millis();
+  unsigned long total = checkinteger(arg1);
+  do testescape();
+  while (millis() - start < total);
   return arg1;
 }")
 
@@ -3784,19 +3976,19 @@ object *fn_shiftin (object *args, object *env) {
 /*
   (note [pin] [note] [octave])
   Generates a square wave on pin.
-  The argument note represents the note in the well-tempered scale, from 0 to 11,  
-  where 0 represents C, 1 represents C#, and so on.
-  The argument octave can be from 3 to 6. If omitted it defaults to 0.
+  note represents the note in the well-tempered scale.
+  The argument octave can specify an octave; default 0.
 */
 object *fn_note (object *args, object *env) {
   (void) env;
   static int pin = 255;
   if (args != NULL) {
     pin = checkinteger(first(args));
-    int note = 0;
-    if (cddr(args) != NULL) note = checkinteger(second(args));
-    int octave = 0;
-    if (cddr(args) != NULL) octave = checkinteger(third(args));
+    int note = 48, octave = 0;
+    if (cdr(args) != NULL) {
+      note = checkinteger(second(args));
+      if (cddr(args) != NULL) octave = checkinteger(third(args));
+    }
     playnote(pin, note, octave);
   } else nonote(pin);
   return nil;
@@ -4346,7 +4538,7 @@ object *sp_error (object *args, object *env) {
 ("Wi-Fi"
       (
        #+arm
-    (WITHCLIENT "with-client" 1 2 #"
+    (WITHCLIENT "with-client" 1 3 #"
 /*
   (with-client (str [address port]) form*)
   Evaluates the forms with str bound to a wifi-stream.
@@ -4386,7 +4578,7 @@ object *sp_withclient (object *args, object *env) {
 }"#)
 
 #+esp
-    (WITHCLIENT "with-client" 1 2 #"
+    (WITHCLIENT "with-client" 1 3 #"
 /*
   (with-client (str [address port]) form*)
   Evaluates the forms with str bound to a wifi-stream.
@@ -4507,7 +4699,7 @@ object *fn_wifisoftap (object *args, object *env) {
     }
     WiFi.softAP(cstring(first, ssid, 33), cstring(second, pass, 65), channel, hidden);
   }
-  return lispstring((char*)WiFi.softAPIP().toString().c_str());
+  return iptostring(WiFi.softAPIP());
 }"#)
 
      #+arm
@@ -4533,7 +4725,7 @@ object *fn_wifisoftap (object *args, object *env) {
     }
     WiFi.beginAP(cstring(first, ssid, 33), cstring(second, pass, 65), channel);
   }
-  return lispstring((char*)"192.168.4.1");
+  return iptostring(WiFi.localIP());
   #else
   (void) args, (void) env;
   error2(PSTR("not supported"));
@@ -4579,7 +4771,7 @@ object *fn_connected (object *args, object *env) {
 */
 object *fn_wifilocalip (object *args, object *env) {
   (void) args, (void) env;
-  return lispstring((char*)WiFi.localIP().toString().c_str());
+  return iptostring(WiFi.localIP());
 }"#)
 
      #+arm
@@ -4591,7 +4783,7 @@ object *fn_wifilocalip (object *args, object *env) {
 object *fn_wifilocalip (object *args, object *env) {
   #if defined (ULISP_WIFI)
   (void) args, (void) env;
-  return lispstring((char*)WiFi.localIP().toString().c_str());
+  return iptostring(WiFi.localIP());
   #else
   (void) args, (void) env;
   error2(PSTR("not supported"));
@@ -4607,8 +4799,7 @@ object *fn_wifilocalip (object *args, object *env) {
 */
 object *fn_wifilocalip (object *args, object *env) {
   (void) args, (void) env;
-  Serial.println(WiFi.localIP());
-  // return lispstring((char*)WiFi.localIP().toString().c_str());
+  return iptostring(WiFi.localIP());
 }"#)
 
      #+esp
@@ -4624,7 +4815,7 @@ object *fn_wificonnect (object *args, object *env) {
   if (cdr(args) == NULL) WiFi.begin(cstring(first(args), ssid, 33));
   else WiFi.begin(cstring(first(args), ssid, 33), cstring(second(args), pass, 65));
   int result = WiFi.waitForConnectResult();
-  if (result == WL_CONNECTED) return lispstring((char*)WiFi.localIP().toString().c_str());
+  if (result == WL_CONNECTED) return iptostring(WiFi.localIP());
   else if (result == WL_NO_SSID_AVAIL) error2(PSTR("network not found"));
   else if (result == WL_CONNECT_FAILED) error2(PSTR("connection failed"));
   else error2(PSTR("unable to connect"));
@@ -4641,14 +4832,14 @@ object *fn_wificonnect (object *args, object *env) {
   #if defined (ULISP_WIFI)
   (void) env;
   char ssid[33], pass[65];
+  int result = 0;
   if (args == NULL) { WiFi.disconnect(); return nil; }
   if (cdr(args) == NULL) WiFi.begin(cstring(first(args), ssid, 33));
   else {
     if (cddr(args) != NULL) WiFi.config(ipstring(third(args)));
-    WiFi.begin(cstring(first(args), ssid, 33), cstring(second(args), pass, 65));
+    result = WiFi.begin(cstring(first(args), ssid, 33), cstring(second(args), pass, 65));
   }
-  int result = WiFi.waitForConnectResult();
-  if (result == WL_CONNECTED) return lispstring((char*)WiFi.localIP().toString().c_str());
+  if (result == WL_CONNECTED) return iptostring(WiFi.localIP());
   else if (result == WL_NO_SSID_AVAIL) error2(PSTR("network not found"));
   else if (result == WL_CONNECT_FAILED) error2(PSTR("connection failed"));
   else error2(PSTR("unable to connect"));

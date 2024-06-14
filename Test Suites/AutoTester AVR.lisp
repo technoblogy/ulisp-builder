@@ -112,6 +112,9 @@
 (aeq 'let 99 (let ((abcdefghi 99)) abcdefghi))
 (aeq 'let 1010 (let ((abcdefghij 1010)) abcdefghij))
 (aeq 'let "ab9" (princ-to-string 'ab9))
+(aeq 'let t (eq 'me 'me))
+(aeq 'let t (eq 'fishcake 'fishcake))
+(aeq 'let nil (eq 'fishcak 'fishca))
 
 #| Arithmetic |#
 
@@ -194,8 +197,8 @@
 (aeq 'bin -1 #b1111111111111111)
 (aeq 'bin 10 #b1010)
 (aeq 'bin 0 #b0)
-(aeq 'bin 12 #'12)
-(aeq 'bin 6 (funcall #'(lambda (x) (+ x 2)) 4))
+(aeq 'hash 12 #'12)
+(aeq 'hash 6 (funcall #'(lambda (x) (+ x 2)) 4))
 
 #| Boolean |#
 
@@ -312,6 +315,15 @@
 (aeq 'assoc '(b . 12) (assoc 'b '((a . 10) (b . 12))))
 (aeq 'assoc '(nil . 12) (assoc nil '((a . 10) (nil . 12))))
 (aeq 'assoc '(b) (assoc 'b '((a . 10) (b))))
+(aeq 'assoc '("three" . 3) (assoc "three" '(("one" . 1) ("two" . 2) ("three" . 3)) :test string=))
+(aeq 'member '(3 4) (member 3 '(1 2 3 4)))
+(aeq 'member nil (member 5 '(1 2 3 4)))
+(aeq 'member '(3 4) (member 3 '(1 2 3 4) :test eq))
+(aeq 'member '("three" "four") (member "three" '("one" "two" "three" "four") :test string=))
+(aeq 'member '("two" "three" "four") (member "three" '("one" "two" "three" "four") :test string<))
+
+#| map operations |#
+
 (aeq 'mapc 2 (cadr (mapc + '(1 2 3 4))))
 (aeq 'mapc 10 (let ((x 0)) (mapc (lambda (y) (incf x y)) '(1 2 3 4)) x))
 (aeq 'mapcar '(1 4 9 16) (mapcar (lambda (x) (* x x)) '(1 2 3 4)))
@@ -322,6 +334,10 @@
 (aeq 'mapcan '(1 5 9 2 6 10 3 7 11) (mapcan list '(1 2 3 4) '(5 6 7 8) '(9 10 11)))
 (aeq 'mapcan '(1 2 3 . 4) (mapcan (lambda (x) x) '((1) (2) (3 . 4))))
 (aeq 'mapcan '(2 3 . 4) (mapcan (lambda (x) x) '(nil (2) (3 . 4))))
+(aeq 'maplist '(((1 2 3) 6 7 8) ((2 3) 7 8) ((3) 8)) (maplist #'cons '(1 2 3) '(6 7 8)))
+(aeq 'maplist '(1 2 3) (mapl #'cons '(1 2 3) '(6 7 8)))
+(aeq 'mapcan '(3 7 11) (mapcon (lambda (x) (when (eq (first x) (second x)) (list (car x)))) '(1 2 3 3 5 7 7 8 9 11 11)))
+
 
 #| let/let*/lambda |#
 
@@ -347,6 +363,14 @@
 (aeq 'dolist nil (let ((x 0)) (dolist (y '(1 2 3) y) (setq x (+ x y)))))
 (aeq 'loop 6 (let ((x 0)) (loop (when (= x 6) (return x)) (incf x))))
 (aeq 'loop 6 (let ((x 0)) (loop (unless (< x 6) (return x)) (incf x))))
+(aeq 'return 'a (let ((a 7)) (loop (progn (return 'a)))))
+(aeq 'return nil (loop (return)))
+(aeq 'return 'a (let ((a 7)) (loop (progn (return 'a) nil))))
+(aeq 'do 2 (do* ((x 1 (1+ x)) (y 0 (1+ x))) ((= 3 y) x)))
+(aeq 'do 3 (do ((x 1 (1+ x)) (y 0 (1+ x))) ((= 3 y) x)))
+(aeq 'do 720 (do* ((n 6) (f 1 (* j f)) (j n (- j 1))) ((= j 0) f)))
+(aeq 'do 720 (let ((n 6)) (do ((f 1 (* j f)) (j n (- j 1))  ) ((= j 0) f))))
+(aeq 'do 10 (do (a (b 1 (1+ b))) ((> b 10) a) (setq a b)))
 
 #| conditions |#
 
@@ -382,6 +406,8 @@
 
 #| in-place operations |#
 
+(aeq 'incf 5 (let ((x 0)) (+ (incf x) (incf x 2) (incf x -2))))
+(aeq 'decf -5 (let ((x 0)) (+ (decf x) (decf x 2) (decf x -2))))
 (aeq 'incf 6 (let ((x 0)) (+ (incf x) (incf x) (incf x))))
 (aeq 'incf 12 (let ((x 0)) (+ (incf x 2) (incf x 2) (incf x 2))))
 (aeq 'incf 36 (let ((n 10)) (let* ((f1 (lambda () (incf n) n))) (+ (funcall f1) (funcall f1) (funcall f1)))))
@@ -400,6 +426,11 @@
 
 (aeq 'stream "<string-stream 0>" (with-output-to-string (s) (princ s s)))
 (aeq 'stream "12 23 34" (with-output-to-string (st) (format st "~a ~a ~a" 12 23 34)))
+
+#| features |#
+
+(aeq 'features nil (member :floating-point *features*))
+(aeq 'features ":arrays" (princ-to-string (first (member :arrays *features*))))
 
 #| printing |#
 
@@ -451,11 +482,25 @@
 (aeq 'concatenate "ABCDE" (concatenate 'string "AB" "CDE"))
 (aeq 'concatenate "ABCDE" (concatenate 'string "ABC" "DE"))
 (aeq 'concatenate "ABCDEF" (concatenate 'string "ABC" "DEF"))
+(aeq 'string= nil (string= "cat" "cat "))
+(aeq 'string= t (string= "cat" "cat"))
+(aeq 'string/= 3 (string/= "cat" "catx"))
+(aeq 'string/= nil (string/= "cat" "cat"))
+(aeq 'string/= nil (string/= "catt" "catt"))
 (aeq 'string< nil (string< "cat" "cat"))
-(aeq 'string< t (string< "cat" "cat "))
-(aeq 'string< t (string< "fish" "fish "))
+(aeq 'string<= 3 (string<= "cat" "cat"))
+(aeq 'string< 3 (string< "cat" "cat "))
+(aeq 'string< 4 (string< "fish" "fish "))
 (aeq 'string> nil (string> "cat" "cat"))
-(aeq 'string> t (string> "cat " "cat"))
+(aeq 'string>= 3 (string>= "cat" "cat"))
+(aeq 'string>= 5 (string>= "cattx" "cattx"))
+(aeq 'string> 0 (string> "c" "a"))
+(aeq 'string> 1 (string> "fc" "fa"))
+(aeq 'string> 2 (string> "ffc" "ffa"))
+(aeq 'string> 3 (string> "fffc" "fffa"))
+(aeq 'string> 4 (string> "ffffc" "ffffa"))
+(aeq 'string> 5 (string> "fffffc" "fffffa"))
+(aeq 'string> nil (string< "fffffc" "fffffa"))
 (aeq 'string "albatross" (string "albatross"))
 (aeq 'string "x" (string #\x))
 (aeq 'string "cat" (string 'cat))
@@ -508,29 +553,7 @@
 (aeq 'closure 4 (let ((x 0)) (funcall (lambda (y) (incf x y)) 4) x))
 (aeq 'closure 0 (let ((x 0)) (funcall (let ((x 7)) (lambda (y) (setq x (+ x y) ))) 4) x))
 (aeq 'closure '(8 10 13 17) (let ((x 0) (clo (lambda () (let ((x 7)) (lambda (y) (incf x y)))))) (mapcar (funcall clo) '(1 2 3 4))))
-(aeq 'closure 3 (let ((y 0) (tst (lambda (x) (+ x 1)))) (dotimes (x 3 y) (progn (tst (+ x 2))) (incf y x))))
-
-#| equal |#
-
-(aeq 'equal t (equal '(1 2 3) '(1 2 3)))
-(aeq 'equal t (equal '(1 2 (4) 3) '(1 2 (4) 3)))
-(aeq 'equal nil (equal '(1 2 (4) 3) '(1 2 (4 nil) 3)))
-(aeq 'equal t (equal "cat" "cat"))
-(aeq 'equal nil (equal "cat" "Cat"))
-(aeq 'equal t (equal 'cat 'Cat))
-(aeq 'equal t (equal 2 (+ 1 1)))
-
-#| keywords |#
-
-(aeq 'keywordp t (keywordp :led-builtin))
-(aeq 'keywordp nil (keywordp print))
-(aeq 'keywordp nil (keywordp nil))
-(aeq 'keywordp nil (keywordp 12))
-
-#| errors |#
-
-(aeq 'error 7 (let ((x 7)) (ignore-errors (setq x (/ 1 0))) x))
-(aeq 'error 5 (unwind-protect (+ 2 3) 13))
+(aeq 'closure 3 (let ((y 0) (test (lambda (x) (+ x 1)))) (dotimes (x 3 y) (progn (test (+ x 2))) (incf y x))))
 
 #| arrays |#
 
@@ -557,7 +580,47 @@
 (aeq 'array 1 (let ((a (make-array 40 :element-type 'bit :initial-element 0))) (incf (aref a 39)) (aref a 39)))
 (aeq 'array 0 (let ((a (make-array 40 :element-type 'bit :initial-element 0))) (incf (aref a 39)) (decf (aref a 39)) (aref a 39)))
 
-#| parameter checks |#
+#| repl |#
+
+(aeq 'repl 23 (read-from-string "23(2)"))
+(aeq 'repl nil (read-from-string "()23"))
+(aeq 'repl 23 (read-from-string "23\"Hi\""))
+(aeq 'repl "Hi" (read-from-string "\"Hi\"23"))
+(aeq 'repl #\1 (read-from-string " #\\1\"Hi\""))
+(aeq 'repl "Hi" (read-from-string (format nil "\"Hi\"~a~a"  #\# "*0101")))
+
+#| equal |#
+
+(aeq 'equal t (equal '(1 2 3) '(1 2 3)))
+(aeq 'equal t (equal '(1 2 (4) 3) '(1 2 (4) 3)))
+(aeq 'equal nil (equal '(1 2 (4) 3) '(1 2 (4 nil) 3)))
+(aeq 'equal t (equal "cat" "cat"))
+(aeq 'equal nil (equal "cat" "Cat"))
+(aeq 'equal t (equal 'cat 'Cat))
+(aeq 'equal t (equal 2 (+ 1 1)))
+(aeq 'equal t (equal '("cat" "dog") '("cat" "dog")))
+(aeq 'equal nil (equal '("cat" "dog") '("cat" "dig")))
+
+#| keywords |#
+
+(aeq 'keywordp t (keywordp :led-builtin))
+(aeq 'keywordp nil (keywordp print))
+(aeq 'keywordp nil (keywordp nil))
+(aeq 'keywordp nil (keywordp 12))
+(aeq 'keywordp t (keywordp :fred))
+(aeq 'keywordp t (keywordp :initial-element))
+(aeq 'keywordp t (keywordp :element-type))
+
+#| errors |#
+
+(aeq 'error 7 (let ((x 7)) (ignore-errors (setq x (/ 1 0))) x))
+(aeq 'error 5 (unwind-protect (+ 2 3) 13))
+
+#| Place |#
+
+(aeq 'setf "hellx" (let ((s "hello")) (setf (char s 4) #\x) s))
+
+#| error checks |#
 
 (aeq 'dolist nothing (ignore-errors (dolist 12 (print x))))
 (aeq 'dolist nothing (ignore-errors (dolist () (print x))))
@@ -567,8 +630,11 @@
 (aeq 'dotimes nothing (ignore-errors (dotimes () (print x))))
 (aeq 'dotimes nothing (ignore-errors (dotimes (x) (print x))))
 (aeq 'dotimes nothing (ignore-errors (dotimes (x 1 x x) (print x))))
-(aeq 'for-millis nothing (for-millis 12 (print 12)))
-(aeq 'for-millis nothing (for-millis (12 12) (print 12)))
+(aeq 'for-millis nothing (ignore-errors (for-millis 12 (print 12))))
+(aeq 'for-millis nothing (ignore-errors (for-millis (12 12) (print 12))))
+(aeq 'push nothing (ignore-errors (let ((a #*00000000)) (push 1 (aref a 1)) a)))
+(aeq 'setf nothing (ignore-errors (let ((s "hello")) (setf (char s 5) #\x) s)))
+(aeq 'setf nothing (ignore-errors (let ((s "hello")) (setf (char s 20) #\x) s)))
 
 #| errors |#
 
@@ -580,7 +646,7 @@
   (let ((name (cond
                ((numberp usb) (format nil "/dev/cu.usbmodem~a" usb))
                ((eq usb :badge2) "/dev/cu.usbserial-A104OVGT")
-               ((eq usb :badge) "/dev/cu.usbserial-A602TRZF") ; "/dev/cu.usbserial-A602TRZF"
+               ((eq usb :badge) "/dev/cu.usbserial-A10L2FSQ") ; "/dev/cu.usbserial-A602TRZF"
                ((eq usb :avrfeather) "/dev/cu.SLAB_USBtoUART")
                (t usb)))
         (speed 0.5))
@@ -605,6 +671,7 @@
                 (vector-push-extend c string))))))
     ;;
     (with-open-stream (s (make-instance 'serial-stream :name name))
+      (sleep 5)
       (echo s)
       (echo s)
       (serial-write-exp "(defvar ers 0)" s)

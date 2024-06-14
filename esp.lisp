@@ -34,12 +34,7 @@ const char LispLibrary[] PROGMEM = "";
 #include <SPI.h>
 #include <Wire.h>
 #include <limits.h>
-#include <EEPROM.h>
-#if defined (ESP8266)
-  #include <ESP8266WiFi.h>
-#elif defined (ESP32)
-  #include <WiFi.h>
-#endif
+#include <WiFi.h>
 
 #if defined(gfxsupport)
 #define COLOR_WHITE ST77XX_WHITE
@@ -67,32 +62,30 @@ Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, MOSI, SCK, TFT_RST);
 #define WORDALIGNED __attribute__((aligned (4)))
 #define BUFFERSIZE 36  // Number of bits+4
 
-#if defined(ESP8266)
-  #define WORKSPACESIZE (3928-SDSIZE)     /* Cells (8*bytes) */
-  #define EEPROMSIZE 4096                 /* Bytes available for EEPROM */
-  #define SDCARD_SS_PIN 10
-  #define LED_BUILTIN 13
-
-#elif defined(ARDUINO_FEATHER_ESP32)
+#if defined(ARDUINO_FEATHER_ESP32)
   #define WORKSPACESIZE (9216-SDSIZE)     /* Cells (8*bytes) */
   #define LITTLEFS
-  #include "FS.h"
   #include <LittleFS.h>
   #define analogWrite(x,y) dacWrite((x),(y))
   #define SDCARD_SS_PIN 13
 
 #elif defined(ARDUINO_ADAFRUIT_FEATHER_ESP32S2) || defined(ARDUINO_ADAFRUIT_FEATHER_ESP32S2_TFT)
-  #define WORKSPACESIZE (9216-SDSIZE)            /* Cells (8*bytes) */
+  #define WORKSPACESIZE (8160-SDSIZE)            /* Cells (8*bytes) */
   #define LITTLEFS
-  #include "FS.h"
   #include <LittleFS.h>
   #define analogWrite(x,y) dacWrite((x),(y))
   #define SDCARD_SS_PIN 13
 
-#elif defined(ARDUINO_ADAFRUIT_QTPY_ESP32S2)
+#elif defined(ARDUINO_ADAFRUIT_QTPY_ESP32_PICO)
   #define WORKSPACESIZE (9216-SDSIZE)            /* Cells (8*bytes) */
   #define LITTLEFS
-  #include "FS.h"
+  #include <LittleFS.h>
+  #define SDCARD_SS_PIN 13
+  #define LED_BUILTIN 13
+  
+#elif defined(ARDUINO_ADAFRUIT_QTPY_ESP32S2)
+  #define WORKSPACESIZE (8160-SDSIZE)            /* Cells (8*bytes) */
+  #define LITTLEFS
   #include <LittleFS.h>
   #define analogWrite(x,y) dacWrite((x),(y))
   #define SDCARD_SS_PIN 13
@@ -101,15 +94,13 @@ Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, MOSI, SCK, TFT_RST);
 #elif defined(ARDUINO_ADAFRUIT_QTPY_ESP32C3)
   #define WORKSPACESIZE (9216-SDSIZE)            /* Cells (8*bytes) */
   #define LITTLEFS
-  #include "FS.h"
   #include <LittleFS.h>
   #define SDCARD_SS_PIN 13
   #define LED_BUILTIN 13
 
 #elif defined(ARDUINO_FEATHERS2)                 /* UM FeatherS2 */
-  #define WORKSPACESIZE (9216-SDSIZE)            /* Cells (8*bytes) */
+  #define WORKSPACESIZE (8160-SDSIZE)            /* Cells (8*bytes) */
   #define LITTLEFS
-  #include "FS.h"
   #include <LittleFS.h>
   #define analogWrite(x,y) dacWrite((x),(y))
   #define SDCARD_SS_PIN 13
@@ -118,15 +109,14 @@ Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, MOSI, SCK, TFT_RST);
 #elif defined(ARDUINO_ESP32_DEV)                 /* For TTGO T-Display */
   #define WORKSPACESIZE (9216-SDSIZE)            /* Cells (8*bytes) */
   #define LITTLEFS
-  #include "FS.h"
   #include <LittleFS.h>
   #define analogWrite(x,y) dacWrite((x),(y))
   #define SDCARD_SS_PIN 13
+  #define LED_BUILTIN 13
 
 #elif defined(ARDUINO_ESP32S2_DEV)
-  #define WORKSPACESIZE (9216-SDSIZE)            /* Cells (8*bytes) */
+  #define WORKSPACESIZE (8100-SDSIZE)            /* Cells (8*bytes) */
   #define LITTLEFS
-  #include "FS.h"
   #include <LittleFS.h>
   #define analogWrite(x,y) dacWrite((x),(y))
   #define SDCARD_SS_PIN 13
@@ -135,7 +125,6 @@ Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, MOSI, SCK, TFT_RST);
 #elif defined(ARDUINO_ESP32C3_DEV)
   #define WORKSPACESIZE (9216-SDSIZE)            /* Cells (8*bytes) */
   #define LITTLEFS
-  #include "FS.h"
   #include <LittleFS.h>
   #define SDCARD_SS_PIN 13
   #define LED_BUILTIN 13
@@ -143,7 +132,6 @@ Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, MOSI, SCK, TFT_RST);
 #elif defined(ARDUINO_ESP32S3_DEV)
   #define WORKSPACESIZE (22000-SDSIZE)            /* Cells (8*bytes) */
   #define LITTLEFS
-  #include "FS.h"
   #include <LittleFS.h>
   #define SDCARD_SS_PIN 13
   #define LED_BUILTIN 13
@@ -151,7 +139,6 @@ Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, MOSI, SCK, TFT_RST);
 #elif defined(ESP32)
   #define WORKSPACESIZE (9216-SDSIZE)     /* Cells (8*bytes) */
   #define LITTLEFS
-  #include "FS.h"
   #include <LittleFS.h>
   #define analogWrite(x,y) dacWrite((x),(y))
   #define SDCARD_SS_PIN 13
@@ -165,9 +152,7 @@ Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, MOSI, SCK, TFT_RST);
 // Check pins
 
 void checkanalogread (int pin) {
-#if defined(ESP8266)
-  if (pin!=17) error(PSTR("invalid pin"), number(pin));
-#elif defined(ESP32) || defined(ARDUINO_ESP32_DEV)
+#if defined(ESP32) || defined(ARDUINO_ESP32_DEV)
   if (!(pin==0 || pin==2 || pin==4 || (pin>=12 && pin<=15) || (pin>=25 && pin<=27) || (pin>=32 && pin<=36) || pin==39))
     error(PSTR("invalid pin"), number(pin));
 #elif defined(ARDUINO_FEATHER_ESP32)
@@ -175,6 +160,8 @@ void checkanalogread (int pin) {
     error(PSTR("invalid pin"), number(pin));
 #elif defined(ARDUINO_ADAFRUIT_FEATHER_ESP32S2) || defined(ARDUINO_ADAFRUIT_FEATHER_ESP32S2_TFT)
   if (!(pin==8 || (pin>=14 && pin<=18))) error(PSTR("invalid pin"), number(pin));
+#elif defined(ARDUINO_ADAFRUIT_QTPY_ESP32_PICO)
+  if (!(pin==4 || pin==7 || (pin>=12 && pin<=15) || (pin>=25 && pin<=27) || (pin>=32 && pin<=33))) error(PSTR("invalid pin"), number(pin));
 #elif defined(ARDUINO_ADAFRUIT_QTPY_ESP32S2)
   if (!((pin>=5 && pin<=9) || (pin>=16 && pin<=18))) error(PSTR("invalid pin"), number(pin));
 #elif defined(ARDUINO_ADAFRUIT_QTPY_ESP32C3)
@@ -189,9 +176,7 @@ void checkanalogread (int pin) {
 }
 
 void checkanalogwrite (int pin) {
-#if defined(ESP8266)
-  if (!(pin>=0 && pin<=16)) error(PSTR("invalid pin"), number(pin));
-#elif defined(ESP32) || defined(ARDUINO_FEATHER_ESP32) || defined(ARDUINO_ESP32_DEV)
+#if defined(ESP32) || defined(ARDUINO_FEATHER_ESP32) || defined(ARDUINO_ESP32_DEV) || defined(ARDUINO_ADAFRUIT_QTPY_ESP32_PICO)
   if (!(pin>=25 && pin<=26)) error(PSTR("invalid pin"), number(pin));
 #elif defined(ARDUINO_ADAFRUIT_FEATHER_ESP32S2) || defined(ARDUINO_ADAFRUIT_FEATHER_ESP32S2_TFT) || defined(ARDUINO_ADAFRUIT_QTPY_ESP32S2) || defined(ARDUINO_FEATHERS2) || defined(ARDUINO_ESP32S2_DEV)
   if (!(pin>=17 && pin<=18)) error(PSTR("invalid pin"), number(pin));
@@ -215,9 +200,10 @@ void noTone (int pin) {
 const int scale[] PROGMEM = {4186,4435,4699,4978,5274,5588,5920,6272,6645,7040,7459,7902};
 
 void playnote (int pin, int note, int octave) {
-  int prescaler = 8 - octave - note/12;
-  if (prescaler<0 || prescaler>8) error(PSTR("octave out of range"), number(prescaler));
-  tone(pin, pgm_read_word(&scale[note%12])>>prescaler);
+  int oct = octave + note/12;
+  int prescaler = 8 - oct;
+  if (prescaler<0 || prescaler>8) error(PSTR("octave out of range"), number(oct));
+  tone(pin, scale[note%12]>>prescaler);
 }
 
 void nonote (int pin) {
@@ -236,8 +222,5 @@ void doze (int secs) {
 (defparameter *keywords-esp*
   '((nil
      ((NIL LED_BUILTIN)
-      (DIGITALWRITE HIGH LOW)))
-    ("ESP8266"
-     ((PINMODE INPUT INPUT_PULLUP OUTPUT)))
-    ("ESP32"
-     ((PINMODE INPUT INPUT_PULLUP INPUT_PULLDOWN OUTPUT)))))
+      (DIGITALWRITE HIGH LOW)
+      (PINMODE INPUT INPUT_PULLUP INPUT_PULLDOWN OUTPUT)))))

@@ -107,8 +107,9 @@ const int scale[] PROGMEM = {4186,4435,4699,4978,5274,5588,5920,6272,6645,7040,7
 
 void playnote (int pin, int note, int octave) {
 #if defined(BOARD_SIPEED_MAIX_DUINO)
-  int prescaler = 8 - octave - note/12;
-  if (prescaler<0 || prescaler>8) error(PSTR("octave out of range"), number(prescaler));
+  int oct = octave + note/12;
+  int prescaler = 8 - oct;
+  if (prescaler<0 || prescaler>8) error(PSTR("octave out of range"), number(oct));
   tone(pin, scale[note%12]>>prescaler);
 #endif
 }

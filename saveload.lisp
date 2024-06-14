@@ -173,7 +173,7 @@ int FlashReadInt (uint32_t *addr) {
   (*addr)++; (*addr)++;
   return data;
 }
-#elif defined (CPU_AVR128DX48)
+#elif defined (CPU_AVR128DX48) || defined (CPU_AVR64DD28)
 // save-image area is the 16K bytes (32 512-byte pages) from 0x1c000 to 0x20000
 const uint32_t BaseAddress = 0x1c000;
 uint8_t FlashCheck() {
@@ -245,7 +245,11 @@ unsigned int saveimage (object *arg) {
   if (!(arg == NULL || listp(arg))) error(invalidarg, arg);
   if (FlashCheck()) error2(PSTR("flash write not supported"));
   // Save to Flash
+  #if defined(CODESIZE)
   int bytesneeded = 10 + CODESIZE + imagesize*4;
+  #else
+  int bytesneeded = 10 + imagesize*4;
+  #endif
   if (bytesneeded > FLASHWRITESIZE) error(PSTR("image too large"), number(imagesize));
   uint32_t addr = 0;
   FlashWriteInt(&addr, (uintptr_t)arg);
@@ -476,7 +480,7 @@ bool FlashCheck () {
   for (uint8_t i=0; i<4; i++) FlashReadByte();
   devID = FlashReadByte();
   digitalWrite(ssel, HIGH);
-  return (devID == 0x14 || devID == 0x15 || devID == 0x16); // true = found correct device
+  return (devID >= 0x14 && devID <= 0x17); // true = found correct device
 }
 
 void FlashBeginWrite (uint32_t *addr, uint32_t bytes) {
@@ -524,7 +528,7 @@ inline void FlashEndRead(uint32_t *addr) {
   digitalWrite(ssel, 1);
 }
 
-#elif defined(EEPROMFLASH)
+#elif defined(CPUFLASH)
 // For ATSAMD21
 __attribute__((__aligned__(256))) static const uint8_t flash_store[FLASHSIZE] = { };
 
@@ -574,6 +578,40 @@ void FlashBeginRead(uint32_t *addr) {
 
 uint32_t FlashRead32 (uint32_t *addr) {
   uint32_t data = *(volatile const uint32_t *)(*addr);
+  (*addr) = (*addr) + 4;
+  return data;
+}
+
+void FlashEndRead (uint32_t *addr) {
+  (void) addr;
+}
+#elif defined(EEPROMFLASH)
+
+bool FlashCheck() {
+  return (EEPROM.length() == FLASHSIZE);
+}
+
+void FlashBeginWrite(uint32_t *addr, uint32_t bytes) {
+  (void) bytes;
+  *addr = 0;
+}
+
+void FlashWrite32 (uint32_t *addr, uint32_t data) {
+  EEPROM.put(*addr, data);
+  (*addr) = (*addr) + 4;
+}
+
+void FlashEndWrite (uint32_t *addr) {
+  (void) addr;
+}
+
+void FlashBeginRead(uint32_t *addr) {
+  *addr = 0;
+}
+
+uint32_t FlashRead32 (uint32_t *addr) {
+  uint32_t data;
+  EEPROM.get(*addr, data);
   (*addr) = (*addr) + 4;
   return data;
 }
@@ -634,7 +672,7 @@ int saveimage (object *arg) {
   }
   file.close();
   return imagesize;
-#elif defined(DATAFLASH) || defined(EEPROMFLASH)
+#elif defined(DATAFLASH) || defined(CPUFLASH) || defined(EEPROMFLASH)
   unsigned int imagesize = compactimage(&arg);
   if (!(arg == NULL || listp(arg))) error(invalidarg, arg);
   if (!FlashCheck()) error2(PSTR("flash not available"));
@@ -717,7 +755,7 @@ int loadimage (object *arg) {
   file.close();
   gc(NULL, NULL);
   return imagesize;
-#elif defined(DATAFLASH) || defined(EEPROMFLASH) || defined(EEPROMLIBRARY)
+#elif defined(DATAFLASH) || defined(CPUFLASH) || defined(EEPROMFLASH)
   (void) arg;
   if (!FlashCheck()) error2(PSTR("flash not available"));
   uint32_t addr;
@@ -768,7 +806,7 @@ void autorunimage () {
     loadimage(NULL);
     apply(autorun, NULL, NULL);
   }
-#elif defined(DATAFLASH) || defined(EEPROMFLASH) || defined(EEPROMLIBRARY)
+#elif defined(DATAFLASH) || defined(CPUFLASH) || defined(EEPROMFLASH)
   if (!FlashCheck()) error2(PSTR("flash not available"));
   uint32_t addr;
   FlashBeginRead(&addr);

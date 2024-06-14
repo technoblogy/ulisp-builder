@@ -53,7 +53,7 @@ const char LispLibrary[] PROGMEM = "";
 
 #if defined(ARDUINO_GEMMA_M0) || defined(ARDUINO_SEEED_XIAO_M0) || defined(ARDUINO_QTPY_M0)
   #define WORKSPACESIZE (2816-SDSIZE)     /* Objects (8*bytes) */
-  #define EEPROMFLASH
+  #define CPUFLASH
   #define FLASHSIZE 32768                 /* Bytes */
   #define CODESIZE 128                    /* Bytes */
   #define STACKDIFF 320
@@ -70,7 +70,7 @@ const char LispLibrary[] PROGMEM = "";
 
 #elif defined(ADAFRUIT_FEATHER_M0)        /* Feather M0 without DataFlash */
   #define WORKSPACESIZE (2816-SDSIZE)     /* Objects (8*bytes) */
-  #define EEPROMFLASH
+  #define CPUFLASH
   #define FLASHSIZE 32768                 /* Bytes */
   #define CODESIZE 128                    /* Bytes */
   #define SDCARD_SS_PIN 4
@@ -125,7 +125,7 @@ const char LispLibrary[] PROGMEM = "";
 
 #elif defined(ARDUINO_SAMD_MKRZERO)
   #define WORKSPACESIZE (2640-SDSIZE)     /* Objects (8*bytes) */
-  #define EEPROMFLASH
+  #define CPUFLASH
   #define FLASHSIZE 32768                 /* Bytes */
   #define SYMBOLTABLESIZE 512             /* Bytes */
   #define CODESIZE 128                    /* Bytes */
@@ -134,7 +134,7 @@ const char LispLibrary[] PROGMEM = "";
 
 #elif defined(ARDUINO_SAMD_ZERO)          /* Put this last, otherwise overrides the Adafruit boards */
   #define WORKSPACESIZE (2640-SDSIZE)     /* Objects (8*bytes) */
-  #define EEPROMFLASH
+  #define CPUFLASH
   #define FLASHSIZE 32768                 /* Bytes */
   #define CODESIZE 128                    /* Bytes */
   #define SDCARD_SS_PIN 10
@@ -213,6 +213,14 @@ const char LispLibrary[] PROGMEM = "";
   #define CODESIZE 256                    /* Bytes */
   #define STACKDIFF 320
   #define CPU_RP2040
+  #if defined(gfxsupport)
+  const int COLOR_WHITE = 0xffff, COLOR_BLACK = 0;
+  #include <Adafruit_GFX.h>    // Core graphics library
+  #include <Adafruit_ST7789.h> // Hardware-specific library for ST7789
+  Adafruit_ST7789 tft = Adafruit_ST7789(5, 1, 3, 2, 0); // TTGO RP2040 TFT
+  #define TFT_BACKLIGHT 4
+  #define TFT_I2C_POWER 22
+  #endif
 
 #elif defined(ARDUINO_RASPBERRY_PI_PICO_W)
   #define WORKSPACESIZE (15536-SDSIZE)    /* Objects (8*bytes) */
@@ -224,6 +232,29 @@ const char LispLibrary[] PROGMEM = "";
   #define CODESIZE 256                    /* Bytes */
   #define STACKDIFF 320
   #define CPU_RP2040
+
+#elif defined(ARDUINO_MINIMA)
+  #define WORKSPACESIZE (2032-SDSIZE)    /* Objects (8*bytes) */
+  #include <EEPROM.h>
+  #define EEPROMFLASH
+  #define FLASHSIZE 8192                 /* Bytes */
+  #define CODESIZE 128                   /* Bytes */
+  #define STACKDIFF 320
+  #define eAnalogReference ar_aref
+  #define CPU_RA4M1
+  #define SDCARD_SS_PIN 10
+
+#elif defined(ARDUINO_UNOWIFIR4)
+  #define WORKSPACESIZE (1610-SDSIZE)    /* Objects (8*bytes) */
+  #include <EEPROM.h>
+  #include "WiFiS3.h"
+  #define EEPROMFLASH
+  #define FLASHSIZE 8192                 /* Bytes */
+  #define CODESIZE 128                   /* Bytes */
+  #define STACKDIFF 320
+  #define eAnalogReference ar_aref
+  #define CPU_RA4M1
+  #define SDCARD_SS_PIN 10
 
 #else
 #error "Board not supported!"
@@ -260,7 +291,7 @@ void checkanalogread (int pin) {
 #elif defined(ARDUINO_WIO_TERMINAL)
   if (!((pin>=0 && pin<=8))) error(invalidpin, number(pin));
 #elif defined(ARDUINO_GRAND_CENTRAL_M4)
-  if (!((pin>=67 && pin<=74) || (pin>=54 && pin<=61)))  error(invalidpin, number(pin));
+  if (!((pin>=67 && pin<=74) || (pin>=54 && pin<=61))) error(invalidpin, number(pin));
 #elif defined(ARDUINO_BBC_MICROBIT) || defined(ARDUINO_SINOBIT)
   if (!((pin>=0 && pin<=4) || pin==10)) error(invalidpin, number(pin));
 #elif defined(ARDUINO_BBC_MICROBIT_V2)
@@ -283,6 +314,8 @@ void checkanalogread (int pin) {
   if (!((pin>=14 && pin<=27) || (pin>=38 && pin<=41))) error(invalidpin, number(pin));
 #elif defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_RASPBERRY_PI_PICO_W) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || defined(ARDUINO_ADAFRUIT_QTPY_RP2040) || defined(ARDUINO_SEEED_XIAO_RP2040)
   if (!(pin>=26 && pin<=29)) error(invalidpin, number(pin));
+#elif defined(ARDUINO_MINIMA) || defined(ARDUINO_UNOWIFIR4)
+  if (!((pin>=14 && pin<=21))) error(invalidpin, number(pin));
 #endif
 }
 
@@ -337,6 +370,8 @@ void checkanalogwrite (int pin) {
   if (!(pin>=0 && pin<=29)) error(invalidpin, number(pin));
 #elif defined(ARDUINO_RASPBERRY_PI_PICO_W)
   if (!((pin>=0 && pin<=29) || pin == 32)) error(invalidpin, number(pin));
+#elif defined(ARDUINO_MINIMA) || defined(ARDUINO_UNOWIFIR4)
+  if (!((pin>=0 && pin<=21))) error(invalidpin, number(pin));
 #endif
 }"#)
 
@@ -347,8 +382,9 @@ const int scale[] PROGMEM = {4186,4435,4699,4978,5274,5588,5920,6272,6645,7040,7
 
 void playnote (int pin, int note, int octave) {
 #if defined(ARDUINO_NRF52840_CLUE) || defined(ARDUINO_NRF52840_CIRCUITPLAY) || defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_RASPBERRY_PI_PICO_W) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || defined(ARDUINO_ADAFRUIT_QTPY_RP2040) || defined(ARDUINO_WIO_TERMINAL) || defined(ARDUINO_SEEED_XIAO_RP2040)
-  int prescaler = 8 - octave - note/12;
-  if (prescaler<0 || prescaler>8) error(PSTR("octave out of range"), number(prescaler));
+  int oct = octave + note/12;
+  int prescaler = 8 - oct;
+  if (prescaler<0 || prescaler>8) error(PSTR("octave out of range"), number(oct));
   tone(pin, scale[note%12]>>prescaler);
 #else
   (void) pin, (void) note, (void) octave;
@@ -482,4 +518,7 @@ void doze (int secs) {
                 (GPIO_OUT_SET "(SIO_BASE+SIO_GPIO_OUT_SET_OFFSET)") (GPIO_OUT_CLR "(SIO_BASE+SIO_GPIO_OUT_CLR_OFFSET)")
                 (GPIO_OUT_XOR "(SIO_BASE+SIO_GPIO_OUT_XOR_OFFSET)") (GPIO_OE "(SIO_BASE+SIO_GPIO_OE_OFFSET)")
                 (GPIO_OE_SET "(SIO_BASE+SIO_GPIO_OE_SET_OFFSET)") (GPIO_OE_CLR "(SIO_BASE+SIO_GPIO_OE_CLR_OFFSET)")
-                (GPIO_OE_XOR "(SIO_BASE+SIO_GPIO_OE_XOR_OFFSET)"))))))
+                (GPIO_OE_XOR "(SIO_BASE+SIO_GPIO_OE_XOR_OFFSET)"))))
+    ("CPU_RA4M1"
+     ((PINMODE INPUT INPUT_PULLUP OUTPUT OUTPUT_OPENDRAIN)
+      (ANALOGREFERENCE AR_DEFAULT AR_INTERNAL AR_EXTERNAL)))))

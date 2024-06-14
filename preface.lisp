@@ -12,13 +12,17 @@
 #define car(x)             (((object *) (x))->car)
 #define cdr(x)             (((object *) (x))->cdr)
 
-#define first(x)           (((object *) (x))->car)
-#define second(x)          (car(cdr(x)))
-#define cddr(x)            (cdr(cdr(x)))
-#define third(x)           (car(cdr(cdr(x))))
+#define first(x)           car(x)
+#define rest(x)            cdr(x)
+#define second(x)          first(rest(x))
+#define cddr(x)            cdr(cdr(x))
+#define third(x)           first(cddr(x))
 
 #define push(x, y)         ((y) = cons((x),(y)))
 #define pop(y)             ((y) = cdr(y))
+
+#define protect(y)         push((y), GCStack)
+#define unprotect()        pop(GCStack)
 
 #define integerp(x)        ((x) != NULL && (x)->type == NUMBER)
 #define symbolp(x)         ((x) != NULL && (x)->type == SYMBOL)
@@ -31,16 +35,17 @@
 #define marked(x)          ((((uintptr_t)(car(x))) & MARKBIT) != 0)
 #define MARKBIT            1
 
-#define setflag(x)         (Flags = Flags | 1<<(x))
-#define clrflag(x)         (Flags = Flags & ~(1<<(x)))
+#define setflag(x)         (Flags |= 1<<(x))
+#define clrflag(x)         (Flags &= ~(1<<(x)))
 #define tstflag(x)         (Flags & 1<<(x))
 
 #define issp(x)            (x == ' ' || x == '\n' || x == '\r' || x == '\t')
 #define isbr(x)            (x == ')' || x == '(' || x == '"' || x == '#')
 #define longsymbolp(x)     (((x)->name & 0x03) == 0)
-#define twist(x)           ((uint16_t)((x)<<2) | (((x) & 0xC000)>>14))
-#define untwist(x)         (((x)>>2 & 0x3FFF) | ((x) & 0x03)<<14)
+#define longnamep(x)       (((x) & 0x03) == 0)
 #define arraysize(x)       (sizeof(x) / sizeof(x[0]))
+#define stringifyX(x)      #x
+#define stringify(x)       stringifyX(x)
 #define PACKEDS            17600
 #define BUILTINS           64000
 #define ENDFUNCTIONS       1536
@@ -68,6 +73,9 @@
 #define push(x, y)         ((y) = cons((x),(y)))
 #define pop(y)             ((y) = cdr(y))
 
+#define protect(y)         push((y), GCStack)
+#define unprotect()        pop(GCStack)
+
 #define integerp(x)        ((x) != NULL && (x)->type == NUMBER)
 #define symbolp(x)         ((x) != NULL && (x)->type == SYMBOL)
 #define stringp(x)         ((x) != NULL && (x)->type == STRING)
@@ -87,9 +95,10 @@
 #define issp(x)            (x == ' ' || x == '\n' || x == '\r' || x == '\t')
 #define isbr(x)            (x == ')' || x == '(' || x == '"' || x == '#')
 #define longsymbolp(x)     (((x)->name & 0x03) == 0)
-#define twist(x)           ((uint16_t)((x)<<2) | (((x) & 0xC000)>>14))
-#define untwist(x)         (((x)>>2 & 0x3FFF) | ((x) & 0x03)<<14)
+#define longnamep(x)       (((x) & 0x03) == 0)
 #define arraysize(x)       (sizeof(x) / sizeof(x[0]))
+#define stringifyX(x)      #x
+#define stringify(x)       stringifyX(x)
 #define PACKEDS            17600
 #define BUILTINS           64000
 #define ENDFUNCTIONS       1536
@@ -108,13 +117,17 @@
 #define car(x)             (((object *) (x))->car)
 #define cdr(x)             (((object *) (x))->cdr)
 
-#define first(x)           (((object *) (x))->car)
-#define second(x)          (car(cdr(x)))
-#define cddr(x)            (cdr(cdr(x)))
-#define third(x)           (car(cdr(cdr(x))))
+#define first(x)           car(x)
+#define rest(x)            cdr(x)
+#define second(x)          first(rest(x))
+#define cddr(x)            cdr(cdr(x))
+#define third(x)           first(cddr(x))
 
 #define push(x, y)         ((y) = cons((x),(y)))
 #define pop(y)             ((y) = cdr(y))
+
+#define protect(y)         push((y), GCStack)
+#define unprotect()        pop(GCStack)
 
 #define integerp(x)        ((x) != NULL && (x)->type == NUMBER)
 #define floatp(x)          ((x) != NULL && (x)->type == FLOAT)
@@ -129,16 +142,17 @@
 #define marked(x)          ((((uintptr_t)(car(x))) & MARKBIT) != 0)
 #define MARKBIT            1
 
-#define setflag(x)         (Flags = Flags | 1<<(x))
-#define clrflag(x)         (Flags = Flags & ~(1<<(x)))
+#define setflag(x)         (Flags |= 1<<(x))
+#define clrflag(x)         (Flags &= ~(1<<(x)))
 #define tstflag(x)         (Flags & 1<<(x))
 
 #define issp(x)            (x == ' ' || x == '\n' || x == '\r' || x == '\t')
 #define isbr(x)            (x == ')' || x == '(' || x == '"' || x == '#')
 #define longsymbolp(x)     (((x)->name & 0x03) == 0)
-#define twist(x)           ((uint32_t)((x)<<2) | (((x) & 0xC0000000)>>30))
-#define untwist(x)         (((x)>>2 & 0x3FFFFFFF) | ((x) & 0x03)<<30)
+#define longnamep(x)       (((x) & 0x03) == 0)
 #define arraysize(x)       (sizeof(x) / sizeof(x[0]))
+#define stringifyX(x)      #x
+#define stringify(x)       stringifyX(x)
 #define PACKEDS            0x43238000
 #define BUILTINS           0xF4240000
 #define ENDFUNCTIONS       1536"#
@@ -251,6 +265,8 @@ const char *const streamname[] PROGMEM = {serialstream, i2cstream, spistream, sd
 // Typedefs
 
 typedef uint16_t symbol_t;
+typedef uint16_t builtin_t;
+typedef uint16_t chars_t;
 
 typedef struct sobject {
   union {
@@ -263,7 +279,7 @@ typedef struct sobject {
       union {
         symbol_t name;
         int integer;
-        int chars; // For strings
+        chars_t chars; // For strings
       };
     };
   };
@@ -280,15 +296,15 @@ typedef const struct {
 } tbl_entry_t;
 
 typedef int (*gfun_t)();
-typedef void (*pfun_t)(char);
-
-typedef uint16_t builtin_t;"#)
+typedef void (*pfun_t)(char);"#)
 
 #+avr
 (defparameter *typedefs* #"
 // Typedefs
 
 typedef uint16_t symbol_t;
+typedef uint16_t builtin_t;
+typedef uint16_t chars_t;
 
 typedef struct sobject {
   union {
@@ -301,7 +317,7 @@ typedef struct sobject {
       union {
         symbol_t name;
         int integer;
-        int chars; // For strings
+        chars_t chars; // For strings
       };
     };
   };
@@ -319,9 +335,7 @@ typedef const struct {
 } tbl_entry_t;
 
 typedef int (*gfun_t)();
-typedef void (*pfun_t)(char);
-
-typedef uint16_t builtin_t;"#)
+typedef void (*pfun_t)(char);"#)
 
 #+msp430
 (defparameter *typedefs* #"
@@ -350,9 +364,12 @@ typedef object *(*fn_ptr_type)(object *, object *);
 typedef void (*mapfun_t)(object *, object **);
 
 typedef const struct {
-  const char *string;
+  PGM_P string;
   fn_ptr_type fptr;
-  uint8_t minmax;
+  uint8_t funtype: 2;
+  uint8_t minargs: 3;
+  uint8_t maxargs: 3;
+  const char *doc;
 } tbl_entry_t;
 
 typedef int (*gfun_t)();
@@ -365,6 +382,8 @@ typedef uint16_t builtin_t;"#)
 // Typedefs
 
 typedef uint32_t symbol_t;
+typedef uint32_t builtin_t;
+typedef uint32_t chars_t;
 
 typedef struct sobject {
   union {
@@ -377,7 +396,7 @@ typedef struct sobject {
       union {
         symbol_t name;
         int integer;
-        int chars; // For strings
+        chars_t chars; // For strings
         float single_float;
       };
     };
@@ -396,15 +415,15 @@ typedef const struct {
 } tbl_entry_t;
 
 typedef int (*gfun_t)();
-typedef void (*pfun_t)(char);
-
-typedef uint16_t builtin_t;"#)
+typedef void (*pfun_t)(char);"#)
 
 #+riscv
 (defparameter *typedefs* #"
 // Typedefs
 
 typedef uint32_t symbol_t;
+typedef uint32_t builtin_t;
+typedef uint32_t chars_t;
 
 typedef struct sobject {
   union {
@@ -417,7 +436,7 @@ typedef struct sobject {
       union {
         symbol_t name;
         int integer;
-        int chars; // For strings
+        chars_t chars; // For strings
         float single_float;
       };
     };
@@ -437,15 +456,15 @@ typedef const struct {
 
 typedef int (*gfun_t)();
 typedef void (*pfun_t)(char);
-typedef int PinMode;
-
-typedef uint16_t builtin_t;"#)
+typedef int PinMode;"#)
 
 #+esp
 (defparameter *typedefs* #"
 // Typedefs
 
 typedef uint32_t symbol_t;
+typedef uint32_t builtin_t;
+typedef uint32_t chars_t;
 
 typedef struct sobject {
   union {
@@ -458,7 +477,7 @@ typedef struct sobject {
       union {
         symbol_t name;
         int integer;
-        int chars; // For strings
+        chars_t chars; // For strings
         float single_float;
       };
     };
@@ -476,9 +495,7 @@ typedef const struct {
 } tbl_entry_t;
 
 typedef int (*gfun_t)();
-typedef void (*pfun_t)(char);
-
-typedef uint16_t builtin_t;"#)
+typedef void (*pfun_t)(char);"#)
 
 (defparameter *global-variables* 
   '(
@@ -494,6 +511,8 @@ object Workspace[WORKSPACESIZE] OBJECTALIGNED;"#
 #+avr
 #"
 // Global variables
+
+uint8_t FLAG __attribute__ ((section (".noinit")));
 
 object Workspace[WORKSPACESIZE] OBJECTALIGNED;
 #if defined(CODESIZE)
@@ -602,7 +621,25 @@ volatile uint8_t Flags = 0b00001; // PRINTREADABLY set by default"#
 #"
 // Forward references
 object *tee;
-void pfstring (PGM_P s, pfun_t pfun);"#))
+void pfstring (PGM_P s, pfun_t pfun);"#
 
+#+(or avr avr-nano)
+#"
+inline symbol_t twist (builtin_t x) {
+  return (x<<2) | ((x & 0xC000)>>14);
+}
 
+inline builtin_t untwist (symbol_t x) {
+  return (x>>2 & 0x3FFF) | ((x & 0x03)<<14);
+}"#
+
+#-(or avr avr-nano)
+#"
+inline symbol_t twist (builtin_t x) {
+  return (x<<2) | ((x & 0xC0000000)>>30);
+}
+
+inline builtin_t untwist (symbol_t x) {
+  return (x>>2 & 0x3FFFFFFF) | ((x & 0x03)<<30);
+}"#))
 

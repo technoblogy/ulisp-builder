@@ -4,6 +4,14 @@
 
 ;; Generate *********************************************************************************************
 
+; PSTR(), PGM_P, and PROGRAM are unnecessary on ARM.
+(defun process-text (stream string platform comments)
+  (when (or (eq platform :arm) (eq platform :esp) (eq platform :riscv))
+    (setq string (strip-pstr string))
+    (setq string (global-replace "PGM_P " "const char *" string))
+    (setq string (global-replace "PROGMEM " "" string)))
+  (write-no-comments stream string comments))
+
 (defun write-no-comments (stream string comments)
   (cond
    (comments
@@ -20,6 +28,31 @@
           (t (write-string string stream :start start)
              (terpri stream)
              (return)))))))))
+
+(defun strip-pstr (string)
+  (let ((start 0) (result ""))
+    (loop
+     (let* ((pstr (search "PSTR(\"" string :start2 start))
+            (term (when pstr (search "\")" string :start2 (+ pstr 6)))))
+       (cond
+        ((and pstr term)
+         (setq result (concatenate 'string result (subseq string start pstr) (subseq string (+ pstr 5) (+ term 1))))
+         (setq start (+ term 2)))
+        (t
+         (setq result (concatenate 'string result (subseq string start)))
+         (return result)))))))
+
+(defun global-replace (target replace string)
+  (let ((start 0) (result "") (span (length target)))
+    (loop
+     (let ((pgmp (search target string :start2 start)))
+       (cond
+        (pgmp
+         (setq result (concatenate 'string result (subseq string start pgmp) replace))
+         (setq start (+ pgmp span)))
+        (t
+         (setq result (concatenate 'string result (subseq string start)))
+         (return result)))))))
 
 (defun definition-p (string)
   (cond
@@ -120,8 +153,8 @@
     (if only-wildcard nil
       (format str "#endif~%"))))
 
-(defparameter *enums* '(NIL TEE NOTHING OPTIONAL INITIALELEMENT ELEMENTTYPE BIT AMPREST LAMBDA LET
-                            LETSTAR CLOSURE PSTAR QUOTE CAR FIRST CDR REST NTH DEFUN DEFVAR DEFCODE AREF STRINGFN FORMAT
+(defparameter *enums* '(NIL TEE NOTHING OPTIONAL FEATURES INITIALELEMENT ELEMENTTYPE TEST BIT AMPREST LAMBDA LET
+                            LETSTAR CLOSURE PSTAR QUOTE CAR FIRST CDR REST NTH EQ CHAR DEFUN DEFVAR DEFCODE AREF STRINGFN FORMAT
                             PINMODE DIGITALWRITE ANALOGREAD REGISTER ANALOGREFERENCE))
 
 (defun build (&optional (platform :avr) (comments nil) (documentation (find :doc *features*)))
@@ -135,13 +168,13 @@
                 ((boundp special) 
                  (let ((inc (eval special)))
                    (cond
-                    ((listp inc) (map nil #'(lambda (x) (write-no-comments str x comments)) inc))
-                    (t (write-no-comments str inc comments)))))
+                    ((listp inc) (map nil #'(lambda (x) (process-text str x platform comments)) inc))
+                    (t (process-text str inc platform comments)))))
                 ((boundp default) 
                  (let ((inc (eval default)))
                    (cond
-                    ((listp inc) (map nil #'(lambda (x) (write-no-comments str x comments)) inc))
-                    (t (write-no-comments str inc comments)))))
+                    ((listp inc) (map nil #'(lambda (x) (process-text str x platform comments)) inc))
+                    (t (process-text str inc platform comments)))))
                 (t nil)))))
       ;;           
       (with-open-file (str (capi:prompt-for-file "Output File" :operation :save :pathname "/Users/david/Desktop/") :direction :output)
@@ -175,6 +208,7 @@
         (include :setup-workspace str)
         (include :make-objects str)
         ;; Write utilities
+        (include :feature-list str)
         (include :garbage-collection str)
         (include :compactimage str)
         (include :make-filename str)
@@ -208,7 +242,7 @@
                 (cond
                  ((null (definition-p definition)) nil)
                  ((stringp definition)
-                  (write-no-comments str definition comments))
+                  (process-text str definition platform comments))
                  ((keywordp definition) nil)
                  ((symbolp definition)
                   (funcall definition str enum string comments)
