@@ -1167,7 +1167,6 @@ object *delassoc (object *key, object **alist) {
 (defparameter *association-lists* '(#"
 // Association lists
 
-#-avr-nano
 /*
   testargument - handles the :test argument for functions that accept it
 */
@@ -2145,7 +2144,7 @@ object *cxxxr (object *args, uint8_t pattern) {
     pattern = pattern>>1;
   }
   return arg;
-}#"
+}"#
 
 #"
 // Mapping helper functions
