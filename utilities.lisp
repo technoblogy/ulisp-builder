@@ -5,14 +5,88 @@
 (defparameter *error-handling* '(
 
 #"
-// Error handling
+// Error handling"#
 
+#-avr-nano
+#"
+int modbacktrace (int n) {
+  return (n+BACKTRACESIZE) % BACKTRACESIZE;
+}"#
+
+#+avr
+#"
+/*
+  printbacktrace - prints a call backtrace for error messages and break.
+*/
+void printbacktrace () {
+  if (TraceStart != TraceTop) pserial('[');
+  int tracesize = modbacktrace(TraceTop-TraceStart);
+  for (int i=1; i<=tracesize; i++) {
+    printsymbol(symbol(Backtrace[modbacktrace(TraceTop-i)]), pserial);
+    if (i!=tracesize) pfstring(PSTR(" <- "), pserial);
+  }
+  if (TraceStart != TraceTop) pserial(']');
+}"#
+
+#+avr-nano
+#"
 /*
   errorsub - used by all the error routines.
   Prints: "Error: 'fname' string", where fname is the name of the Lisp function in which the error occurred.
 */
 void errorsub (symbol_t fname, PGM_P string) {
   pfl(pserial); pfstring(PSTR("Error: "), pserial);
+  if (fname != sym(NIL)) {
+    pserial('\'');
+    psymbol(fname, pserial);
+    pserial('\''); pserial(' ');
+  }
+  pfstring(string, pserial);
+}"#
+
+#+avr
+#"
+/*
+  errorsub - used by all the error routines.
+  Prints: "Error: 'fname' string", where fname is the name of the Lisp function in which the error occurred.
+*/
+void errorsub (symbol_t fname, PGM_P string) {
+  pfl(pserial); pfstring(PSTR("Error"), pserial);
+  if (TraceStart != TraceTop) pserial(' ');
+  printbacktrace();
+  pfstring(PSTR(": "), pserial);
+  if (fname != sym(NIL)) {
+    pserial('\'');
+    psymbol(fname, pserial);
+    pserial('\''); pserial(' ');
+  }
+  pfstring(string, pserial);
+}"#
+
+#-(or avr avr-nano)
+#"
+/*
+  printbacktrace - prints a call backtrace for error messages and break.
+*/
+void printbacktrace () {
+  if (TraceStart != TraceTop) pserial('[');
+  int tracesize = modbacktrace(TraceTop-TraceStart);
+  for (int i=1; i<=tracesize; i++) {
+    printsymbol(symbol(Backtrace[modbacktrace(TraceTop-i)]), pserial);
+    if (i!=tracesize) pfstring(" <- ", pserial);
+  }
+  if (TraceStart != TraceTop) pserial(']');
+}
+
+/*
+  errorsub - used by all the error routines.
+  Prints: "Error: 'fname' string", where fname is the name of the Lisp function in which the error occurred.
+*/
+void errorsub (symbol_t fname, const char *string) {
+  pfl(pserial); pfstring("Error", pserial);
+  if (TraceStart != TraceTop) pserial(' ');
+  printbacktrace();
+  pfstring(": ", pserial);
   if (fname != sym(NIL)) {
     pserial('\'');
     psymbol(fname, pserial);
@@ -99,7 +173,6 @@ void error2 (PGM_P string) {
   errorsym2(sym(Context), string);
 }"#
 
-#-errors
 #"
 /*
   formaterr - displays a format error with a ^ pointing to the error
@@ -109,22 +182,7 @@ void formaterr (object *formatstr, PGM_P string, uint8_t p) {
   indent(p+5, ' ', pserial); pserial('^');
   error2(string);
   pln(pserial);
-  GCStack = NULL;
-  longjmp(exception, 1);
-}"#
-
-#+errors
-#"
-/*
-  formaterr - displays a format error with a ^ pointing to the error
-*/
-void formaterr (object *formatstr, PGM_P string, uint8_t p) {
-  pln(pserial); indent(4, ' ', pserial); printstring(formatstr, pserial); pln(pserial);
-  indent(p+5, ' ', pserial); pserial('^');
-  error2(string);
-  pln(pserial);
-  GCStack = NULL;
-  longjmp(*handler, 1);
+  errorend();
 }"#
 
 #"
@@ -145,6 +203,7 @@ const char indexnegative[] PROGMEM = "index can't be negative";
 const char invalidarg[] PROGMEM = "invalid argument";
 const char invalidkey[] PROGMEM = "invalid keyword";
 const char illegalclause[] PROGMEM = "illegal clause";
+const char illegalfn[] PROGMEM = "illegal function";
 const char invalidpin[] PROGMEM = "invalid pin";
 const char oddargs[] PROGMEM = "odd number of arguments";
 const char indexrange[] PROGMEM = "index out of range";
@@ -271,7 +330,8 @@ object *codehead (int entry) {
   return ptr;
 }"#
 
- #"
+ #+(or avr avr-nano)
+#"
 /*
   intern - looks through the workspace for an existing occurrence of symbol name and returns it,
   otherwise calls symbol(name) to create a new symbol.
@@ -281,6 +341,38 @@ object *intern (symbol_t name) {
     object *obj = &Workspace[i];
     if (obj->type == SYMBOL && obj->name == name) return obj;
   }
+  return symbol(name);
+}"#
+
+ #+(or esp arm)
+#"
+/*
+  intern - unless PSRAM: looks through the workspace for an existing occurrence of symbol name and returns it,
+  otherwise calls symbol(name) to create a new symbol.
+*/
+object *intern (symbol_t name) {
+  #if !defined(BOARD_HAS_PSRAM)
+  for (int i=0; i<WORKSPACESIZE; i++) {
+    object *obj = &Workspace[i];
+    if (obj->type == SYMBOL && obj->name == name) return obj;
+  }
+  #endif
+  return symbol(name);
+}"#
+
+ #+riscv
+#"
+/*
+  intern - unless large-RAM looks through the workspace for an existing occurrence of symbol name and returns it,
+  otherwise calls symbol(name) to create a new symbol.
+*/
+object *intern (symbol_t name) {
+  #if (WORKSPACESIZE <= 80000)
+  for (int i=0; i<WORKSPACESIZE; i++) {
+    object *obj = &Workspace[i];
+    if (obj->type == SYMBOL && obj->name == name) return obj;
+  }
+  #endif
   return symbol(name);
 }"#
 
@@ -310,7 +402,7 @@ bool eqsymbols (object *obj, char *buffer) {
   int i = 0;
   while (!(arg == NULL && buffer[i] == 0)) {
     if (arg == NULL || buffer[i] == 0) return false;
-    int test = 0, shift = 8;
+    chars_t test = 0; int shift = 8;
     for (int j=0; j<2; j++, i++) {
       if (buffer[i] == 0) break;
       test = test | buffer[i]<<shift;
@@ -332,7 +424,7 @@ bool eqsymbols (object *obj, char *buffer) {
   int i = 0;
   while (!(arg == NULL && buffer[i] == 0)) {
     if (arg == NULL || buffer[i] == 0) return false;
-    int test = 0, shift = 24;
+    chars_t test = 0; int shift = 24;
     for (int j=0; j<4; j++, i++) {
       if (buffer[i] == 0) break;
       test = test | buffer[i]<<shift;
@@ -344,6 +436,7 @@ bool eqsymbols (object *obj, char *buffer) {
   return true;
 }"#
 
+ #+(or avr avr-nano)
  #"
 /*
   internlong - looks through the workspace for an existing occurrence of the long symbol in buffer and returns it,
@@ -354,6 +447,42 @@ object *internlong (char *buffer) {
     object *obj = &Workspace[i];
     if (obj->type == SYMBOL && longsymbolp(obj) && eqsymbols(obj, buffer)) return obj;
   }
+  object *obj = lispstring(buffer);
+  obj->type = SYMBOL;
+  return obj;
+}"#
+
+ #+(or arm esp)
+ #"
+/*
+  internlong - unless PSRAM looks through the workspace for an existing occurrence of the long symbol in buffer and returns it,
+  otherwise calls lispstring(buffer) to create a new symbol.
+*/
+object *internlong (char *buffer) {
+  #if !defined(BOARD_HAS_PSRAM)
+  for (int i=0; i<WORKSPACESIZE; i++) {
+    object *obj = &Workspace[i];
+    if (obj->type == SYMBOL && longsymbolp(obj) && eqsymbols(obj, buffer)) return obj;
+  }
+  #endif
+  object *obj = lispstring(buffer);
+  obj->type = SYMBOL;
+  return obj;
+}"#
+
+ #+riscv
+ #"
+/*
+  internlong - unless large-RAM looks through the workspace for an existing occurrence of the long symbol in buffer and returns it,
+  otherwise calls lispstring(buffer) to create a new symbol.
+*/
+object *internlong (char *buffer) {
+  #if (WORKSPACESIZE <= 80000)
+  for (int i=0; i<WORKSPACESIZE; i++) {
+    object *obj = &Workspace[i];
+    if (obj->type == SYMBOL && longsymbolp(obj) && eqsymbols(obj, buffer)) return obj;
+  }
+  #endif
   object *obj = lispstring(buffer);
   obj->type = SYMBOL;
   return obj;
@@ -492,6 +621,7 @@ const char arrays[] PROGMEM = ":arrays";
 const char doc[] PROGMEM = ":documentation";
 const char machinecode[] PROGMEM = ":machine-code";
 const char errorhandling[] PROGMEM = ":error-handling";
+const char sdcard[] PROGMEM = ":sd-card";
 
 /*
   copyprogmemstring - copy a PROGMEM string to RAM.
@@ -513,6 +643,9 @@ char *copyprogmemstring (PGM_P s, char *buffer) {
 object *features () {
   char buffer[BUFFERSIZE];
   object *result = NULL;
+  #if defined(sdcardsupport)
+  push(internlong(copyprogmemstring(sdcard, buffer)), result);
+  #endif
   push(internlong(copyprogmemstring(errorhandling, buffer)), result);
   #if defined(CODESIZE)
   push(internlong(copyprogmemstring(machinecode, buffer)), result);
@@ -536,12 +669,20 @@ const char machinecode[] = ":machine-code";
 const char errorhandling[] = ":error-handling";
 const char wifi[] = ":wi-fi";
 const char gfx[] = ":gfx";
+const char sdcard[] = ":sd-card";
+const char arm[] = ":arm";
+const char riscv[] = ":risc-v";
 
-/*
-  features - create a list of features symbols from const strings.
-*/
 object *features () {
   object *result = NULL;
+  #if defined(__riscv)
+  push(internlong((char *)riscv), result);
+  #else
+  push(internlong((char *)arm), result);
+  #endif
+  #if defined(sdcardsupport)
+  push(internlong((char *)sdcard), result);
+  #endif
   push(internlong((char *)gfx), result);
   push(internlong((char *)wifi), result);
   push(internlong((char *)errorhandling), result);
@@ -562,13 +703,29 @@ const char doc[] = ":documentation";
 const char errorhandling[] = ":error-handling";
 const char wifi[] = ":wi-fi";
 const char gfx[] = ":gfx";
+const char sdcard[] = ":sd-card";
+const char lx6[] = ":lx6";
+const char lx7[] = ":lx7";
+const char riscv[] = ":risc-v";
 
 /*
   features - create a list of features symbols from const strings.
 */
 object *features () {
   object *result = NULL;
+  #if defined(CPU_RISC_V)
+  push(internlong((char *)riscv), result);
+  #elif defined(CPU_LX6)
+  push(internlong((char *)lx6), result);
+  #elif defined(CPU_LX7)
+  push(internlong((char *)lx7), result);
+  #endif
+  #if defined(gfxsupport)
   push(internlong((char *)gfx), result);
+  #endif
+  #if defined(sdcardsupport)
+  push(internlong((char *)sdcard), result);
+  #endif
   push(internlong((char *)wifi), result);
   push(internlong((char *)errorhandling), result);
   push(internlong((char *)doc), result);
@@ -588,12 +745,16 @@ const char machinecode[] = ":machine-code";
 const char errorhandling[] = ":error-handling";
 const char wifi[] = ":wi-fi";
 const char gfx[] = ":gfx";
+const char sdcard[] = ":sd-card";
 
 /*
   features - create a list of features symbols from const strings.
 */
 object *features () {
   object *result = NULL;
+  #if defined(sdcardsupport)
+  push(internlong((char *)sdcard), result);
+  #endif
   push(internlong((char *)gfx), result);
   push(internlong((char *)wifi), result);
   push(internlong((char *)errorhandling), result);
@@ -886,12 +1047,36 @@ void checkargs (object *args) {
   checkminmax(Context, nargs);
 }"#
 
-    #-float
+    #+(or arm esp riscv)
+    #"
+/*
+  eqlongsymbol - checks whether two long symbols are equal
+*/
+bool eqlongsymbol (symbol_t sym1, symbol_t sym2) {
+  object *arg1 = (object *)sym1; object *arg2 = (object *)sym2;
+  while ((arg1 != NULL) || (arg2 != NULL)) {
+    if (arg1 == NULL || arg2 == NULL) return false;
+    if (arg1->chars != arg2->chars) return false;
+    arg1 = car(arg1); arg2 = car(arg2);
+  }
+  return true;
+}
+
+/*
+  eqsymbol - checks whether two symbols are equal
+*/
+bool eqsymbol (symbol_t sym1, symbol_t sym2) {
+  if (!longnamep(sym1) && !longnamep(sym2)) return (sym1 == sym2);  // Same short symbol
+  if (longnamep(sym1) && longnamep(sym2)) return eqlongsymbol(sym1, sym2);  // Same long symbol
+  return false;
+}"#
+
+    #+(or avr avr-nano)
     #"
 /*
   eq - implements Lisp eq
 */
-boolean eq (object *arg1, object *arg2) {
+bool eq (object *arg1, object *arg2) {
   if (arg1 == arg2) return true;  // Same object
   if ((arg1 == nil) || (arg2 == nil)) return false;  // Not both values
   if (arg1->cdr != arg2->cdr) return false;  // Different values
@@ -901,16 +1086,42 @@ boolean eq (object *arg1, object *arg2) {
   return false;
 }"#
 
-    #+float
+    #+(or arm esp)
     #"
 /*
-  eq - implements Lisp eq
+  eq - implements Lisp eq, taking into account PSRAM
 */
-boolean eq (object *arg1, object *arg2) {
+bool eq (object *arg1, object *arg2) {
   if (arg1 == arg2) return true;  // Same object
   if ((arg1 == nil) || (arg2 == nil)) return false;  // Not both values
+  #if !defined(BOARD_HAS_PSRAM)
   if (arg1->cdr != arg2->cdr) return false;  // Different values
   if (symbolp(arg1) && symbolp(arg2)) return true;  // Same symbol
+  #else
+  if (symbolp(arg1) && symbolp(arg2)) return eqsymbol(arg1->name, arg2->name);  // Same symbol?
+  if (arg1->cdr != arg2->cdr) return false;  // Different values
+  #endif
+  if (integerp(arg1) && integerp(arg2)) return true;  // Same integer
+  if (floatp(arg1) && floatp(arg2)) return true; // Same float
+  if (characterp(arg1) && characterp(arg2)) return true;  // Same character
+  return false;
+}"#
+
+    #+riscv
+    #"
+/*
+  eq - implements Lisp eq, taking into account large-RAM
+*/
+bool eq (object *arg1, object *arg2) {
+  if (arg1 == arg2) return true;  // Same object
+  if ((arg1 == nil) || (arg2 == nil)) return false;  // Not both values
+  #if (WORKSPACESIZE <= 80000)
+  if (arg1->cdr != arg2->cdr) return false;  // Different values
+  if (symbolp(arg1) && symbolp(arg2)) return true;  // Same symbol
+  #else
+  if (symbolp(arg1) && symbolp(arg2)) return eqsymbol(arg1->name, arg2->name);  // Same symbol?
+  if (arg1->cdr != arg2->cdr) return false;  // Different values
+  #endif
   if (integerp(arg1) && integerp(arg2)) return true;  // Same integer
   if (floatp(arg1) && floatp(arg2)) return true; // Same float
   if (characterp(arg1) && characterp(arg2)) return true;  // Same character
@@ -928,7 +1139,7 @@ bool equal (object *arg1, object *arg2) {
   return eq(arg1, arg2);
 }"#
 
-    #-avr-nano
+    #+(or avr arm esp riscv)
     #"
 /*
   equal - implements Lisp equal
@@ -1072,6 +1283,45 @@ object *divide_floats (object *args, float fresult) {
     args = cdr(args);
   }
   return makefloat(fresult);
+}"#
+
+ #+avr
+#"
+/*
+  remmod - implements rem (mod = false) and mod (mod = true).
+*/
+object *remmod (object *args, bool mod) {
+  int arg1 = checkinteger(first(args));
+  int arg2 = checkinteger(second(args));
+  if (arg2 == 0) error2(divisionbyzero);
+  int r = arg1 % arg2;
+  if (mod && (arg1<0) != (arg2<0)) r = r + arg2;
+  return number(r);
+}"#
+
+ #+(or arm esp risc-v)
+#"
+/*
+  remmod - implements rem (mod = false) and mod (mod = true).
+*/
+object *remmod (object *args, bool mod) {
+  object *arg1 = first(args);
+  object *arg2 = second(args);
+  if (integerp(arg1) && integerp(arg2)) {
+    int divisor = arg2->integer;
+    if (divisor == 0) error2(divisionbyzero);
+    int dividend = arg1->integer;
+    int remainder = dividend % divisor;
+    if (mod && (dividend<0) != (divisor<0)) remainder = remainder + divisor;
+    return number(remainder);
+  } else {
+    float fdivisor = checkintfloat(arg2);
+    if (fdivisor == 0.0) error2(divisionbyzero);
+    float fdividend = checkintfloat(arg1);
+    float fremainder = fmod(fdividend , fdivisor);
+    if (mod && (fdividend<0) != (fdivisor<0)) fremainder = fremainder + fdivisor;
+    return makefloat(fremainder);
+  }
 }"#
 
  #+(or avr avr-nano)
@@ -1742,7 +1992,7 @@ object *apropos (object *arg, bool print) {
     if (strstr(full, part) != NULL) {
       if (print) {
         printsymbol(var, pserial); pserial(' '); pserial('(');
-        if (consp(val) && symbolp(car(val)) && builtin(car(val)->name) == LAMBDA) pfstring(PSTR("user function"), pserial);
+        if (consp(val) && isbuiltin(car(val), LAMBDA)) pfstring("user function", pserial);
         else if (consp(val) && car(val)->type == CODE) pfstring(PSTR("code"), pserial);
         else pfstring(PSTR("user symbol"), pserial);
         pserial(')'); pln(pserial);
@@ -1758,10 +2008,10 @@ object *apropos (object *arg, bool print) {
   for (int i = 0; i < entries; i++) {
     if (findsubstring(part, (builtin_t)i)) {
       if (print) {
-        uint8_t fntype = getminmax(i)>>6;
+        uint8_t fntype = fntype(i);
         pbuiltin((builtin_t)i, pserial); pserial(' '); pserial('(');
         if (fntype == FUNCTIONS) pfstring(PSTR("function"), pserial);
-        else if (fntype == SPECIAL_FORMS) pfstring(PSTR("special form"), pserial);
+        else if (fntype == SPECIAL_FORMS || fntype == TAIL_FORMS) pfstring(PSTR("special form"), pserial);
         else pfstring(PSTR("symbol/keyword"), pserial);
         pserial(')'); pln(pserial);
       } else {
@@ -1836,9 +2086,13 @@ uint32_t ipstring (object *form) {
   return ipaddress;
 }"#))
 
-(defparameter *closures* #"
-// Lookup variable in environment
+(defparameter *closures* '(
 
+  #+(or avr avr-nano)
+  #"
+/*
+  value -  lookup variable in environment
+*/
 object *value (symbol_t n, object *env) {
   while (env != NULL) {
     object *pair = car(env);
@@ -1846,8 +2100,45 @@ object *value (symbol_t n, object *env) {
     env = cdr(env);
   }
   return nil;
-}
+}"#
 
+  #+(or arm esp)
+  #"
+/*
+  value -  lookup variable in environment, taking into account PSRAM
+*/
+object *value (symbol_t n, object *env) {
+  while (env != NULL) {
+    object *pair = car(env);
+    #if !defined(BOARD_HAS_PSRAM)
+    if (pair != NULL && car(pair)->name == n) return pair;
+    #else
+    if (pair != NULL && eqsymbol(car(pair)->name, n)) return pair;
+    #endif
+    env = cdr(env);
+  }
+  return nil;
+}"#
+
+  #+riscv
+  #"
+/*
+  value -  lookup variable in environment, taking into account large-RAM
+*/
+object *value (symbol_t n, object *env) {
+  while (env != NULL) {
+    object *pair = car(env);
+    #if (WORKSPACESIZE <= 80000)
+    if (pair != NULL && car(pair)->name == n) return pair;
+    #else
+    if (pair != NULL && eqsymbol(car(pair)->name, n)) return pair;
+    #endif
+    env = cdr(env);
+  }
+  return nil;
+}"#
+
+#"
 /*
   findpair - returns the (var . value) pair bound to variable var in the local or global environment
 */
@@ -1880,8 +2171,7 @@ object *findvalue (object *var, object *env) {
 object *closure (int tc, symbol_t name, object *function, object *args, object **env) {
   object *state = car(function);
   function = cdr(function);
-  int trace = 0;
-  if (name) trace = tracing(name);
+  int trace = tracing(name);
   if (trace) {
     indent(TraceDepth[trace-1]<<1, ' ', pserial);
     pint(TraceDepth[trace-1]++, pserial);
@@ -1944,7 +2234,7 @@ object *closure (int tc, symbol_t name, object *function, object *args, object *
 object *apply (object *function, object *args, object *env) {
   if (symbolp(function)) {
     builtin_t fname = builtin(function->name);
-    if ((fname < ENDFUNCTIONS) && ((getminmax(fname)>>6) == FUNCTIONS)) {
+    if ((fname < ENDFUNCTIONS) && (fntype(fname) == FUNCTIONS)) {
       Context = fname;
       checkargs(args);
       return ((fn_ptr_type)lookupfn(fname))(args, env);
@@ -1959,9 +2249,9 @@ object *apply (object *function, object *args, object *env) {
     object *result = closure(0, sym(NIL), function, args, &env);
     return eval(result, env);
   }
-  error(PSTR("illegal function"), function);
+  error(illegalfn, function);
   return NULL;
-}"#)
+}"#))
 
 (defparameter *in-place* '(
 
@@ -1974,7 +2264,7 @@ object *apply (object *function, object *args, object *env) {
   place - returns a pointer to an object referenced in the second argument of an
   in-place operation such as setf.
 */
-object **place (object *args, object *env, int *bit) {
+object **place (object *args, object *env) {
   if (atom(args)) return &cdr(findvalue(args, env));
   object* function = first(args);
   if (symbolp(function)) {
@@ -2057,16 +2347,14 @@ object **place (object *args, object *env, int *bit) {
   return nil;
 }"#
 
-#+(and (not float) (not arrays))
+#+avr-nano
 #"
 /*
   incfdecf() - Increments/decrements a place by 'increment', and returns the result.
   Calls place() to get a pointer to the numeric value.
 */
 object *incfdecf (object *args, int increment, object *env) {
-  int bit;
-  object **loc = place(first(args), env, &bit);
-  if (bit < -1) error2(notanumber);
+  object **loc = place(first(args), env);
   int result = checkinteger(*loc);
   args = cdr(args);
   if (args != NULL) increment = checkinteger(eval(first(args), env)) * increment;
@@ -2079,7 +2367,7 @@ object *incfdecf (object *args, int increment, object *env) {
   return *loc;
 }"#
 
-#+(and (not float) arrays)
+#+avr
 #"
 /*
   incfdecf() - Increments/decrements a place by 'increment', and returns the result.
@@ -2146,6 +2434,7 @@ object *cxxxr (object *args, uint8_t pattern) {
   return arg;
 }"#
 
+#-avr-nano
 #"
 // Mapping helper functions
 
@@ -2200,6 +2489,42 @@ void mapcanfun (object *result, object **tail) {
   }
 }"#
 
+#+avr-nano
+#"
+/*
+  mapcarcan - function used by marcar and mapcan when maplist=false, and maplist when maplist=true
+  It takes the arguments, the env, a function specifying how the results are combined, and a bool.
+*/
+object *mapcarcan (object *args, object *env, mapfun_t fun) {
+  object *function = first(args);
+  args = cdr(args);
+  object *params = cons(NULL, NULL);
+  push(params,GCStack);
+  object *head = cons(NULL, NULL);
+  push(head,GCStack);
+  object *tail = head;
+  // Make parameters
+  while (true) {
+    object *tailp = params;
+    object *lists = args;
+    while (lists != NULL) {
+      object *list = car(lists);
+      if (list == NULL) {
+         pop(GCStack); pop(GCStack);
+         return cdr(head);
+      }
+      if (improperp(list)) error(notproper, list);
+      object *obj = cons(first(list),NULL);
+      car(lists) = cdr(list);
+      cdr(tailp) = obj; tailp = obj;
+      lists = cdr(lists);
+    }
+    object *result = apply(function, cdr(params), env);
+    fun(result, &tail);
+  }
+}"#
+
+#-avr-nano
 #"
 /*
   mapcarcan - function used by marcar and mapcan when maplist=false, and maplist when maplist=true

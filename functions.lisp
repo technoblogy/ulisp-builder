@@ -48,6 +48,15 @@
       #-avr-nano
       (TEST ":test" 0 0 nil)
 
+      #-avr-nano
+      (COLONA ":a" 0 0 nil)
+
+      #-avr-nano
+      (COLONB ":b" 0 0 nil)
+
+      #-avr-nano
+      (COLONC ":c" 0 0 nil)
+
       #+arrays
       (BIT nil 0 0 nil)
 
@@ -155,9 +164,9 @@ object *sp_defvar (object *args, object *env) {
   to the variable specified in the first argument.
 */
 object *sp_setq (object *args, object *env) {
-  object *arg = nil;
+  object *arg = nil; builtin_t setq = Context;
   while (args != NULL) {
-    if (cdr(args) == NULL) error2(oddargs);
+    if (cdr(args) == NULL) { Context = setq; error2(oddargs); }
     object *pair = findvalue(first(args), env);
     arg = eval(second(args), env);
     cdr(pair) = arg;
@@ -213,6 +222,21 @@ object *sp_loop (object *args, object *env) {
   }
 }")
 
+     #+avr-nano
+     (PUSH nil 2 2 "
+/*
+  (push item place)
+  Modifies the value of place, which should be a list, to add item onto the front of the list,
+  and returns the new list.
+*/
+object *sp_push (object *args, object *env) {
+  object *item = eval(first(args), env);
+  object **loc = place(second(args), env);
+  push(item, *loc);
+  return *loc;
+}")
+
+     #-avr-nano
      (PUSH nil 2 2 "
 /*
   (push item place)
@@ -228,6 +252,24 @@ object *sp_push (object *args, object *env) {
   return *loc;
 }")
 
+     #+avr-nano
+     (POP nil 1 1 "
+/*
+  (pop place)
+  Modifies the value of place, which should be a non-nil list, to remove its first item,
+  and returns that item.
+*/
+object *sp_pop (object *args, object *env) {
+  object *arg = first(args);
+  if (arg == NULL) error2(invalidarg);
+  object **loc = place(arg, env);
+  if (!consp(*loc)) error(notalist, *loc);
+  object *result = car(*loc);
+  pop(*loc);
+  return result;
+}")
+
+     #-avr-nano
      (POP nil 1 1 "
 /*
   (pop place)
@@ -378,11 +420,11 @@ object *sp_decf (object *args, object *env) {
   For each pair of arguments modifies a place to the result of evaluating value.
 */
 object *sp_setf (object *args, object *env) {
-  int bit;
+  builtin_t setf = Context;
   object *arg = nil;
   while (args != NULL) {
-    if (cdr(args) == NULL) error2(oddargs);
-    object **loc = place(first(args), env, &bit);
+    if (cdr(args) == NULL) { Context = setf; error2(oddargs); }
+    object **loc = place(first(args), env);
     arg = eval(second(args), env);
     *loc = arg;
     args = cddr(args);
@@ -397,10 +439,10 @@ object *sp_setf (object *args, object *env) {
   For each pair of arguments modifies a place to the result of evaluating value.
 */
 object *sp_setf (object *args, object *env) {
-  int bit;
+  int bit; builtin_t setf = Context;
   object *arg = nil;
   while (args != NULL) {
-    if (cdr(args) == NULL) error2(oddargs);
+    if (cdr(args) == NULL) { Context = setf; error2(oddargs); }
     object **loc = place(first(args), env, &bit);
     arg = eval(second(args), env);
     if (bit == -1) *loc = arg;
@@ -704,7 +746,7 @@ object *sp_withi2c (object *args, object *env) {
   return result;
 }")
 
-      #+(or avr avr-nano)
+      #+(or avr avr-nano esp)
       (WITHSPI "with-spi" 1 127 #"
 /*
   (with-spi (str pin [clock] [bitorder] [mode]) form*)
@@ -846,7 +888,7 @@ object *sp_withspi (object *args, object *env) {
   return result;
 }"#)
 
-      #-esp
+      #+arm
       (WITHSDCARD "with-sd-card" 2 127 #"
 /*
   (with-sd-card (str filename [mode]) form*)
@@ -864,7 +906,7 @@ object *sp_withsdcard (object *args, object *env) {
   Context = temp;
   if (!stringp(filename)) error(PSTR("filename is not a string"), filename);
   params = cdr(params);
-  SD.begin(SDCARD_SS_PIN);
+  SDBegin();
   int mode = 0;
   if (params != NULL && first(params) != NULL) mode = checkinteger(first(params));
   int oflag = O_READ;
@@ -909,11 +951,101 @@ object *sp_withsdcard (object *args, object *env) {
   Context = temp;
   if (!stringp(filename)) error(PSTR("filename is not a string"), filename);
   params = cdr(params);
-  SD.begin();
+  SDBegin();
   int mode = 0;
   if (params != NULL && first(params) != NULL) mode = checkinteger(first(params));
   const char *oflag = FILE_READ;
   if (mode == 1) oflag = FILE_APPEND; else if (mode == 2) oflag = FILE_WRITE;
+  if (mode >= 1) {
+    char buffer[BUFFERSIZE];
+    SDpfile = SD.open(MakeFilename(filename, buffer), oflag);
+    if (!SDpfile) error2(PSTR("problem writing to SD card or invalid filename"));
+  } else {
+    char buffer[BUFFERSIZE];
+    SDgfile = SD.open(MakeFilename(filename, buffer), oflag);
+    if (!SDgfile) error2(PSTR("problem reading from SD card or invalid filename"));
+  }
+  object *pair = cons(var, stream(SDSTREAM, 1));
+  push(pair,env);
+  object *forms = cdr(args);
+  object *result = eval(tf_progn(forms,env), env);
+  if (mode >= 1) SDpfile.close(); else SDgfile.close();
+  return result;
+  #else
+  (void) args, (void) env;
+  error2(PSTR("not supported"));
+  return nil;
+  #endif
+}"#)
+
+      #+(or avr avr-nano)
+      (WITHSDCARD "with-sd-card" 2 127 #"
+/*
+  (with-sd-card (str filename [mode]) form*)
+  Evaluates the forms with str bound to an sd-stream reading from or writing to the file filename.
+  If mode is omitted the file is read, otherwise 0 means read, 1 write-append, or 2 write-overwrite.
+*/
+object *sp_withsdcard (object *args, object *env) {
+  #if defined(sdcardsupport)
+  object *params = checkarguments(args, 2, 3);
+  object *var = first(params);
+  params = cdr(params);
+  if (params == NULL) error2(PSTR("no filename specified"));
+  builtin_t temp = Context;
+  object *filename = eval(first(params), env);
+  Context = temp;
+  if (!stringp(filename)) error(PSTR("filename is not a string"), filename);
+  params = cdr(params);
+  SD.begin(SDCARD_SS_PIN);
+  int mode = 0;
+  if (params != NULL && first(params) != NULL) mode = checkinteger(first(params));
+  int oflag = O_READ;
+  if (mode == 1) oflag = O_RDWR | O_CREAT | O_APPEND; else if (mode == 2) oflag = O_RDWR | O_CREAT | O_TRUNC;
+  if (mode >= 1) {
+    char buffer[BUFFERSIZE];
+    SDpfile = SD.open(MakeFilename(filename, buffer), oflag);
+    if (!SDpfile) error2(PSTR("problem writing to SD card or invalid filename"));
+  } else {
+    char buffer[BUFFERSIZE];
+    SDgfile = SD.open(MakeFilename(filename, buffer), oflag);
+    if (!SDgfile) error2(PSTR("problem reading from SD card or invalid filename"));
+  }
+  object *pair = cons(var, stream(SDSTREAM, 1));
+  push(pair,env);
+  object *forms = cdr(args);
+  object *result = eval(tf_progn(forms,env), env);
+  if (mode >= 1) SDpfile.close(); else SDgfile.close();
+  return result;
+  #else
+  (void) args, (void) env;
+  error2(PSTR("not supported"));
+  return nil;
+  #endif
+}"#)
+
+      #+riscv
+      (WITHSDCARD "with-sd-card" 2 127 #"
+/*
+  (with-sd-card (str filename [mode]) form*)
+  Evaluates the forms with str bound to an sd-stream reading from or writing to the file filename.
+  If mode is omitted the file is read, otherwise 0 means read, 1 write-append, or 2 write-overwrite.
+*/
+object *sp_withsdcard (object *args, object *env) {
+  #if defined(sdcardsupport)
+  object *params = checkarguments(args, 2, 3);
+  object *var = first(params);
+  params = cdr(params);
+  if (params == NULL) error2(PSTR("no filename specified"));
+  builtin_t temp = Context;
+  object *filename = eval(first(params), env);
+  Context = temp;
+  if (!stringp(filename)) error(PSTR("filename is not a string"), filename);
+  params = cdr(params);
+  if (!SD.begin(SS)) error2("problem initialising SD card");
+  int mode = 0;
+  if (params != NULL && first(params) != NULL) mode = checkinteger(first(params));
+  int oflag = O_READ;
+  if (mode == 1) oflag = O_RDWR | O_CREAT | O_APPEND; else if (mode == 2) oflag = O_RDWR | O_CREAT | O_TRUNC;
   if (mode >= 1) {
     char buffer[BUFFERSIZE];
     SDpfile = SD.open(MakeFilename(filename, buffer), oflag);
@@ -1995,6 +2127,41 @@ object *fn_append (object *args, object *env) {
   return head;
 }"#)
 
+      #+avr-nano
+      (MAPC nil 2 127 #"
+/*
+  (mapc function list1 [list]*)
+  Applies the function to each element in one or more lists, ignoring the results.
+  It returns the first list argument.
+*/
+object *fn_mapc (object *args, object *env) {
+  object *function = first(args);
+  args = cdr(args);
+  object *result = first(args);
+  push(result,GCStack);
+  object *params = cons(NULL, NULL);
+  push(params,GCStack);
+  // Make parameters
+  while (true) {
+    object *tailp = params;
+    object *lists = args;
+    while (lists != NULL) {
+      object *list = car(lists);
+      if (list == NULL) {
+         pop(GCStack); pop(GCStack);
+         return result;
+      }
+      if (improperp(list)) error(notproper, list);
+      object *obj = cons(first(list),NULL);
+      car(lists) = cdr(list);
+      cdr(tailp) = obj; tailp = obj;
+      lists = cdr(lists);
+    }
+    apply(function, cdr(params), env);
+  }
+}"#)
+
+      #-avr-nano
       (MAPC nil 2 127 #"
 /*
   (mapc function list1 [list]*)
@@ -2016,6 +2183,17 @@ object *fn_mapl (object *args, object *env) {
   return mapcl(args, env, true);
 }"#)
 
+      #+avr-nano
+      (MAPCAR nil 2 127 #"
+/*
+  (mapcar function list1 [list]*)
+  Applies the function to each element in one or more lists, and returns the resulting list.
+*/
+object *fn_mapcar (object *args, object *env) {
+  return mapcarcan(args, env, mapcarfun);
+}"#)
+
+      #-avr-nano
       (MAPCAR nil 2 127 #"
 /*
   (mapcar function list1 [list]*)
@@ -2025,6 +2203,18 @@ object *fn_mapcar (object *args, object *env) {
   return mapcarcan(args, env, mapcarfun, false);
 }"#)
 
+      #+avr-nano
+      (MAPCAN nil 2 127 #"
+/*
+  (mapcan function list1 [list]*)
+  Applies the function to each element in one or more lists. The results should be lists,
+  and these are destructively concatenated together to give the value returned.
+*/
+object *fn_mapcan (object *args, object *env) {
+  return mapcarcan(args, env, mapcanfun);
+}"#)
+
+      #-avr-nano
       (MAPCAN nil 2 127 #"
 /*
   (mapcan function list1 [list]*)
@@ -2255,11 +2445,11 @@ object *fn_divide (object *args, object *env) {
   if (args == NULL) {
     if (floatp(arg)) {
       float f = arg->single_float;
-      if (f == 0.0) error2(PSTR("division by zero"));
+      if (f == 0.0) error2(divisionbyzero);
       return makefloat(1.0 / f);
     } else if (integerp(arg)) {
       int i = arg->integer;
-      if (i == 0) error2(PSTR("division by zero"));
+      if (i == 0) error2(divisionbyzero);
       else if (i == 1) return number(1);
       else return makefloat(1.0 / i);
     } else error(notanumber, arg);
@@ -2274,7 +2464,7 @@ object *fn_divide (object *args, object *env) {
         return divide_floats(args, result);
       } else if (integerp(arg)) {
         int i = arg->integer;
-        if (i == 0) error2(PSTR("division by zero"));
+        if (i == 0) error2(divisionbyzero);
         if ((result % i) != 0) return divide_floats(args, result);
         if ((result == INT_MIN) && (i == -1)) return divide_floats(args, result);
         result = result / i;
@@ -2286,11 +2476,12 @@ object *fn_divide (object *args, object *env) {
   return nil;
 }"#)
 
-     #-float
+     #+avr-nano
      (MOD nil 2 2 #"
 /*
   (mod number number)
   Returns its first argument modulo the second argument.
+  If both arguments are integers the result is an integer; otherwise it's a floating-point number.
 */
 object *fn_mod (object *args, object *env) {
   (void) env;
@@ -2302,7 +2493,7 @@ object *fn_mod (object *args, object *env) {
   return number(r);
 }"#)
 
-     #+float
+     #-avr-nano
      (MOD nil 2 2 #"
 /*
   (mod number number)
@@ -2311,23 +2502,19 @@ object *fn_mod (object *args, object *env) {
 */
 object *fn_mod (object *args, object *env) {
   (void) env;
-  object *arg1 = first(args);
-  object *arg2 = second(args);
-  if (integerp(arg1) && integerp(arg2)) {
-    int divisor = arg2->integer;
-    if (divisor == 0) error2(PSTR("division by zero"));
-    int dividend = arg1->integer;
-    int remainder = dividend % divisor;
-    if ((dividend<0) != (divisor<0)) remainder = remainder + divisor;
-    return number(remainder);
-  } else {
-    float fdivisor = checkintfloat(arg2);
-    if (fdivisor == 0.0) error2(PSTR("division by zero"));
-    float fdividend = checkintfloat(arg1);
-    float fremainder = fmod(fdividend , fdivisor);
-    if ((fdividend<0) != (fdivisor<0)) fremainder = fremainder + fdivisor;
-    return makefloat(fremainder);
-  }
+  return remmod(args, true);
+}"#)
+
+     #-avr-nano
+     (REM nil 2 2 #"
+/*
+  (rem number number)
+  Returns the remainder from dividing the first argument by the second argument.
+  If both arguments are integers the result is an integer; otherwise it's a floating-point number.
+*/
+object *fn_rem (object *args, object *env) {
+  (void) env;
+  return remmod(args, false);
 }"#)
 
       #-float
@@ -3472,7 +3659,7 @@ object *fn_writestring (object *args, object *env) {
   (void) env;
   object *obj = first(args);
   pfun_t pfun = pstreamfun(cdr(args));
-  char temp = Flags;
+  flags_t temp = Flags;
   clrflag(PRINTREADABLY);
   printstring(obj, pfun);
   Flags = temp;
@@ -3488,7 +3675,7 @@ object *fn_writeline (object *args, object *env) {
   (void) env;
   object *obj = first(args);
   pfun_t pfun = pstreamfun(cdr(args));
-  char temp = Flags;
+  flags_t temp = Flags;
   clrflag(PRINTREADABLY);
   printstring(obj, pfun);
   pln(pfun);
@@ -3549,21 +3736,45 @@ object *fn_restarti2c (object *args, object *env) {
   return I2Crestart(address, read) ? tee : nil;
 }"#)
 
-      (GC nil 0 0 #"
+      #+(or avr avr-nano)
+      (GC nil 0 1 #"
 /*
-  (gc)
+  (gc [print time])
   Forces a garbage collection and prints the number of objects collected, and the time taken.
 */
-object *fn_gc (object *obj, object *env) {
-  int initial = Freespace;
-  unsigned long start = micros();
-  gc(obj, env);
-  unsigned long elapsed = micros() - start;
-  pfstring(PSTR("Space: "), pserial);
-  pint(Freespace - initial, pserial);
-  pfstring(PSTR(" bytes, Time: "), pserial);
-  pint(elapsed, pserial);
-  pfstring(PSTR(" us\n"), pserial);
+object *fn_gc (object *args, object *env) {
+  if (args == NULL || first(args) != NULL) {
+    int initial = Freespace;
+    unsigned long start = micros();
+    gc(args, env);
+    unsigned long elapsed = micros() - start;
+    pfstring(PSTR("Space: "), pserial);
+    pint(Freespace - initial, pserial);
+    pfstring(PSTR(" bytes, Time: "), pserial);
+    pint(elapsed, pserial);
+    pfstring(PSTR(" us\n"), pserial);
+  } else gc(args, env);
+  return nil;
+}"#)
+
+      #-(or avr avr-nano)
+      (GC nil 0 1 #"
+/*
+  (gc [print time])
+  Forces a garbage collection and prints the number of objects collected, and the time taken.
+*/
+object *fn_gc (object *args, object *env) {
+  if (args == NULL || first(args) != NULL) {
+    int initial = Freespace;
+    unsigned long start = micros();
+    gc(args, env);
+    unsigned long elapsed = micros() - start;
+    pfstring("Space: ", pserial);
+    pint(Freespace - initial, pserial);
+    pfstring(" bytes, Time: ", pserial);
+    pint(elapsed, pserial);
+    pfstring(" us\n", pserial);
+  } else gc(args, env);
   return nil;
 }"#)
 
@@ -3575,6 +3786,20 @@ object *fn_gc (object *obj, object *env) {
 object *fn_room (object *args, object *env) {
   (void) args, (void) env;
   return number(Freespace);
+}"#)
+
+      #-avr-nano
+      (BACKTRACE nil 0 1 #"
+/*
+  (backtrace [on])
+  Sets the state of backtrace according to the boolean flag 'on',
+  or with no argument displays the current state of backtrace.
+*/
+object *fn_backtrace (object *args, object *env) {
+  (void) env;
+  if (args == NULL) return (tstflag(BACKTRACE)) ? tee : nil;
+  if (first(args) == NULL) clrflag(BACKTRACE); else setflag(BACKTRACE);
+  return first(args);
 }"#)
 
       (SAVEIMAGE "save-image" 0 1 "
@@ -3770,8 +3995,13 @@ object *fn_analogreference (object *args, object *env) {
 object *fn_analogreference (object *args, object *env) {
   (void) env;
   object *arg = first(args);
-  #if defined(ARDUINO_TEENSY40) || defined(ARDUINO_TEENSY41) || defined(MAX32620) || defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_RASPBERRY_PI_PICO_W) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || defined(ARDUINO_ADAFRUIT_QTPY_RP2040)
-  error2(PSTR("not supported"));
+  #if defined(ARDUINO_TEENSY40) || defined(ARDUINO_TEENSY41) || defined(MAX32620) \
+   || defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_RASPBERRY_PI_PICO_W) \
+   || defined(ARDUINO_RASPBERRY_PI_PICO_2) || defined(ARDUINO_PIMORONI_PICO_PLUS_2) \
+   || defined(ARDUINO_PIMORONI_TINY2350) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) \
+   || defined(ARDUINO_ADAFRUIT_QTPY_RP2040) || defined(ARDUINO_NANO_MATTER) \
+   || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040_ADALOGGER)
+  error2("not supported");
   #else
   analogReference((eAnalogReference)checkkeyword(arg));
   #endif
@@ -3809,8 +4039,10 @@ object *fn_analogreadresolution (object *args, object *env) {
 object *fn_analogreadresolution (object *args, object *env) {
   (void) env;
   object *arg = first(args);
-  #if defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || defined(ARDUINO_ADAFRUIT_QTPY_RP2040)
-  error2(PSTR("not supported"));
+  #if defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_RASPBERRY_PI_PICO_2) \
+  || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || defined(ARDUINO_ADAFRUIT_QTPY_RP2040) \
+  || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040_ADALOGGER)
+  error2("not supported");
   #else
   analogReadResolution(checkinteger(arg));
   #endif
@@ -4270,7 +4502,7 @@ object *fn_format (object *args, object *env) {
   object *output = first(args);
   object *obj;
   if (output == nil) { obj = startstring(); pfun = pstr; }
-  else if (output != tee) pfun = pstreamfun(args);
+  else if (!eq(output, tee)) pfun = pstreamfun(args);
   object *formatstr = checkstring(second(args));
   object *save = NULL;
   args = cddr(args);
@@ -4405,7 +4637,7 @@ object *sp_help (object *args, object *env) {
   if (args == NULL) error2(noargument);
   object *docstring = documentation(first(args), env);
   if (docstring) {
-    char temp = Flags;
+    flags_t temp = Flags;
     clrflag(PRINTREADABLY);
     printstring(docstring, pserial);
     Flags = temp;
@@ -4524,7 +4756,7 @@ object *sp_ignoreerrors (object *args, object *env) {
 object *sp_error (object *args, object *env) {
   object *message = eval(cons(bsymbol(FORMAT), cons(nil, args)), env);
   if (!tstflag(MUFFLEERRORS)) {
-    char temp = Flags;
+    flags_t temp = Flags;
     clrflag(PRINTREADABLY);
     pfstring(PSTR("Error: "), pserial); printstring(message, pserial);
     Flags = temp;
@@ -4534,11 +4766,43 @@ object *sp_error (object *args, object *env) {
   longjmp(*handler, 1);
 }"#)) "sp")
 
+      #+(or arm esp riscv avr)
+("SD Card utilities"
+ (
+      (DIRECTORY nil 0 0 #"
+/*
+  (directory)
+  Returns a list of the filenames of the files on the SD card.
+*/
+object *fn_directory (object *args, object *env) {
+  (void) args, (void) env;
+  #if defined(sdcardsupport)
+  SDBegin();
+  File root = SD.open("/");
+  if (!root) error2("problem reading from SD card");
+  object *result = cons(NULL, NULL);
+  object *ptr = result;
+  while (true) {
+    File entry = root.openNextFile();
+    if (!entry) break;
+    object *filename = lispstring((char*)entry.name());
+    cdr(ptr) = cons(filename, NULL);
+    ptr = cdr(ptr);
+    entry.close();
+  }
+  root.close();
+  return cdr(result);
+  #else
+  error2("not supported");
+  return nil;
+  #endif
+}"#)))
+
 #+wifi
 ("Wi-Fi"
       (
        #+arm
-    (WITHCLIENT "with-client" 1 3 #"
+    (WITHCLIENT "with-client" 1 127 #"
 /*
   (with-client (str [address port]) form*)
   Evaluates the forms with str bound to a wifi-stream.
@@ -4578,7 +4842,7 @@ object *sp_withclient (object *args, object *env) {
 }"#)
 
 #+esp
-    (WITHCLIENT "with-client" 1 3 #"
+    (WITHCLIENT "with-client" 1 127 #"
 /*
   (with-client (str [address port]) form*)
   Evaluates the forms with str bound to a wifi-stream.

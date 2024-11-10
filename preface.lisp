@@ -35,14 +35,17 @@
 #define marked(x)          ((((uintptr_t)(car(x))) & MARKBIT) != 0)
 #define MARKBIT            1
 
-#define setflag(x)         (Flags |= 1<<(x))
-#define clrflag(x)         (Flags &= ~(1<<(x)))
+#define setflag(x)         (Flags = Flags | 1<<(x))
+#define clrflag(x)         (Flags = Flags & ~(1<<(x)))
 #define tstflag(x)         (Flags & 1<<(x))
 
 #define issp(x)            (x == ' ' || x == '\n' || x == '\r' || x == '\t')
-#define isbr(x)            (x == ')' || x == '(' || x == '"' || x == '#')
+#define isbr(x)            (x == ')' || x == '(' || x == '"' || x == '#' || x == '\'')
+#define fntype(x)          (getminmax((uint16_t)(x))>>6)
 #define longsymbolp(x)     (((x)->name & 0x03) == 0)
 #define longnamep(x)       (((x) & 0x03) == 0)
+#define twist(x)           ((uint16_t)((x)<<2) | (((x) & 0xC000)>>14))
+#define untwist(x)         (((x)>>2 & 0x3FFF) | ((x) & 0x03)<<14)
 #define arraysize(x)       (sizeof(x) / sizeof(x[0]))
 #define stringifyX(x)      #x
 #define stringify(x)       stringifyX(x)
@@ -65,10 +68,11 @@
 #define car(x)             (((object *) (x))->car)
 #define cdr(x)             (((object *) (x))->cdr)
 
-#define first(x)           (((object *) (x))->car)
-#define second(x)          (car(cdr(x)))
-#define cddr(x)            (cdr(cdr(x)))
-#define third(x)           (car(cdr(cdr(x))))
+#define first(x)           car(x)
+#define rest(x)            cdr(x)
+#define second(x)          first(rest(x))
+#define cddr(x)            cdr(cdr(x))
+#define third(x)           first(cddr(x))
 
 #define push(x, y)         ((y) = cons((x),(y)))
 #define pop(y)             ((y) = cdr(y))
@@ -93,9 +97,12 @@
 #define tstflag(x)         (Flags & 1<<(x))
 
 #define issp(x)            (x == ' ' || x == '\n' || x == '\r' || x == '\t')
-#define isbr(x)            (x == ')' || x == '(' || x == '"' || x == '#')
+#define isbr(x)            (x == ')' || x == '(' || x == '"' || x == '#' || x == '\'')
+#define fntype(x)          (getminmax((uint16_t)(x))>>6)
 #define longsymbolp(x)     (((x)->name & 0x03) == 0)
 #define longnamep(x)       (((x) & 0x03) == 0)
+#define twist(x)           ((uint16_t)((x)<<2) | (((x) & 0xC000)>>14))
+#define untwist(x)         (((x)>>2 & 0x3FFF) | ((x) & 0x03)<<14)
 #define arraysize(x)       (sizeof(x) / sizeof(x[0]))
 #define stringifyX(x)      #x
 #define stringify(x)       stringifyX(x)
@@ -142,20 +149,23 @@
 #define marked(x)          ((((uintptr_t)(car(x))) & MARKBIT) != 0)
 #define MARKBIT            1
 
-#define setflag(x)         (Flags |= 1<<(x))
-#define clrflag(x)         (Flags &= ~(1<<(x)))
+#define setflag(x)         (Flags = Flags | 1<<(x))
+#define clrflag(x)         (Flags = Flags & ~(1<<(x)))
 #define tstflag(x)         (Flags & 1<<(x))
 
 #define issp(x)            (x == ' ' || x == '\n' || x == '\r' || x == '\t')
-#define isbr(x)            (x == ')' || x == '(' || x == '"' || x == '#')
+#define isbr(x)            (x == ')' || x == '(' || x == '"' || x == '#' || x == '\'')
+#define fntype(x)          (getminmax((uint16_t)(x))>>6)
 #define longsymbolp(x)     (((x)->name & 0x03) == 0)
 #define longnamep(x)       (((x) & 0x03) == 0)
+#define twist(x)           ((uint32_t)((x)<<2) | (((x) & 0xC0000000)>>30))
+#define untwist(x)         (((x)>>2 & 0x3FFFFFFF) | ((x) & 0x03)<<30)
 #define arraysize(x)       (sizeof(x) / sizeof(x[0]))
 #define stringifyX(x)      #x
 #define stringify(x)       stringifyX(x)
 #define PACKEDS            0x43238000
 #define BUILTINS           0xF4240000
-#define ENDFUNCTIONS       1536"#
+#define ENDFUNCTIONS       0x0BDC0000"#
 
 #+(or arm riscv)
 #"
@@ -187,7 +197,7 @@ PGM_P const streamname[] PROGMEM = {serialstream, i2cstream, spistream, sdstream
 #"
 // Constants
 
-const int TRACEMAX = 3; // Number of traced functions
+#define TRACEMAX 3  // Maximum number of traced functions
 enum type { ZZERO=0, SYMBOL=2, CODE=4, NUMBER=6, STREAM=8, CHARACTER=10, ARRAY=12, STRING=14, PAIR=16 };  // ARRAY STRING and PAIR must be last
 enum token { UNUSED, BRA, KET, QUO, DOT };
 enum stream { SERIALSTREAM, I2CSTREAM, SPISTREAM, SDSTREAM, STRINGSTREAM };
@@ -205,7 +215,7 @@ PGM_P const streamname[] PROGMEM = {serialstream, i2cstream, spistream, sdstream
 #"
 // Constants
 
-const int TRACEMAX = 3; // Number of traced functions
+#define TRACEMAX 3  // Maximum number of traced functions
 enum type { ZZERO=0, SYMBOL=2, CODE=4, NUMBER=6, STREAM=8, CHARACTER=10, FLOAT=12, ARRAY=14, STRING=16, PAIR=18 };  // ARRAY STRING and PAIR must be last
 enum token { UNUSED, BRA, KET, QUO, DOT };
 enum stream { SERIALSTREAM, I2CSTREAM, SPISTREAM, SDSTREAM, WIFISTREAM, STRINGSTREAM, GFXSTREAM };
@@ -225,7 +235,7 @@ const char *const streamname[] PROGMEM = {serialstream, i2cstream, spistream, sd
 #"
 // Constants
 
-const int TRACEMAX = 3; // Number of traced functions
+#define TRACEMAX 3  // Maximum number of traced functions
 enum type { ZZERO=0, SYMBOL=2, CODE=4, NUMBER=6, STREAM=8, CHARACTER=10, FLOAT=12, ARRAY=14, STRING=16, PAIR=18 };  // ARRAY STRING and PAIR must be last
 enum token { UNUSED, BRA, KET, QUO, DOT };
 enum stream { SERIALSTREAM, I2CSTREAM, SPISTREAM, SDSTREAM, WIFISTREAM, STRINGSTREAM, GFXSTREAM };
@@ -245,7 +255,7 @@ PGM_P const streamname[] PROGMEM = {serialstream, i2cstream, spistream, sdstream
 #"
 // Constants
 
-const int TRACEMAX = 3; // Number of traced functions
+#define TRACEMAX 3  // Maximum number of traced functions
 enum type { ZZERO=0, SYMBOL=2, CODE=4, NUMBER=6, STREAM=8, CHARACTER=10, FLOAT=12, ARRAY=14, STRING=16, PAIR=18 };  // STRING and PAIR must be last
 enum token { UNUSED, BRA, KET, QUO, DOT };
 enum stream { SERIALSTREAM, I2CSTREAM, SPISTREAM, SDSTREAM, STRINGSTREAM, GFXSTREAM };
@@ -533,13 +543,21 @@ RAMFUNC uint8_t MyCode[CODESIZE] WORDALIGNED;
 #"
 // Global variables
 
-object Workspace[WORKSPACESIZE] WORDALIGNED;"#
+#if defined(BOARD_HAS_PSRAM)
+object *Workspace WORDALIGNED;
+#else
+object Workspace[WORKSPACESIZE] WORDALIGNED;
+#endif"#
 
 #+riscv
 #"
 // Global variables
 
+#if (WORKSPACESIZE > 80000)
+object *Workspace WORDALIGNED;
+#else
 object Workspace[WORKSPACESIZE] WORDALIGNED;
+#endif
 uint8_t MyCode[CODESIZE] WORDALIGNED;"#
 
 #+avr-nano
@@ -573,6 +591,9 @@ unsigned int I2Ccount;
 unsigned int TraceFn[TRACEMAX];
 unsigned int TraceDepth[TRACEMAX];
 builtin_t Context;
+#define BACKTRACESIZE 8
+uint8_t TraceStart = 0, TraceTop = 0;
+symbol_t Backtrace[BACKTRACESIZE];
 
 object *GlobalEnv;
 object *GCStack = NULL;
@@ -585,7 +606,7 @@ char LastChar = 0;
 char LastPrint = 0;
 uint16_t RandomSeed;"#
 
-#+(or esp arm riscv)
+#+(or arm riscv)
 #"
 jmp_buf toplevel_handler;
 jmp_buf *handler = &toplevel_handler;
@@ -595,6 +616,9 @@ unsigned int I2Ccount;
 unsigned int TraceFn[TRACEMAX];
 unsigned int TraceDepth[TRACEMAX];
 builtin_t Context;
+#define BACKTRACESIZE 8
+uint8_t TraceStart = 0, TraceTop = 0;
+symbol_t Backtrace[BACKTRACESIZE];
 
 object *GlobalEnv;
 object *GCStack = NULL;
@@ -606,40 +630,48 @@ uint8_t BreakLevel = 0;
 char LastChar = 0;
 char LastPrint = 0;"#
 
+#+esp
+#"
+jmp_buf toplevel_handler;
+jmp_buf *handler = &toplevel_handler;
+unsigned int Freespace = 0;
+object *Freelist;
+unsigned int I2Ccount;
+unsigned int TraceFn[TRACEMAX];
+unsigned int TraceDepth[TRACEMAX];
+builtin_t Context;
+#define BACKTRACESIZE 8
+uint8_t TraceStart = 0, TraceTop = 0;
+symbol_t Backtrace[BACKTRACESIZE];
+
+object *GlobalEnv;
+object *GCStack = NULL;
+object *GlobalString;
+object *GlobalStringTail;
+int GlobalStringIndex = 0;
+uint8_t PrintCount = 0;
+uint8_t BreakLevel = 0;
+char LastChar = 0;
+char LastPrint = 0;
+void* StackBottom;"#
+
+
 #-errors
 #"
 // Flags
-enum flag { PRINTREADABLY, RETURNFLAG, ESCAPE, EXITEDITOR, LIBRARYLOADED, NOESC, NOECHO };
-volatile uint8_t Flags = 0b00001; // PRINTREADABLY set by default"#
+enum flag { PRINTREADABLY, RETURNFLAG, ESCAPE, EXITEDITOR, LIBRARYLOADED, NOESC, NOECHO, BACKTRACE };
+typedef uint8_t flags_t;
+volatile flags_t Flags = 1<<PRINTREADABLY; // Set by default"#
 
 #+errors
 #"
 // Flags
-enum flag { PRINTREADABLY, RETURNFLAG, ESCAPE, EXITEDITOR, LIBRARYLOADED, NOESC, NOECHO, MUFFLEERRORS };
-volatile uint8_t Flags = 0b00001; // PRINTREADABLY set by default"#
+enum flag { PRINTREADABLY, RETURNFLAG, ESCAPE, EXITEDITOR, LIBRARYLOADED, NOESC, NOECHO, MUFFLEERRORS, BACKTRACE };
+typedef uint16_t flags_t;
+volatile flags_t Flags = 1<<PRINTREADABLY; // Set by default"#
 
 #"
 // Forward references
 object *tee;
-void pfstring (PGM_P s, pfun_t pfun);"#
-
-#+(or avr avr-nano)
-#"
-inline symbol_t twist (builtin_t x) {
-  return (x<<2) | ((x & 0xC000)>>14);
-}
-
-inline builtin_t untwist (symbol_t x) {
-  return (x>>2 & 0x3FFF) | ((x & 0x03)<<14);
-}"#
-
-#-(or avr avr-nano)
-#"
-inline symbol_t twist (builtin_t x) {
-  return (x<<2) | ((x & 0xC0000000)>>30);
-}
-
-inline builtin_t untwist (symbol_t x) {
-  return (x>>2 & 0x3FFFFFFF) | ((x & 0x03)<<30);
-}"#))
+void pfstring (PGM_P s, pfun_t pfun);"#))
 

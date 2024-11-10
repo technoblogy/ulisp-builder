@@ -62,87 +62,167 @@ Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, MOSI, SCK, TFT_RST);
 #define WORDALIGNED __attribute__((aligned (4)))
 #define BUFFERSIZE 36  // Number of bits+4
 
-#if defined(ARDUINO_FEATHER_ESP32)
-  #define WORKSPACESIZE (9216-SDSIZE)     /* Cells (8*bytes) */
+// ESP32 boards ***************************************************************
+
+#if defined(ARDUINO_ESP32_DEV)                 /* For TTGO T-Display etc. */
+  #if defined(BOARD_HAS_PSRAM)
+  #define WORKSPACESIZE 260000                   /* Objects (8*bytes) */
+  #else
+  #define WORKSPACESIZE (9216-SDSIZE)            /* Objects (8*bytes) */
+  #endif
   #define LITTLEFS
   #include <LittleFS.h>
   #define analogWrite(x,y) dacWrite((x),(y))
   #define SDCARD_SS_PIN 13
+  #define LED_BUILTIN 13
+  #define CPU_LX6
+
+#elif defined(ARDUINO_FEATHER_ESP32)
+  #define WORKSPACESIZE (9500-SDSIZE)            /* Objects (8*bytes) */
+  #define LITTLEFS
+  #include <LittleFS.h>
+  #define analogWrite(x,y) dacWrite((x),(y))
+  #define SDCARD_SS_PIN 13
+  #define CPU_LX6
+
+#elif defined(ARDUINO_ADAFRUIT_FEATHER_ESP32_V2)
+  #if defined(BOARD_HAS_PSRAM)
+  #define WORKSPACESIZE 250000                   /* Objects (8*bytes) */
+  #else
+  #define WORKSPACESIZE (9500-SDSIZE)            /* Objects (8*bytes) */
+  #endif
+  #define MAX_STACK 7000
+  #define LITTLEFS
+  #include <LittleFS.h>
+  #define analogWrite(x,y) dacWrite((x),(y))
+  #define SDCARD_SS_PIN 13
+  #define CPU_LX6
+
+#elif defined(ARDUINO_ADAFRUIT_QTPY_ESP32_PICO) || defined(ARDUINO_ESP32_PICO)
+  #if defined(BOARD_HAS_PSRAM)
+  #define WORKSPACESIZE 250000                   /* Objects (8*bytes) */
+  #else
+  #define WORKSPACESIZE (9500-SDSIZE)            /* Objects (8*bytes) */
+  #endif
+  #define MAX_STACK 7000
+  #define LITTLEFS
+  #include <LittleFS.h>
+  #define SDCARD_SS_PIN 13
+  #define LED_BUILTIN 13
+  #define CPU_LX6
+  
+// ESP32-S2 boards ***************************************************************
 
 #elif defined(ARDUINO_ADAFRUIT_FEATHER_ESP32S2) || defined(ARDUINO_ADAFRUIT_FEATHER_ESP32S2_TFT)
-  #define WORKSPACESIZE (8160-SDSIZE)            /* Cells (8*bytes) */
+  #if defined(BOARD_HAS_PSRAM)
+  #define WORKSPACESIZE 250000                   /* Objects (8*bytes) */
+  #else
+  #define WORKSPACESIZE (6500-SDSIZE)            /* Objects (8*bytes) */
+  #endif
+  #define MAX_STACK 7000
   #define LITTLEFS
   #include <LittleFS.h>
   #define analogWrite(x,y) dacWrite((x),(y))
   #define SDCARD_SS_PIN 13
-
-#elif defined(ARDUINO_ADAFRUIT_QTPY_ESP32_PICO)
-  #define WORKSPACESIZE (9216-SDSIZE)            /* Cells (8*bytes) */
-  #define LITTLEFS
-  #include <LittleFS.h>
-  #define SDCARD_SS_PIN 13
-  #define LED_BUILTIN 13
-  
-#elif defined(ARDUINO_ADAFRUIT_QTPY_ESP32S2)
-  #define WORKSPACESIZE (8160-SDSIZE)            /* Cells (8*bytes) */
-  #define LITTLEFS
-  #include <LittleFS.h>
-  #define analogWrite(x,y) dacWrite((x),(y))
-  #define SDCARD_SS_PIN 13
-  #define LED_BUILTIN 13
-
-#elif defined(ARDUINO_ADAFRUIT_QTPY_ESP32C3)
-  #define WORKSPACESIZE (9216-SDSIZE)            /* Cells (8*bytes) */
-  #define LITTLEFS
-  #include <LittleFS.h>
-  #define SDCARD_SS_PIN 13
-  #define LED_BUILTIN 13
+  #define CPU_LX7
 
 #elif defined(ARDUINO_FEATHERS2)                 /* UM FeatherS2 */
-  #define WORKSPACESIZE (8160-SDSIZE)            /* Cells (8*bytes) */
+  #if defined(BOARD_HAS_PSRAM)
+  #define WORKSPACESIZE 1000000                  /* Objects (8*bytes) */
+  #else
+  #define WORKSPACESIZE (8160-SDSIZE)            /* Objects (8*bytes) */
+  #endif
+  #define MAX_STACK 7000
   #define LITTLEFS
   #include <LittleFS.h>
   #define analogWrite(x,y) dacWrite((x),(y))
   #define SDCARD_SS_PIN 13
   #define LED_BUILTIN 13
-
-#elif defined(ARDUINO_ESP32_DEV)                 /* For TTGO T-Display */
-  #define WORKSPACESIZE (9216-SDSIZE)            /* Cells (8*bytes) */
-  #define LITTLEFS
-  #include <LittleFS.h>
-  #define analogWrite(x,y) dacWrite((x),(y))
-  #define SDCARD_SS_PIN 13
-  #define LED_BUILTIN 13
+  #define CPU_LX7
 
 #elif defined(ARDUINO_ESP32S2_DEV)
-  #define WORKSPACESIZE (8100-SDSIZE)            /* Cells (8*bytes) */
+  #if defined(BOARD_HAS_PSRAM)
+  #define WORKSPACESIZE 260000                   /* Objects (8*bytes) */
+  #else
+  #define WORKSPACESIZE (8160-SDSIZE)            /* Objects (8*bytes) */
+  #endif
+  #define MAX_STACK 7000
   #define LITTLEFS
   #include <LittleFS.h>
   #define analogWrite(x,y) dacWrite((x),(y))
   #define SDCARD_SS_PIN 13
   #define LED_BUILTIN 13
+  #define CPU_LX7
 
-#elif defined(ARDUINO_ESP32C3_DEV)
-  #define WORKSPACESIZE (9216-SDSIZE)            /* Cells (8*bytes) */
+#elif defined(ARDUINO_ADAFRUIT_QTPY_ESP32S2)
+  #if defined(BOARD_HAS_PSRAM)
+  #define WORKSPACESIZE 260000                   /* Objects (8*bytes) */
+  #else
+  #define WORKSPACESIZE (7232-SDSIZE)            /* Objects (8*bytes) */
+  #endif
+  #define MAX_STACK 7000
   #define LITTLEFS
   #include <LittleFS.h>
+  #define analogWrite(x,y) dacWrite((x),(y))
   #define SDCARD_SS_PIN 13
   #define LED_BUILTIN 13
+  #define CPU_LX7
+  
+// ESP32-S3 boards ***************************************************************
 
 #elif defined(ARDUINO_ESP32S3_DEV)
-  #define WORKSPACESIZE (22000-SDSIZE)            /* Cells (8*bytes) */
+  #define WORKSPACESIZE (25000-SDSIZE)           /* Objects (8*bytes) */
+  #define MAX_STACK 6500
   #define LITTLEFS
   #include <LittleFS.h>
   #define SDCARD_SS_PIN 13
   #define LED_BUILTIN 13
+  #define CPU_LX7
 
-#elif defined(ESP32)
-  #define WORKSPACESIZE (9216-SDSIZE)     /* Cells (8*bytes) */
+#elif defined(ARDUINO_ADAFRUIT_FEATHER_ESP32S3_TFT)
+  #if defined(BOARD_HAS_PSRAM)
+  #define WORKSPACESIZE 250000                   /* Objects (8*bytes) */
+  #else
+  #define WORKSPACESIZE (22000-SDSIZE)           /* Objects (8*bytes) */
+  #endif
+  #define MAX_STACK 7000
+  #define LITTLEFS
+  #include <LittleFS.h>
+  #define SDCARD_SS_PIN 13
+  #define LED_BUILTIN 13
+  #define CPU_LX7
+
+// ESP32-C3 boards ***************************************************************
+
+#elif defined(ARDUINO_ESP32C3_DEV)
+  #define WORKSPACESIZE (9216-SDSIZE)            /* Objects (8*bytes) */
+  #define MAX_STACK 7500
+  #define LITTLEFS
+  #include <LittleFS.h>
+  #define SDCARD_SS_PIN 13
+  #define LED_BUILTIN 13
+  #define CPU_RISC_V
+  
+#elif defined(ARDUINO_ADAFRUIT_QTPY_ESP32C3)
+  #define WORKSPACESIZE (9216-SDSIZE)            /* Objects (8*bytes) */
+  #define MAX_STACK 8000
+  #define LITTLEFS
+  #include <LittleFS.h>
+  #define SDCARD_SS_PIN 13
+  #define LED_BUILTIN 13
+  #define CPU_RISC_V
+
+// Legacy boards ***************************************************************
+  
+#elif defined(ESP32)                             /* Generic ESP32 board */
+  #define WORKSPACESIZE (9216-SDSIZE)            /* Objects (8*bytes) */
+  #define MAX_STACK 7000
   #define LITTLEFS
   #include <LittleFS.h>
   #define analogWrite(x,y) dacWrite((x),(y))
   #define SDCARD_SS_PIN 13
   #define LED_BUILTIN 13
+  #define CPU_LX6
 
 #else
 #error "Board not supported!"
@@ -154,34 +234,35 @@ Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, MOSI, SCK, TFT_RST);
 void checkanalogread (int pin) {
 #if defined(ESP32) || defined(ARDUINO_ESP32_DEV)
   if (!(pin==0 || pin==2 || pin==4 || (pin>=12 && pin<=15) || (pin>=25 && pin<=27) || (pin>=32 && pin<=36) || pin==39))
-    error(PSTR("invalid pin"), number(pin));
-#elif defined(ARDUINO_FEATHER_ESP32)
-  if (!(pin==4 || (pin>=12 && pin<=15) || (pin>=25 && pin<=27) || (pin>=32 && pin<=36) || pin==39))
-    error(PSTR("invalid pin"), number(pin));
+    error("invalid pin", number(pin));
+#elif defined(ARDUINO_FEATHER_ESP32) || defined(ARDUINO_ADAFRUIT_FEATHER_ESP32_V2)
+  if (!(pin==4 || (pin>=12 && pin<=15) || (pin>=25 && pin<=27) || (pin>=32 && pin<=36) || pin==39)) error("invalid pin", number(pin));
 #elif defined(ARDUINO_ADAFRUIT_FEATHER_ESP32S2) || defined(ARDUINO_ADAFRUIT_FEATHER_ESP32S2_TFT)
-  if (!(pin==8 || (pin>=14 && pin<=18))) error(PSTR("invalid pin"), number(pin));
+  if (!(pin==8 || (pin>=14 && pin<=18))) error("invalid pin", number(pin));
 #elif defined(ARDUINO_ADAFRUIT_QTPY_ESP32_PICO)
-  if (!(pin==4 || pin==7 || (pin>=12 && pin<=15) || (pin>=25 && pin<=27) || (pin>=32 && pin<=33))) error(PSTR("invalid pin"), number(pin));
+  if (!(pin==4 || pin==7 || (pin>=12 && pin<=15) || (pin>=25 && pin<=27) || (pin>=32 && pin<=33))) error("invalid pin", number(pin));
 #elif defined(ARDUINO_ADAFRUIT_QTPY_ESP32S2)
-  if (!((pin>=5 && pin<=9) || (pin>=16 && pin<=18))) error(PSTR("invalid pin"), number(pin));
+  if (!((pin>=5 && pin<=9) || (pin>=16 && pin<=18))) error("invalid pin", number(pin));
 #elif defined(ARDUINO_ADAFRUIT_QTPY_ESP32C3)
-  if (!((pin>=0 && pin<=1) || (pin>=3 && pin<=5))) error(PSTR("invalid pin"), number(pin));
-#elif defined(ARDUINO_FEATHERS2) | defined(ARDUINO_ESP32S2_DEV)
-  if (!((pin>=1 && pin<=20))) error(PSTR("invalid pin"), number(pin));
+  if (!((pin>=0 && pin<=1) || (pin>=3 && pin<=5))) error("invalid pin", number(pin));
+#elif defined(ARDUINO_FEATHERS2) || defined(ARDUINO_ESP32S2_DEV)
+  if (!((pin>=1 && pin<=20))) error("invalid pin", number(pin));
 #elif defined(ARDUINO_ESP32C3_DEV)
-  if (!((pin>=0 && pin<=5))) error(PSTR("invalid pin"), number(pin));
+  if (!((pin>=0 && pin<=5))) error("invalid pin", number(pin));
 #elif defined(ARDUINO_ESP32S3_DEV)
-  if (!((pin>=1 && pin<=20))) error(PSTR("invalid pin"), number(pin));
+  if (!((pin>=1 && pin<=20))) error("invalid pin", number(pin));
 #endif
 }
 
 void checkanalogwrite (int pin) {
-#if defined(ESP32) || defined(ARDUINO_FEATHER_ESP32) || defined(ARDUINO_ESP32_DEV) || defined(ARDUINO_ADAFRUIT_QTPY_ESP32_PICO)
-  if (!(pin>=25 && pin<=26)) error(PSTR("invalid pin"), number(pin));
-#elif defined(ARDUINO_ADAFRUIT_FEATHER_ESP32S2) || defined(ARDUINO_ADAFRUIT_FEATHER_ESP32S2_TFT) || defined(ARDUINO_ADAFRUIT_QTPY_ESP32S2) || defined(ARDUINO_FEATHERS2) || defined(ARDUINO_ESP32S2_DEV)
-  if (!(pin>=17 && pin<=18)) error(PSTR("invalid pin"), number(pin));
-#elif defined(ARDUINO_ESP32C3_DEV) | defined(ARDUINO_ESP32S3_DEV) | defined(ARDUINO_ADAFRUIT_QTPY_ESP32C3)
-  error2(ANALOGWRITE, PSTR("not supported"));
+#if defined(ESP32) || defined(ARDUINO_FEATHER_ESP32) || defined(ARDUINO_ADAFRUIT_FEATHER_ESP32_V2) || defined(ARDUINO_ESP32_DEV) \
+  || defined(ARDUINO_ADAFRUIT_QTPY_ESP32_PICO)
+  if (!(pin>=25 && pin<=26)) error("invalid pin", number(pin));
+#elif defined(ARDUINO_ADAFRUIT_FEATHER_ESP32S2) || defined(ARDUINO_ADAFRUIT_FEATHER_ESP32S2_TFT) || defined(ARDUINO_ADAFRUIT_QTPY_ESP32S2) \
+  || defined(ARDUINO_FEATHERS2) || defined(ARDUINO_ESP32S2_DEV)
+  if (!(pin>=17 && pin<=18)) error("invalid pin", number(pin));
+#elif defined(ARDUINO_ESP32C3_DEV) || defined(ARDUINO_ESP32S3_DEV) || defined(ARDUINO_ADAFRUIT_QTPY_ESP32C3)
+  error2(ANALOGWRITE, "not supported");
 #endif
 }"#)
 

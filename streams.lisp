@@ -22,7 +22,7 @@ uint8_t const TWI_SDA_PIN = 6;
 uint8_t const TWI_SCL_PIN = 5;
 #endif
 
-#if defined(CPU_ATmega4809) || defined(CPU_AVR128DX48) || defined(CPU_ATtiny3227)
+#if defined(CPU_ATmega4809) || defined(CPU_ATtiny3227) || defined(CPU_AVR64DD28)
 uint32_t const FREQUENCY = 400000L;  // Hardware I2C clock in Hz
 uint32_t const T_RISE = 300L;        // Rise time
 #else
@@ -37,7 +37,7 @@ uint8_t const I2C_WRITE = 0;
 #endif
 
 void I2Cinit (bool enablePullup) {
-#if defined(CPU_ATmega4809) || defined(CPU_AVR128DX48) || defined(CPU_ATtiny3227)
+#if defined(CPU_ATmega4809) || defined(CPU_ATtiny3227) || defined(CPU_AVR64DD28)
   #if defined(CPU_ATmega4809)
   if (enablePullup) {
     pinMode(SDA, INPUT_PULLUP);
@@ -61,7 +61,7 @@ void I2Cinit (bool enablePullup) {
 }
 
 int I2Cread () {
-#if defined(CPU_ATmega4809) || defined(CPU_AVR128DX48) || defined(CPU_ATtiny3227)
+#if defined(CPU_ATmega4809) || defined(CPU_ATtiny3227) || defined(CPU_AVR64DD28)
   if (I2Ccount != 0) I2Ccount--;
   while (!(TWI0.MSTATUS & TWI_RIF_bm));                           // Wait for read interrupt flag
   uint8_t data = TWI0.MDATA;
@@ -78,7 +78,7 @@ int I2Cread () {
 }
 
 bool I2Cwrite (uint8_t data) {
-#if defined(CPU_ATmega4809) || defined(CPU_AVR128DX48) || defined(CPU_ATtiny3227)
+#if defined(CPU_ATmega4809) || defined(CPU_ATtiny3227) || defined(CPU_AVR64DD28)
   TWI0.MCTRLB = TWI_MCMD_RECVTRANS_gc;                            // Prime transaction
   TWI0.MDATA = data;                                              // Send data
   while (!(TWI0.MSTATUS & TWI_WIF_bm));                           // Wait for write to complete
@@ -94,7 +94,7 @@ bool I2Cwrite (uint8_t data) {
 }
 
 bool I2Cstart (uint8_t address, uint8_t read) {
-#if defined(CPU_ATmega4809) || defined(CPU_AVR128DX48) || defined(CPU_ATtiny3227)
+#if defined(CPU_ATmega4809) || defined(CPU_ATtiny3227) || defined(CPU_AVR64DD28)
   TWI0.MADDR = address<<1 | read;                                 // Send START condition
   while (!(TWI0.MSTATUS & (TWI_WIF_bm | TWI_RIF_bm)));            // Wait for write or read interrupt flag
   if (TWI0.MSTATUS & TWI_ARBLOST_bm) {                            // Arbitration lost or bus error
@@ -124,7 +124,7 @@ bool I2Crestart (uint8_t address, uint8_t read) {
 }
 
 void I2Cstop (uint8_t read) {
-#if defined(CPU_ATmega4809) || defined(CPU_AVR128DX48) || defined(CPU_ATtiny3227)
+#if defined(CPU_ATmega4809) || defined(CPU_ATtiny3227) || defined(CPU_AVR64DD28)
   (void) read;
   TWI0.MCTRLB |= TWI_MCMD_STOP_gc;                                // Send STOP
   while (!((TWI0.MSTATUS & TWI_BUSSTATE_gm) == TWI_BUSSTATE_IDLE_gc)); // Wait for bus to return to idle state
@@ -139,7 +139,7 @@ void I2Cstop (uint8_t read) {
 #"
 // I2C interface for AVR platforms, uses much less RAM than Arduino Wire
 
-#if defined(CPU_AVR128DX48) || defined(CPU_AVR64DD28)
+#if defined(CPU_AVR128DX48)
 uint32_t const FREQUENCY = 400000L;  // Hardware I2C clock in Hz
 uint32_t const T_RISE = 300L;        // Rise time
 #else
@@ -154,7 +154,7 @@ uint8_t const I2C_WRITE = 0;
 #endif
 
 void I2Cinit (bool enablePullup) {
-#if defined(CPU_AVR128DX48) || defined(CPU_AVR64DD28)
+#if defined(CPU_AVR128DX48)
   #if defined(CPU_ATmega4809)
   if (enablePullup) {
     pinMode(SDA, INPUT_PULLUP);
@@ -178,7 +178,7 @@ void I2Cinit (bool enablePullup) {
 }
 
 int I2Cread () {
-#if defined(CPU_AVR128DX48) || defined(CPU_AVR64DD28)
+#if defined(CPU_AVR128DX48)
   if (I2Ccount != 0) I2Ccount--;
   while (!(TWI0.MSTATUS & TWI_RIF_bm));                           // Wait for read interrupt flag
   uint8_t data = TWI0.MDATA;
@@ -195,7 +195,7 @@ int I2Cread () {
 }
 
 bool I2Cwrite (uint8_t data) {
-#if defined(CPU_AVR128DX48) || defined(CPU_AVR64DD28)
+#if defined(CPU_AVR128DX48)
   TWI0.MCTRLB = TWI_MCMD_RECVTRANS_gc;                            // Prime transaction
   TWI0.MDATA = data;                                              // Send data
   while (!(TWI0.MSTATUS & TWI_WIF_bm));                           // Wait for write to complete
@@ -211,7 +211,7 @@ bool I2Cwrite (uint8_t data) {
 }
 
 bool I2Cstart (uint8_t address, uint8_t read) {
-#if defined(CPU_AVR128DX48) || defined(CPU_AVR64DD28)
+#if defined(CPU_AVR128DX48)
   TWI0.MADDR = address<<1 | read;                                 // Send START condition
   while (!(TWI0.MSTATUS & (TWI_WIF_bm | TWI_RIF_bm)));            // Wait for write or read interrupt flag
   if (TWI0.MSTATUS & TWI_ARBLOST_bm) {                            // Arbitration lost or bus error
@@ -241,7 +241,7 @@ bool I2Crestart (uint8_t address, uint8_t read) {
 }
 
 void I2Cstop (uint8_t read) {
-#if defined(CPU_AVR128DX48) || defined(CPU_AVR64DD28)
+#if defined(CPU_AVR128DX48)
   (void) read;
   TWI0.MCTRLB |= TWI_MCMD_STOP_gc;                                // Send STOP
   while (!((TWI0.MSTATUS & TWI_BUSSTATE_gm) == TWI_BUSSTATE_IDLE_gc)); // Wait for bus to return to idle state
@@ -395,12 +395,37 @@ void I2Cstop (uint8_t read) {
 
 (defparameter *stream-interface* '(
 
-#+(or avr avr-nano)
+#+avr-nano
 #"
 // Streams
 
 inline int spiread () { return SPI.transfer(0); }
-#if defined(CPU_ATmega1284P) || defined(CPU_AVR128DX48) || defined(CPU_AVR64DD28)
+#if defined(CPU_AVR64DD28)
+inline int serial1read () { while (!Serial1.available()) testescape(); return Serial1.read(); }
+#endif
+#if defined(sdcardsupport)
+File SDpfile, SDgfile;
+inline int SDread () {
+  if (LastChar) { 
+    char temp = LastChar;
+    LastChar = 0;
+    return temp;
+  }
+  return SDgfile.read();
+}
+#endif
+
+void serialbegin (int address, int baud) {
+  (void) address; (void) baud;
+  error(PSTR("port not supported"), number(address));
+}"#
+
+#+avr
+#"
+// Streams
+
+inline int spiread () { return SPI.transfer(0); }
+#if defined(CPU_ATmega1284P) || defined(CPU_AVR128DX48)
 inline int serial1read () { while (!Serial1.available()) testescape(); return Serial1.read(); }
 #elif defined(CPU_ATmega2560)
 inline int serial1read () { while (!Serial1.available()) testescape(); return Serial1.read(); }
@@ -420,29 +445,13 @@ inline int SDread () {
 #endif
 
 void serialbegin (int address, int baud) {
-  #if defined(CPU_ATmega328P) || defined(CPU_ATmega4809) || defined(CPU_AVR64DD28)
   (void) address; (void) baud;
-  #elif defined(CPU_ATmega1284P) || defined(CPU_AVR128DX48)
-  if (address == 1) Serial1.begin((long)baud*100);
-  else error(PSTR("port not supported"), number(address));
-  #elif defined(CPU_ATmega2560)
-  if (address == 1) Serial1.begin((long)baud*100);
-  else if (address == 2) Serial2.begin((long)baud*100);
-  else if (address == 3) Serial3.begin((long)baud*100);
-  else error(PSTR("port not supported"), number(address));
-  #endif
-}
+}"#
 
+#+(or avr avr-nano)
+#"
 void serialend (int address) {
-  #if defined(CPU_ATmega328P) || defined(CPU_ATmega4809) || defined(CPU_AVR64DD28)
   (void) address;
-  #elif defined(CPU_ATmega1284P) || defined(CPU_AVR128DX48)
-  if (address == 1) {Serial1.flush(); Serial1.end(); }
-  #elif defined(CPU_ATmega2560)
-  if (address == 1) {Serial1.flush(); Serial1.end(); }
-  else if (address == 2) {Serial2.flush(); Serial2.end(); }
-  else if (address == 3) {Serial3.flush(); Serial3.end(); }
-  #endif
 }
 
 gfun_t gstreamfun (object *args) {
@@ -519,15 +528,25 @@ pfun_t pstreamfun (object *args) {
 // Streams
 
 // Simplify board differences
-#if defined(ARDUINO_NRF52840_CLUE) || defined(ARDUINO_GRAND_CENTRAL_M4) || defined(ARDUINO_PYBADGE_M4) || defined(ARDUINO_PYGAMER_M4) || defined(ARDUINO_TEENSY40) || defined(ARDUINO_TEENSY41) || defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_RASPBERRY_PI_PICO_W)
+#if defined(ARDUINO_NRF52840_CLUE) || defined(ARDUINO_GRAND_CENTRAL_M4) \
+  || defined(ARDUINO_PYBADGE_M4) || defined(ARDUINO_PYGAMER_M4) || defined(ARDUINO_TEENSY40) \
+  || defined(ARDUINO_TEENSY41) || defined(ARDUINO_RASPBERRY_PI_PICO) \
+  || defined(ARDUINO_RASPBERRY_PI_PICO_W) || defined(ARDUINO_RASPBERRY_PI_PICO_2) \
+  || defined(ARDUINO_PIMORONI_PICO_PLUS_2)
 #define ULISP_SPI1
 #endif
-#if defined(ARDUINO_WIO_TERMINAL) || defined(ARDUINO_BBC_MICROBIT_V2) || defined(ARDUINO_TEENSY40) || defined(ARDUINO_TEENSY41) || defined(MAX32620) || defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_RASPBERRY_PI_PICO_W) || defined(ARDUINO_ADAFRUIT_QTPY_RP2040) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || defined(ARDUINO_GRAND_CENTRAL_M4) || defined(ARDUINO_NRF52840_CIRCUITPLAY)
+#if defined(ARDUINO_WIO_TERMINAL) || defined(ARDUINO_BBC_MICROBIT_V2) \
+  || defined(ARDUINO_TEENSY40) || defined(ARDUINO_TEENSY41) || defined(MAX32620) \
+  || defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_RASPBERRY_PI_PICO_W) \
+  || defined(ARDUINO_ADAFRUIT_QTPY_RP2040) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) \
+  || defined(ARDUINO_RASPBERRY_PI_PICO_2) || defined(ARDUINO_PIMORONI_PICO_PLUS_2) \
+  || defined(ARDUINO_GRAND_CENTRAL_M4) || defined(ARDUINO_NRF52840_CIRCUITPLAY)
 #define ULISP_I2C1
 #endif
 #if defined(ARDUINO_SAM_DUE) || defined(ARDUINO_TEENSY40) || defined(ARDUINO_TEENSY41)
 #define ULISP_SERIAL3
-#elif defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_RASPBERRY_PI_PICO_W)
+#elif defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_RASPBERRY_PI_PICO_W) \
+  || defined(ARDUINO_RASPBERRY_PI_PICO_2) || defined(ARDUINO_PIMORONI_PICO_PLUS_2)
 #define ULISP_SERIAL2
 #elif !defined(CPU_NRF51822) && !defined(CPU_NRF52833) && !defined(ARDUINO_FEATHER_F405)
 #define ULISP_SERIAL1
@@ -594,7 +613,7 @@ void serialbegin (int address, int baud) {
   (void) baud;
   if (false);
   #endif
-  else error(PSTR("port not supported"), number(address));
+  else error("port not supported", number(address));
 }
 
 void serialend (int address) {
@@ -610,7 +629,7 @@ void serialend (int address) {
   #else
   if (false);
   #endif
-  else error(PSTR("port not supported"), number(address));
+  else error("port not supported", number(address));
 }
 
 gfun_t gstreamfun (object *args) {
@@ -651,7 +670,7 @@ gfun_t gstreamfun (object *args) {
   #if defined(ULISP_WIFI)
   else if (streamtype == WIFISTREAM) gfun = (gfun_t)WiFiread;
   #endif
-  else error2(PSTR("unknown stream type"));
+  else error2("unknown stream type");
   return gfun;
 }
 
@@ -674,7 +693,7 @@ inline void serial1write (char c) { Serial1.write(c); }
 inline void serial1write (char c) { Serial1.write(c); }
 #endif
 #if defined(sdcardsupport)
-inline void SDwrite (char c) { SDpfile.write(c); }
+inline void SDwrite (char c) { SDpfile.write(uint8_t(c)); } // Fix for RP2040
 #endif
 #if defined(ULISP_WIFI)
 inline void WiFiwrite (char c) { client.write(c); }
@@ -726,7 +745,7 @@ pfun_t pstreamfun (object *args) {
   #if defined(ULISP_WIFI)
   else if (streamtype == WIFISTREAM) pfun = (pfun_t)WiFiwrite;
   #endif
-  else error2(PSTR("unknown stream type"));
+  else error2("unknown stream type");
   return pfun;
 }"#
 

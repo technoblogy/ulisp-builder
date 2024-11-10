@@ -31,8 +31,8 @@ unsigned int tablesize (int n) {
     #+avr-nano
 #"
 /*
-  lookupbuiltin - looks up a string in lookup_table[], and returns the index of its entry,
-  or ENDFUNCTIONS if no match is found
+  lookupbuiltin - looks up a string in lookup_table[], and returns the index of its entry, or ENDFUNCTIONS 
+  if no match is found. Doesn't support an extensions file.
 */
 builtin_t lookupbuiltin (char* n) {
   int entries = arraysize(lookup_table);
@@ -50,19 +50,18 @@ builtin_t lookupbuiltin (char* n) {
     #+avr
 #"
 /*
-  lookupbuiltin - looks up a string in lookup_table[], and returns the index of its entry,
-  or ENDFUNCTIONS if no match is found
+  lookupbuiltin - looks up a string in lookup_table[], and returns the index of its entry, or ENDFUNCTIONS 
+  if no match is found. Allows definitions in an extension file to override the built-in functions.
 */
 builtin_t lookupbuiltin (char* c) {
-  unsigned int end = 0, start;
-  for (int n=0; n<2; n++) {
-    start = end;
+  unsigned int start = tablesize(0);
+  for (int n=1; n>=0; n--) {
     int entries = tablesize(n);
-    end = end + entries;
     for (int i=0; i<entries; i++) {
       if (strcasecmp_P(c, (char*)pgm_read_ptr(&(table(n)[i].string))) == 0)
         return (builtin_t)(start + i);
     }
+    start = 0;
   }
   return ENDFUNCTIONS;
 }"#
@@ -71,19 +70,18 @@ builtin_t lookupbuiltin (char* c) {
 #+(or arm riscv esp)
     #"
 /*
-  lookupbuiltin - looks up a string in lookup_table[], and returns the index of its entry,
-  or ENDFUNCTIONS if no match is found
+  lookupbuiltin - looks up a string in lookup_table[], and returns the index of its entry, or ENDFUNCTIONS 
+  if no match is found. Allows definitions in an extension file to override the built-in functions.
 */
 builtin_t lookupbuiltin (char* c) {
-  unsigned int end = 0, start;
-  for (int n=0; n<2; n++) {
-    start = end;
+  unsigned int start = tablesize(0);
+  for (int n=1; n>=0; n--) {
     int entries = tablesize(n);
-    end = end + entries;
     for (int i=0; i<entries; i++) {
       if (strcasecmp(c, (char*)(table(n)[i].string)) == 0)
         return (builtin_t)(start + i);
     }
+    start = 0;
   }
   return ENDFUNCTIONS;
 }"#
@@ -107,7 +105,7 @@ intptr_t lookupfn (builtin_t name) {
   lookupfn - looks up the entry for name in lookup_table[], and returns the function entry point
 */
 intptr_t lookupfn (builtin_t name) {
-  int n = name<tablesize(0);
+  bool n = name<tablesize(0);
   return (intptr_t)pgm_read_ptr(&table(n?0:1)[n?name:name-tablesize(0)].fptr);
 }"#
 
@@ -117,7 +115,7 @@ intptr_t lookupfn (builtin_t name) {
   lookupfn - looks up the entry for name in lookup_table[], and returns the function entry point
 */
 intptr_t lookupfn (builtin_t name) {
-  int n = name<tablesize(0);
+  bool n = name<tablesize(0);
   return (intptr_t)table(n?0:1)[n?name:name-tablesize(0)].fptr;
 }"#
 
@@ -142,7 +140,7 @@ uint8_t getminmax (builtin_t name) {
   and minimum and maximum number of arguments for name
 */
 uint8_t getminmax (builtin_t name) {
-  int n = name<tablesize(0);
+  bool n = name<tablesize(0);
   return pgm_read_byte(&table(n?0:1)[n?name:name-tablesize(0)].minmax);
 }"#
 
@@ -153,7 +151,7 @@ uint8_t getminmax (builtin_t name) {
   and minimum and maximum number of arguments for name
 */
 uint8_t getminmax (builtin_t name) {
-  int n = name<tablesize(0);
+  bool n = name<tablesize(0);
   return table(n?0:1)[n?name:name-tablesize(0)].minmax;
 }"#
 
@@ -174,7 +172,7 @@ void checkminmax (builtin_t name, int nargs) {
   lookupdoc - looks up the documentation string for the built-in function name
 */
 char *lookupdoc (builtin_t name) {
-  int n = name<tablesize(0);
+  bool n = name<tablesize(0);
   return (char*)pgm_read_ptr(&table(n?0:1)[n?name:name-tablesize(0)].doc);
 }"#
 
@@ -184,7 +182,7 @@ char *lookupdoc (builtin_t name) {
   lookupdoc - looks up the documentation string for the built-in function name
 */
 char *lookupdoc (builtin_t name) {
-  int n = name<tablesize(0);
+  bool n = name<tablesize(0);
   return (char*)table(n?0:1)[n?name:name-tablesize(0)].doc;
 }"#
 
@@ -194,7 +192,7 @@ char *lookupdoc (builtin_t name) {
   findsubstring - tests whether a specified substring occurs in the name of a built-in function
 */
 bool findsubstring (char *part, builtin_t name) {
-  int n = name<tablesize(0);
+  bool n = name<tablesize(0);
   PGM_P s = (char*)pgm_read_ptr(&table(n?0:1)[n?name:name-tablesize(0)].string);
   int l = strlen_P(s);
   int m = strlen(part);
@@ -212,7 +210,7 @@ bool findsubstring (char *part, builtin_t name) {
   findsubstring - tests whether a specified substring occurs in the name of a built-in function
 */
 bool findsubstring (char *part, builtin_t name) {
-  int n = name<tablesize(0);
+  bool n = name<tablesize(0);
   return (strstr(table(n?0:1)[n?name:name-tablesize(0)].string, part) != NULL);
 }"#
 
@@ -259,7 +257,7 @@ bool keywordp (object *obj) {
 bool keywordp (object *obj) {
   if (!(symbolp(obj) && builtinp(obj->name))) return false;
   builtin_t name = builtin(obj->name);
-  int n = name<tablesize(0);
+  bool n = name<tablesize(0);
   PGM_P s = (char*)pgm_read_ptr(&table(n?0:1)[n?name:name-tablesize(0)].string);
   char c = pgm_read_byte(s);
   return (c == ':');
@@ -273,10 +271,21 @@ bool keywordp (object *obj) {
 bool keywordp (object *obj) {
   if (!(symbolp(obj) && builtinp(obj->name))) return false;
   builtin_t name = builtin(obj->name);
-  int n = name<tablesize(0);
+  bool n = name<tablesize(0);
   PGM_P s = table(n?0:1)[n?name:name-tablesize(0)].string;
   char c = s[0];
   return (c == ':');
+}"#
+
+    #-avr-nano
+    #"
+/*
+  backtrace - store symbol for backtrace
+*/
+void backtrace (symbol_t name) {
+  Backtrace[TraceTop] = (name == sym(NIL)) ? sym(LAMBDA) : name;
+  TraceTop = modbacktrace(TraceTop+1);
+  if (TraceStart == TraceTop) TraceStart = modbacktrace(TraceStart+1);
 }"#))
 
 
@@ -312,7 +321,7 @@ object *eval (object *form, object *env) {
   int TC=0;
   EVAL:
   // Enough space?
-  //Serial.println((uint16_t)sp - (uint16_t)__bss_end); // Find best STACKDIFF value
+  // Serial.println((uint16_t)sp - (uint16_t)__bss_end); // Find best STACKDIFF value
   if ((uint16_t)sp - (uint16_t)__bss_end < STACKDIFF) { Context = NIL; error2(PSTR("stack overflow")); }
   if (Freespace <= WORKSPACESIZE>>4) gc(form, env);      // GC when 1/16 of workspace left
   // Escape
@@ -325,7 +334,7 @@ object *eval (object *form, object *env) {
   eval - the main Lisp evaluator
 */
 object *eval (object *form, object *env) {
-  register int *sp asm ("r13");
+  register int *sp asm ("sp");
   int TC=0;
   EVAL:
   // Enough space?
@@ -353,42 +362,24 @@ object *eval (object *form, object *env) {
   if (tstflag(ESCAPE)) { clrflag(ESCAPE); error2(PSTR("escape!"));}
   if (!tstflag(NOESC)) testescape();"#
 
-#+ignore ; was badge
-#"
-/*
-  eval - the main Lisp evaluator
-*/
-object *eval (object *form, object *env) {
-  uint8_t sp[0];
-  int TC=0;
-  EVAL:
-  // Enough space?
-  // Serial.println((uint16_t)sp - (uint16_t)__bss_end); // Find best STACKDIFF value
-  if ((uint16_t)sp - (uint16_t)__bss_end < STACKDIFF) { Context = NIL; error2(PSTR("stack overflow")); }
-  if (Freespace <= WORKSPACESIZE>>4) gc(form, env);      // GC when 1/16 of workspace left
-  // Escape
-  if (tstflag(ESCAPE)) { clrflag(ESCAPE); error2(PSTR("escape!"));}
-  #if defined (serialmonitor)
-  if (!tstflag(NOESC)) testescape();
-  #endif"#
-
 #+esp
 #"
 /*
   eval - the main Lisp evaluator
 */
 object *eval (object *form, object *env) {
+  bool stackpos;
   static unsigned long start = 0;
   int TC=0;
   EVAL:
-#if defined(ARDUINO_ESP32C3_DEV)
-  if (millis() - start > 4000) { delay(1); start = millis(); }
-#endif
   // Enough space?
+  // Serial.println((uint32_t)StackBottom - (uint32_t)&stackpos); // Find best MAX_STACK value
+  if ((uint32_t)StackBottom - (uint32_t)&stackpos > MAX_STACK) { Context = NIL; error2("stack overflow"); }
   if (Freespace <= WORKSPACESIZE>>4) gc(form, env);
   // Escape
-  if (tstflag(ESCAPE)) { clrflag(ESCAPE); error2(PSTR("escape!"));}
-  if (!tstflag(NOESC)) testescape();"#
+  if (tstflag(ESCAPE)) { clrflag(ESCAPE); error2("escape!");}
+  if (!tstflag(NOESC)) testescape();
+"#
 
 #+avr-nano
 #"
@@ -421,7 +412,7 @@ object *eval (object *form, object *env) {
     pair = value(name, GlobalEnv);
     if (pair != NULL) return cdr(pair);
     else if (builtinp(name)) {
-      if (builtin(name) == FEATURES) return features();
+      if (name == sym(FEATURES)) return features();
       return form;
     }
     Context = NIL;
@@ -439,7 +430,7 @@ object *eval (object *form, object *env) {
   object *function = car(form);
   object *args = cdr(form);
 
-  if (function == NULL) error(PSTR("illegal function"), nil);
+  if (function == NULL) error(illegalfn, function);
   if (!listp(args)) error(PSTR("can't evaluate a dotted pair"), args);
 
   // List starts with a builtin symbol?
@@ -447,7 +438,6 @@ object *eval (object *form, object *env) {
     builtin_t name = builtin(function->name);
 
     if ((name == LET) || (name == LETSTAR)) {
-      int TCstart = TC;
       if (args == NULL) error2(noargument);
       object *assigns = first(args);
       if (!listp(assigns)) error(notalist, assigns);
@@ -458,7 +448,7 @@ object *eval (object *form, object *env) {
         object *assign = car(assigns);
         if (!consp(assign)) push(cons(assign,nil), newenv);
         else if (cdr(assign) == NULL) push(cons(first(assign),nil), newenv);
-        else push(cons(first(assign),eval(second(assign),env)), newenv);
+        else push(cons(first(assign), eval(second(assign),env)), newenv);
         car(GCStack) = newenv;
         if (name == LETSTAR) env = newenv;
         assigns = cdr(assigns);
@@ -466,7 +456,6 @@ object *eval (object *form, object *env) {
       env = newenv;
       unprotect();
       form = tf_progn(forms,env);
-      TC = TCstart;
       goto EVAL;
     }
 
@@ -480,28 +469,53 @@ object *eval (object *form, object *env) {
       }
       return cons(bsymbol(CLOSURE), cons(envcopy,args));
     }
-    uint8_t fntype = getminmax(name)>>6;
 
-    if (fntype == SPECIAL_FORMS) {
-      Context = name;
-      checkargs(args);
-      return ((fn_ptr_type)lookupfn(name))(args, env);
+    switch(fntype(name)) {    
+      case SPECIAL_FORMS:
+        Context = name;
+        checkargs(args);
+        return ((fn_ptr_type)lookupfn(name))(args, env);
+  
+      case TAIL_FORMS:
+        Context = name;
+        checkargs(args);
+        form = ((fn_ptr_type)lookupfn(name))(args, env);
+        TC = 1;
+        goto EVAL;
+     
+      case OTHER_FORMS: error(illegalfn, function);
     }
+  }"#
 
-    if (fntype == TAIL_FORMS) {
-      Context = name;
-      checkargs(args);
-      form = ((fn_ptr_type)lookupfn(name))(args, env);
-      TC = 1;
-      goto EVAL;
-    }
-    if (fntype == OTHER_FORMS) error(PSTR("can't be used as a function"), function);
-  }
-
+#+avr-nano
+#"
   // Evaluate the parameters - result in head
-  object *fname = car(form);
   int TCstart = TC;
-  object *head = cons(eval(fname, env), NULL);
+  object *head = cons(eval(function, env), NULL);
+  protect(head); // Don't GC the result list
+  object *tail = head;
+  form = cdr(form);
+  int nargs = 0;
+
+  while (form != NULL) {
+    object *obj = cons(eval(car(form),env),NULL);
+    cdr(tail) = obj;
+    tail = obj;
+    form = cdr(form);
+    nargs++;
+  }"#
+
+#-avr-nano
+#"
+  // Evaluate the parameters - result in head
+  int TCstart = TC;
+  object *head;
+  if (consp(function) && !(isbuiltin(car(function), LAMBDA) || isbuiltin(car(function), CLOSURE)
+    || car(function)->type == CODE)) { Context = NIL; error(illegalfn, function); }
+  if (symbolp(function)) {
+    object *pair = findpair(function, env);
+    if (pair != NULL) head = cons(cdr(pair), NULL); else head = cons(function, NULL);
+  } else head = cons(eval(function, env), NULL);
   protect(head); // Don't GC the result list
   object *tail = head;
   form = cdr(form);
@@ -513,14 +527,16 @@ object *eval (object *form, object *env) {
     tail = obj;
     form = cdr(form);
     nargs++;
-  }
+  }"#
 
+#"
+  object *fname = function;
   function = car(head);
   args = cdr(head);
 
   if (symbolp(function)) {
+    if (!builtinp(function->name)) { Context = NIL; error(illegalfn, function); }
     builtin_t bname = builtin(function->name);
-    if (!builtinp(function->name)) error(PSTR("not valid here"), fname);
     Context = bname;
     checkminmax(bname, nargs);
     object *result = ((fn_ptr_type)lookupfn(bname))(args, env);
@@ -530,32 +546,78 @@ object *eval (object *form, object *env) {
 
   if (consp(function)) {
     symbol_t name = sym(NIL);
-    if (!listp(fname)) name = fname->name;
+    if (!listp(fname)) name = fname->name;"#
 
-    if (isbuiltin(car(function), LAMBDA)) {
+#+avr-nano
+#"
+    if (isbuiltin(car(function), LAMBDA)) { 
       form = closure(TCstart, name, function, args, &env);
       unprotect();
-      int trace = tracing(fname->name);
+      int trace = tracing(name);
       if (trace) {
         object *result = eval(form, env);
         indent((--(TraceDepth[trace-1]))<<1, ' ', pserial);
         pint(TraceDepth[trace-1], pserial);
         pserial(':'); pserial(' ');
-        printobject(fname, pserial); pfstring(PSTR(" returned "), pserial);
+        printobject(fname, pserial); pfstring(" returned ", pserial);
         printobject(result, pserial); pln(pserial);
         return result;
       } else {
         TC = 1;
         goto EVAL;
       }
-    }
+    }"#
 
+#-avr-nano
+#"
+    if (isbuiltin(car(function), LAMBDA)) { 
+      if (tstflag(BACKTRACE)) backtrace(name);
+      form = closure(TCstart, name, function, args, &env);
+      unprotect();
+      int trace = tracing(name);
+      if (trace || tstflag(BACKTRACE)) {
+        object *result = eval(form, env);
+        if (trace) {
+          indent((--(TraceDepth[trace-1]))<<1, ' ', pserial);
+          pint(TraceDepth[trace-1], pserial);
+          pserial(':'); pserial(' ');
+          printobject(fname, pserial); pfstring(" returned ", pserial);
+          printobject(result, pserial); pln(pserial);
+        }
+        if (tstflag(BACKTRACE)) TraceTop = modbacktrace(TraceTop-1);
+        return result;
+      } else {
+        TC = 1;
+        goto EVAL;
+      }
+    }"#
+
+
+#+avr-nano
+#"
     if (isbuiltin(car(function), CLOSURE)) {
       function = cdr(function);
       form = closure(TCstart, name, function, args, &env);
       unprotect();
       TC = 1;
       goto EVAL;
+    }"#
+
+#-avr-nano
+#"
+    if (isbuiltin(car(function), CLOSURE)) {
+      function = cdr(function);
+      if (tstflag(BACKTRACE)) backtrace(name);
+      form = closure(TCstart, name, function, args, &env);
+      unprotect();
+      if (tstflag(BACKTRACE)) {
+        object *result = eval(form, env);
+        TraceTop = modbacktrace(TraceTop-1);
+        return result;
+      } else {
+        TC = 1;
+        goto EVAL;
+      }
     }"#
 
 #+avr
@@ -595,7 +657,7 @@ object *eval (object *form, object *env) {
 
 #"
   }
-  error(PSTR("illegal function"), fname); return nil;
+  error(illegalfn, fname); return nil;
 }"#))
 
 (defparameter *print-functions* 
@@ -681,31 +743,7 @@ void pcharacter (uint8_t c, pfun_t pfun) {
   }
 }"#
 
-    #+esp
-    #"
-const char ControlCodes[] PROGMEM = "Null\0SOH\0STX\0ETX\0EOT\0ENQ\0ACK\0Bell\0Backspace\0Tab\0Newline\0VT\0"
-"Page\0Return\0SO\0SI\0DLE\0DC1\0DC2\0DC3\0DC4\0NAK\0SYN\0ETB\0CAN\0EM\0SUB\0Escape\0FS\0GS\0RS\0US\0Space\0";
-
-/*
-  pcharacter - prints a character to a stream, escaping special characters if PRINTREADABLY is false
-  If <= 32 prints character name; eg #\Space
-  If < 127 prints ASCII; eg #\A
-  Otherwise prints decimal; eg #\234
-*/
-void pcharacter (uint8_t c, pfun_t pfun) {
-  if (!tstflag(PRINTREADABLY)) pfun(c);
-  else {
-    pfun('#'); pfun('\\');
-    if (c <= 32) {
-      PGM_P p = ControlCodes;
-      while (c > 0) {p = p + strlen_P(p) + 1; c--; }
-      pfstring(p, pfun);
-    } else if (c < 127) pfun(c);
-    else pint(c, pfun);
-  }
-}"#
-
-    #+(or arm riscv)
+    #+(or arm esp riscv)
     #"
 const char ControlCodes[] PROGMEM = "Null\0SOH\0STX\0ETX\0EOT\0ENQ\0ACK\0Bell\0Backspace\0Tab\0Newline\0VT\0"
 "Page\0Return\0SO\0SI\0DLE\0DC1\0DC2\0DC3\0DC4\0NAK\0SYN\0ETB\0CAN\0EM\0SUB\0Escape\0FS\0GS\0RS\0US\0Space\0";
@@ -996,7 +1034,7 @@ void pintbase (uint32_t i, uint8_t base, pfun_t pfun) {
   }
 }"#
 
-    #+(or avr avr-nano)
+    #+avr
     #"
 /*
   pinthex2 - prints a two-digit hexadecimal number with leading zeros to the specified stream
@@ -1287,7 +1325,7 @@ void printobject (object *form, pfun_t pfun) {
   prin1object - prints any Lisp object to the specified stream escaping special characters
 */
 void prin1object (object *form, pfun_t pfun) {
-  char temp = Flags;
+  flags_t temp = Flags;
   clrflag(PRINTREADABLY);
   printobject(form, pfun);
   Flags = temp;
@@ -2061,7 +2099,7 @@ void initgfx () {
   tft.fillScreen(0);
   pinMode(34, OUTPUT); // Backlight
   digitalWrite(34, HIGH);
-  #elif defined(ARDUINO_RASPBERRY_PI_PICO)
+  #elif defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_RASPBERRY_PI_PICO_2)
   tft.init(135, 240);
   pinMode(TFT_I2C_POWER, OUTPUT);
   digitalWrite(TFT_I2C_POWER, HIGH);
@@ -2105,6 +2143,7 @@ void initgfx () {
   tft.setRotation(2);
   #endif
 }"#))
+
 
 #+(and (or avr avr-nano) (not badge))
 (defparameter *setup2* #"
@@ -2153,11 +2192,16 @@ void setup () {
 
 #+esp
 (defparameter *setup2* #"
-// Entry point from the Arduino IDE
 void setup () {
   Serial.begin(9600);
   int start = millis();
   while ((millis() - start) < 5000) { if (Serial) break; }
+  #if defined(BOARD_HAS_PSRAM)
+  if (!psramInit()) { Serial.print("the PSRAM couldn't be initialized"); for(;;); }
+  Workspace = (object*) ps_malloc(WORKSPACESIZE*8);
+  if (!Workspace) { Serial.print("the Workspace couldn't be allocated"); for(;;); }
+  #endif
+  int stackhere = 0; StackBottom = &stackhere;
   initworkspace();
   initenv();
   initsleep();
@@ -2172,6 +2216,10 @@ void setup () {
   Serial.begin(9600);
   int start = millis();
   while ((millis() - start) < 5000) { if (Serial) break; }
+  #if (WORKSPACESIZE > 80000)
+  Workspace = (object*) malloc(WORKSPACESIZE);
+  if (!Workspace) { Serial.print("the workspace couldn't be initialized"); for(;;); }
+  #endif
   initworkspace();
   initenv();
   initsleep();
@@ -2184,7 +2232,7 @@ void setup () {
 #"
 // Read/Evaluate/Print loop"#
 
- #+(or avr avr-nano)
+ #+avr-nano
  #"
 /*
   repl - the Lisp Read/Evaluate/Print loop
@@ -2192,9 +2240,9 @@ void setup () {
 void repl (object *env) {
   for (;;) {
     RandomSeed = micros();
-    gc(NULL, env);
     #if defined(printfreespace)
-    pint(Freespace, pserial);
+    if (!tstflag(NOECHO)) gc(NULL, env);
+    pint(Freespace+1, pserial);
     #endif
     if (BreakLevel) {
       pfstring(PSTR(" : "), pserial);
@@ -2204,6 +2252,51 @@ void repl (object *env) {
     Context = NIL;
     object *line = read(gserial);
     if (BreakLevel && line == nil) { pln(pserial); return; }
+    if (line == (object *)KET) error2(PSTR("unmatched right bracket"));
+    protect(line);
+    pfl(pserial);
+    line = eval(line, env);
+    pfl(pserial);
+    printobject(line, pserial);
+    unprotect();
+    pfl(pserial);
+    pln(pserial);
+  }
+}"#
+
+
+ #+avr
+ #"
+/*
+  repl - the Lisp Read/Evaluate/Print loop
+*/
+void repl (object *env) {
+  for (;;) {
+    RandomSeed = micros();
+    #if defined(printfreespace)
+    if (!tstflag(NOECHO)) gc(NULL, env);
+    pint(Freespace+1, pserial);
+    #endif
+    if (BreakLevel) {
+      pfstring(PSTR(" : "), pserial);
+      pint(BreakLevel, pserial);
+    }
+    pserial('>'); pserial(' ');
+    Context = NIL;
+    object *line = read(gserial);
+    // Break handling
+    if (BreakLevel) {
+      if (line == nil || line == bsymbol(COLONC)) {
+        pln(pserial); return;
+      } else if (line == bsymbol(COLONA)) {
+        pln(pserial); pln(pserial);
+        GCStack = NULL;
+        longjmp(*handler, 1);
+      } else if (line == bsymbol(COLONB)) {
+        pln(pserial); printbacktrace();
+        line = bsymbol(NOTHING);
+      }
+    }
     if (line == (object *)KET) error2(PSTR("unmatched right bracket"));
     protect(line);
     pfl(pserial);
@@ -2224,9 +2317,9 @@ void repl (object *env) {
 void repl (object *env) {
   for (;;) {
     randomSeed(micros());
-    gc(NULL, env);
     #if defined(printfreespace)
-    pint(Freespace, pserial);
+    if (!tstflag(NOECHO)) gc(NULL, env);
+    pint(Freespace+1, pserial);
     #endif
     if (BreakLevel) {
       pfstring(PSTR(" : "), pserial);
@@ -2238,7 +2331,19 @@ void repl (object *env) {
     #if defined(CPU_NRF52840)
     Serial.flush();
     #endif
-    if (BreakLevel && line == nil) { pln(pserial); return; }
+    // Break handling
+    if (BreakLevel) {
+      if (line == nil || line == bsymbol(COLONC)) {
+        pln(pserial); return;
+      } else if (line == bsymbol(COLONA)) {
+        pln(pserial); pln(pserial);
+        GCStack = NULL;
+        longjmp(*handler, 1);
+      } else if (line == bsymbol(COLONB)) {
+        pln(pserial); printbacktrace();
+        line = bsymbol(NOTHING);
+      }
+    }
     if (line == (object *)KET) error2(PSTR("unmatched right bracket"));
     protect(line);
     pfl(pserial);
@@ -2259,9 +2364,9 @@ void repl (object *env) {
 void repl (object *env) {
   for (;;) {
     randomSeed(micros());
-    gc(NULL, env);
     #if defined(printfreespace)
-    pint(Freespace, pserial);
+    if (!tstflag(NOECHO)) gc(NULL, env);
+    pint(Freespace+1, pserial);
     #endif
     if (BreakLevel) {
       pfstring(PSTR(" : "), pserial);
@@ -2270,7 +2375,19 @@ void repl (object *env) {
     pserial('>'); pserial(' ');
     Context = NIL;
     object *line = read(gserial);
-    if (BreakLevel && line == nil) { pln(pserial); return; }
+    // Break handling
+    if (BreakLevel) {
+      if (line == nil || line == bsymbol(COLONC)) {
+        pln(pserial); return;
+      } else if (line == bsymbol(COLONA)) {
+        pln(pserial); pln(pserial);
+        GCStack = NULL;
+        longjmp(*handler, 1);
+      } else if (line == bsymbol(COLONB)) {
+        pln(pserial); printbacktrace();
+        line = bsymbol(NOTHING);
+      }
+    }
     if (line == (object *)KET) error2(PSTR("unmatched right bracket"));
     protect(line);
     pfl(pserial);
@@ -2321,7 +2438,7 @@ void loop () {
   repl(NULL);
 }"#
 
-#-wifi
+#+avr-nano
 #"
 void ulisperror () {
   // Come here after error
@@ -2338,12 +2455,29 @@ void ulisperror () {
   #endif
 }"#
 
-#+(and wifi arm)
+#+(or avr riscv)
+#"
+void ulisperror () {
+  // Come here after error
+  #if defined (serialmonitor)
+  delay(100); while (Serial.available()) Serial.read();
+  #endif
+  clrflag(NOESC); BreakLevel = 0; TraceStart = 0; TraceTop = 0;
+  for (int i=0; i<TRACEMAX; i++) TraceDepth[i] = 0;
+  #if defined(sdcardsupport)
+  SDpfile.close(); SDgfile.close();
+  #endif
+  #if defined(lisplibrary)
+  if (!tstflag(LIBRARYLOADED)) { setflag(LIBRARYLOADED); loadfromlibrary(NULL); clrflag(NOECHO); }
+  #endif
+}"#
+
+#+arm
 #"
 void ulisperror () {
   // Come here after error
   delay(100); while (Serial.available()) Serial.read();
-  clrflag(NOESC); BreakLevel = 0;
+  clrflag(NOESC); BreakLevel = 0; TraceStart = 0; TraceTop = 0;
   for (int i=0; i<TRACEMAX; i++) TraceDepth[i] = 0;
   #if defined(sdcardsupport)
   SDpfile.close(); SDgfile.close();
@@ -2356,12 +2490,12 @@ void ulisperror () {
   #endif
 }"#
 
-#+(and wifi (not arm))
+#+esp
 #"
 void ulisperror () {
   // Come here after error
   delay(100); while (Serial.available()) Serial.read();
-  clrflag(NOESC); BreakLevel = 0;
+  clrflag(NOESC); BreakLevel = 0; TraceStart = 0; TraceTop = 0;
   for (int i=0; i<TRACEMAX; i++) TraceDepth[i] = 0;
   #if defined(sdcardsupport)
   SDpfile.close(); SDgfile.close();

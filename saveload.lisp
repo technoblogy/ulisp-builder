@@ -41,10 +41,12 @@ void movepointer (object *from, object *to) {
 #-avr-nano
 #"
 /*
-  movepointer - corrects pointers to an object that has moved from 'from' to 'to'
+  movepointer - Corrects pointers to an object that has been moved from 'from' to 'to'.
+  Only need to scan addresses below 'from' as there are no accessible objects above that.
 */
 void movepointer (object *from, object *to) {
-  for (int i=0; i<WORKSPACESIZE; i++) {
+   uintptr_t limit = ((uintptr_t)(from) - (uintptr_t)(Workspace))/sizeof(uintptr_t);
+   for (uintptr_t i=0; i<limit; i++) {
     object *obj = &Workspace[i];
     unsigned int type = (obj->type) & ~MARKBIT;
     if (marked(obj) && (type >= ARRAY || type==ZZERO || (type == SYMBOL && longsymbolp(obj)))) {
@@ -54,7 +56,7 @@ void movepointer (object *from, object *to) {
     }
   }
   // Fix strings and long symbols
-  for (int i=0; i<WORKSPACESIZE; i++) {
+  for (uintptr_t i=0; i<limit; i++) {
     object *obj = &Workspace[i];
     if (marked(obj)) {
       unsigned int type = (obj->type) & ~MARKBIT;
@@ -71,7 +73,8 @@ void movepointer (object *from, object *to) {
 
 #"
 /*
-  compactimage - compacts the image by moving objects to the lowest possible position in the workspace
+  compactimage - Marks all accessible objects. Moves the last marked object down to the first free space gap, correcting
+  pointers by calling movepointer(). Then repeats until there are no more gaps.
 */
 uintptr_t compactimage (object **arg) {
   markobject(tee);
@@ -137,6 +140,14 @@ char *MakeFilename (object *arg, char *buffer) {
 // Save-image and load-image
 
 #if defined(sdcardsupport)
+
+/*
+  SDBegin - a standard call on all platforms to initialise the SD Card interface.
+*/
+void SDBegin() {
+  SD.begin(SDCARD_SS_PIN);
+}
+
 void SDWriteInt (File file, int data) {
   file.write(data & 0xFF); file.write(data>>8 & 0xFF);
 }
@@ -146,36 +157,10 @@ int SDReadInt (File file) {
   return b0 | b1<<8;
 }
 #elif defined(FLASHWRITESIZE)
-#if defined (CPU_ATmega1284P)
-// save-image area is the 16K bytes (64 256-byte pages) from 0x1bc00 to 0x1fc00
-const uint32_t BaseAddress = 0x1bc00;
-uint8_t FlashCheck() {
-  return 0;
-}
-
-void FlashWriteInt (uint32_t *addr, int data) {
-  if (((*addr) & 0xFF) == 0) optiboot_page_erase(BaseAddress + ((*addr) & 0xFF00));
-  optiboot_page_fill(BaseAddress + *addr, data);
-  if (((*addr) & 0xFF) == 0xFE) optiboot_page_write(BaseAddress + ((*addr) & 0xFF00));
-  (*addr)++; (*addr)++;
-}
-
-void FlashEndWrite (uint32_t *addr) {
-  if (((*addr) & 0xFF) != 0) optiboot_page_write((BaseAddress + ((*addr) & 0xFF00)));
-}
-
-uint8_t FlashReadByte (uint32_t *addr) {
-  return pgm_read_byte_far(BaseAddress + (*addr)++);
-}
-
-int FlashReadInt (uint32_t *addr) {
-  int data = pgm_read_word_far(BaseAddress + *addr);
-  (*addr)++; (*addr)++;
-  return data;
-}
-#elif defined (CPU_AVR128DX48) || defined (CPU_AVR64DD28)
-// save-image area is the 16K bytes (32 512-byte pages) from 0x1c000 to 0x20000
-const uint32_t BaseAddress = 0x1c000;
+#if defined (CPU_AVR64DD28)
+// save-image area is the 6144 bytes (12 x 512-byte pages) from 0xE600 to 0xFE00
+// Leave 512 bytes at the top for DxCore
+const uint32_t BaseAddress = 0xE600;
 uint8_t FlashCheck() {
   return Flash.checkWritable();
 }
@@ -211,10 +196,13 @@ int EEPROMReadInt (unsigned int *addr) {
 }
 #endif
 
+/*
+  saveimage - saves an image of the workspace to the persistent storage selected for the platform.
+*/
 unsigned int saveimage (object *arg) {
 #if defined(sdcardsupport)
   unsigned int imagesize = compactimage(&arg);
-  SD.begin(SDCARD_SS_PIN);
+  SDBegin();
   File file;
   if (stringp(arg)) {
     char buffer[BUFFERSIZE];
@@ -289,9 +277,12 @@ unsigned int saveimage (object *arg) {
 #endif
 }
 
+/*
+  loadimage - loads an image of the workspace from the persistent storage selected for the platform.
+*/
 unsigned int loadimage (object *arg) {
 #if defined(sdcardsupport)
-  SD.begin(SDCARD_SS_PIN);
+  SDBegin();
   File file;
   if (stringp(arg)) {
     char buffer[BUFFERSIZE];
@@ -358,9 +349,12 @@ unsigned int loadimage (object *arg) {
 #endif
 }
 
+/*
+  autorunimage - loads and runs an image of the workspace from the persistent storage selected for the platform.
+*/
 void autorunimage () {
 #if defined(sdcardsupport)
-  SD.begin(SDCARD_SS_PIN);
+  SDBegin();
   File file = SD.open("ULISP.IMG");
   if (!file) error2(PSTR("problem autorunning from SD card"));
   object *autorun = (object *)SDReadInt(file);
@@ -393,6 +387,18 @@ void autorunimage () {
 // Save-image and load-image
 
 #if defined(sdcardsupport)
+
+/*
+  SDBegin - a standard call on all platforms to initialise the SD Card interface.
+*/
+void SDBegin() {
+  #if defined(ARDUINO_ADAFRUIT_FEATHER_RP2040_ADALOGGER)
+  SD.begin(SDCARD_SS_PIN, SPI1);
+  #else
+  SD.begin(SDCARD_SS_PIN);
+  #endif
+}
+
 void SDWrite32 (File file, int data) {
   file.write(data & 0xFF); file.write(data>>8 & 0xFF);
   file.write(data>>16 & 0xFF); file.write(data>>24 & 0xFF);
@@ -621,10 +627,13 @@ void FlashEndRead (uint32_t *addr) {
 }
 #endif
 
+/*
+  saveimage - saves an image of the workspace to the persistent storage selected for the platform.
+*/
 int saveimage (object *arg) {
 #if defined(sdcardsupport)
   unsigned int imagesize = compactimage(&arg);
-  SD.begin(SDCARD_SS_PIN);
+  SDBegin();
   File file;
   if (stringp(arg)) {
     char buffer[BUFFERSIZE];
@@ -653,11 +662,11 @@ int saveimage (object *arg) {
   File file;
   if (stringp(arg)) {
     char buffer[BUFFERSIZE];
-    file = LittleFS.open(MakeFilename(arg, buffer), FILE_WRITE_BEGIN);
-    if (!file) error2(PSTR("problem saving to LittleFS or invalid filename"));
+    file = LittleFS.open(MakeFilename(arg, buffer), FS_FILE_WRITE);
+    if (!file) error2("problem saving to LittleFS or invalid filename");
     arg = NULL;
   } else if (arg == NULL || listp(arg)) {
-    file = LittleFS.open("/ULISP.IMG", FILE_WRITE_BEGIN);
+    file = LittleFS.open("/ULISP.IMG", FS_FILE_WRITE);
     if (!file) error2(PSTR("problem saving to LittleFS"));
   } else error(invalidarg, arg);
   FSWrite32(file, (uintptr_t)arg);
@@ -704,9 +713,12 @@ int saveimage (object *arg) {
 #endif
 }
 
+/*
+  loadimage - loads an image of the workspace from the persistent storage selected for the platform.
+*/
 int loadimage (object *arg) {
 #if defined(sdcardsupport)
-  SD.begin(SDCARD_SS_PIN);
+  SDBegin();
   File file;
   if (stringp(arg)) {
     char buffer[BUFFERSIZE];
@@ -734,11 +746,11 @@ int loadimage (object *arg) {
   File file;
   if (stringp(arg)) {
     char buffer[BUFFERSIZE];
-    file = LittleFS.open(MakeFilename(arg, buffer), FILE_READ);
-    if (!file) error2(PSTR("problem loading from LittleFS or invalid filename"));
+    file = LittleFS.open(MakeFilename(arg, buffer), FS_FILE_READ);
+    if (!file) error2("problem loading from LittleFS or invalid filename");
   }
   else if (arg == NULL) {
-    file = LittleFS.open("/ULISP.IMG", FILE_READ);
+    file = LittleFS.open("/ULISP.IMG", FS_FILE_READ);
     if (!file) error2(PSTR("problem loading from LittleFS"));
   }
   else error(invalidarg, arg);
@@ -785,9 +797,12 @@ int loadimage (object *arg) {
 #endif
 }
 
+/*
+  autorunimage - loads and runs an image of the workspace from the persistent storage selected for the platform.
+*/
 void autorunimage () {
 #if defined(sdcardsupport)
-  SD.begin(SDCARD_SS_PIN);
+  SDBegin();
   File file = SD.open("/ULISP.IMG");
   if (!file) error2(PSTR("problem autorunning from SD card"));
   object *autorun = (object *)SDRead32(file);
@@ -798,7 +813,7 @@ void autorunimage () {
   }
 #elif defined(LITTLEFS)
   LittleFS.begin(LITTLEFS);
-  File file = LittleFS.open("/ULISP.IMG", FILE_READ);
+  File file = LittleFS.open("/ULISP.IMG", FS_FILE_READ);
   if (!file) error2(PSTR("problem autorunning from LittleFS"));
   object *autorun = (object *)FSRead32(file);
   file.close();
@@ -821,127 +836,19 @@ void autorunimage () {
 #endif
 }"#)
 
-#+riscv
-(defparameter *saveimage* #"
-// Save-image and load-image
-
-typedef union {
-  uintptr_t sdpointer;
-  uint8_t sdbyte[8];
-} sdbuffer_t;
-
-#if defined(sdcardsupport)
-void SDWriteInt (File file, uintptr_t data) {
-  sdbuffer_t sdbuf;
-  sdbuf.sdpointer = data;
-  for (int i=0; i<8; i++) file.write(sdbuf.sdbyte[i]);
-}
-#endif
-
-int saveimage (object *arg) {
-#if defined(sdcardsupport)
-  uintptr_t imagesize = compactimage(&arg);
-  if (!SD.begin(SDCARD_SS_PIN)) error2(PSTR("problem initialising SD card"));
-  File file;
-  if (stringp(arg)) {
-    char buffer[BUFFERSIZE];
-    file = SD.open(MakeFilename(arg, buffer), FILE_WRITE);
-    if (!file) error2(PSTR("problem saving to SD card or invalid filename"));
-    arg = NULL;
-  } else if (arg == NULL || listp(arg)) {
-    file = SD.open("ULISP.IMG", O_RDWR | O_CREAT | O_TRUNC);
-    if (!file) error2(PSTR("problem saving to SD card"));
-  } else error(invalidarg, arg);
-  SDWriteInt(file, (uintptr_t)arg);
-  SDWriteInt(file, (uintptr_t)imagesize);
-  SDWriteInt(file, (uintptr_t)GlobalEnv);
-  SDWriteInt(file, (uintptr_t)GCStack);
-  #if SYMBOLTABLESIZE > BUFFERSIZE
-  SDWriteInt(file, (uintptr_t)SymbolTop);
-  int SymbolUsed = SymbolTop - SymbolTable;
-  for (int i=0; i<SymbolUsed; i++) file.write(SymbolTable[i]);
-  #endif
-  for (int i=0; i<CODESIZE; i++) file.write(MyCode[i]);
-  for (unsigned int i=0; i<imagesize; i++) {
-    object *obj = &Workspace[i];
-    SDWriteInt(file, (uintptr_t)car(obj));
-    SDWriteInt(file, (uintptr_t)cdr(obj));
-  }
-  file.close();
-  return imagesize;
-#else
-  (void) arg;
-  error2(PSTR("not available"));
-  return 0;
-#endif
-}
-
-#if defined(sdcardsupport)
-uintptr_t SDReadInt (File file) {
-  sdbuffer_t sdbuf;
-  for (int i=0; i<8; i++) sdbuf.sdbyte[i] = file.read();
-  return sdbuf.sdpointer;
-}
-#endif
-
-int loadimage (object *arg) {
-#if defined(sdcardsupport)
-  if (!SD.begin(SDCARD_SS_PIN)) error2(PSTR("problem initialising SD card"));
-  File file;
-  if (stringp(arg)) {
-    char buffer[BUFFERSIZE];
-    file = SD.open(MakeFilename(arg, buffer));
-    if (!file) error2(PSTR("problem loading from SD card or invalid filename"));
-  } else if (arg == NULL) {
-    file = SD.open("ULISP.IMG");
-    if (!file) error2(PSTR("problem loading from SD card"));
-  } else error(invalidarg, arg);
-  SDReadInt(file);
-  uintptr_t imagesize = SDReadInt(file);
-  GlobalEnv = (object *)SDReadInt(file);
-  GCStack = (object *)SDReadInt(file);
-  #if SYMBOLTABLESIZE > BUFFERSIZE
-  SymbolTop = (char *)SDReadInt(file);
-  int SymbolUsed = SymbolTop - SymbolTable;
-  for (int i=0; i<SymbolUsed; i++) SymbolTable[i] = file.read();
-  #endif
-  for (int i=0; i<CODESIZE; i++) MyCode[i] = file.read();
-  for (int i=0; i<imagesize; i++) {
-    object *obj = &Workspace[i];
-    car(obj) = (object *)SDReadInt(file);
-    cdr(obj) = (object *)SDReadInt(file);
-  }
-  file.close();
-  gc(NULL, NULL);
-  return imagesize;
-#else
-  (void) arg;
-  error2(PSTR("not available"));
-  return 0;
-#endif
-}
-
-void autorunimage () {
-#if defined(sdcardsupport)
-  SD.begin(SDCARD_SS_PIN);
-  File file = SD.open("ULISP.IMG");
-  if (!file) error2(PSTR("problem autorunning from SD card"));
-  object *autorun = (object *)SDReadInt(file);
-  file.close();
-  if (autorun != NULL) {
-    loadimage(NULL);
-    apply(autorun, NULL, NULL);
-  }
-#else
-  error2(PSTR("autorun not available"));
-#endif
-}"#)
-
 #+esp
 (defparameter *saveimage* #"
 // Save-image and load-image
 
 #if defined(sdcardsupport)
+
+/*
+  SDBegin - a standard call on all platforms to initialise the SD Card interface.
+*/
+void SDBegin() {
+  SD.begin();
+}
+
 void SDWriteInt (File file, int data) {
   file.write(data & 0xFF); file.write(data>>8 & 0xFF);
   file.write(data>>16 & 0xFF); file.write(data>>24 & 0xFF);
@@ -977,10 +884,13 @@ int EpromReadInt (int *addr) {
 }
 #endif
 
+/*
+  saveimage - saves an image of the workspace to the persistent storage selected for the platform.
+*/
 unsigned int saveimage (object *arg) {
 #if defined(sdcardsupport)
   unsigned int imagesize = compactimage(&arg);
-  SD.begin(SDCARD_SS_PIN);
+  SDBegin();
   File file;
   if (stringp(arg)) {
     char buffer[BUFFERSIZE];
@@ -1005,6 +915,8 @@ unsigned int saveimage (object *arg) {
 #elif defined(LITTLEFS)
   unsigned int imagesize = compactimage(&arg);
   if (!LittleFS.begin(true)) error2(PSTR("problem mounting LittleFS"));
+  int bytesneeded = imagesize*8 + 36; int bytesavailable = LittleFS.totalBytes();
+  if (bytesneeded > bytesavailable) error("image too large by", number(bytesneeded - bytesavailable));
   File file;
   if (stringp(arg)) {
     char buffer[BUFFERSIZE];
@@ -1030,7 +942,7 @@ unsigned int saveimage (object *arg) {
   unsigned int imagesize = compactimage(&arg);
   if (!(arg == NULL || listp(arg))) error(PSTR("illegal argument"), arg);
   int bytesneeded = imagesize*8 + 36;
-  if (bytesneeded > EEPROMSIZE) error(PSTR("image too large"), number(imagesize));
+  if (bytesneeded > EEPROMSIZE) error("image too large by", number(bytesneeded - EEPROMSIZE));
   EEPROM.begin(EEPROMSIZE);
   int addr = 0;
   EpromWriteInt(&addr, (uintptr_t)arg);
@@ -1051,9 +963,12 @@ unsigned int saveimage (object *arg) {
 #endif
 }
 
+/*
+  loadimage - loads an image of the workspace from the persistent storage selected for the platform.
+*/
 unsigned int loadimage (object *arg) {
 #if defined(sdcardsupport)
-  SD.begin(SDCARD_SS_PIN);
+  SDBegin();
   File file;
   if (stringp(arg)) {
     char buffer[BUFFERSIZE];
@@ -1123,9 +1038,12 @@ unsigned int loadimage (object *arg) {
 #endif
 }
 
+/*
+  autorunimage - loads and runs an image of the workspace from the persistent storage selected for the platform.
+*/
 void autorunimage () {
 #if defined(sdcardsupport)
-  SD.begin(SDCARD_SS_PIN);
+  SDBegin();
   File file = SD.open("/ULISP.IMG");
   if (!file) error2(PSTR("problem autorunning from SD card"));
   object *autorun = (object *)SDReadInt(file);
@@ -1149,6 +1067,137 @@ void autorunimage () {
   int addr = 0;
   object *autorun = (object *)EpromReadInt(&addr);
   if (autorun != NULL && (unsigned int)autorun != 0xFFFF) {
+    loadimage(NULL);
+    apply(autorun, NULL, NULL);
+  }
+#else
+  error2(PSTR("autorun not available"));
+#endif
+}"#)
+
+#+riscv
+(defparameter *saveimage* #"
+// Save-image and load-image
+
+#if defined(sdcardsupport)
+
+/*
+  SDBegin - a standard call on all platforms to initialise the SD Card interface.
+*/
+void SDBegin() {
+  if (!SD.begin(SS)) error2("problem initialising SD card");
+}
+
+typedef union {
+  uintptr_t sdpointer;
+  uint8_t sdbyte[8];
+} sdbuffer_t;
+
+void SDWriteInt (File file, uintptr_t data) {
+  sdbuffer_t sdbuf;
+  sdbuf.sdpointer = data;
+  for (int i=0; i<8; i++) file.write(sdbuf.sdbyte[i]);
+}
+
+uintptr_t SDReadInt (File file) {
+  sdbuffer_t sdbuf;
+  for (int i=0; i<8; i++) sdbuf.sdbyte[i] = file.read();
+  return sdbuf.sdpointer;
+}
+#endif
+
+/*
+  saveimage - saves an image of the workspace to the persistent storage selected for the platform.
+*/
+int saveimage (object *arg) {
+#if defined(sdcardsupport)
+  uintptr_t imagesize = compactimage(&arg);
+  SDBegin();
+  File file;
+  if (stringp(arg)) {
+    char buffer[BUFFERSIZE];
+    file = SD.open(MakeFilename(arg, buffer), FILE_WRITE);
+    if (!file) error2(PSTR("problem saving to SD card or invalid filename"));
+    arg = NULL;
+  } else if (arg == NULL || listp(arg)) {
+    file = SD.open("ULISP.IMG", O_RDWR | O_CREAT | O_TRUNC);
+    if (!file) error2(PSTR("problem saving to SD card"));
+  } else error(invalidarg, arg);
+  SDWriteInt(file, (uintptr_t)arg);
+  SDWriteInt(file, (uintptr_t)imagesize);
+  SDWriteInt(file, (uintptr_t)GlobalEnv);
+  SDWriteInt(file, (uintptr_t)GCStack);
+  #if SYMBOLTABLESIZE > BUFFERSIZE
+  SDWriteInt(file, (uintptr_t)SymbolTop);
+  int SymbolUsed = SymbolTop - SymbolTable;
+  for (int i=0; i<SymbolUsed; i++) file.write(SymbolTable[i]);
+  #endif
+  for (int i=0; i<CODESIZE; i++) file.write(MyCode[i]);
+  for (unsigned int i=0; i<imagesize; i++) {
+    object *obj = &Workspace[i];
+    SDWriteInt(file, (uintptr_t)car(obj));
+    SDWriteInt(file, (uintptr_t)cdr(obj));
+  }
+  file.close();
+  return imagesize;
+#else
+  (void) arg;
+  error2(PSTR("not available"));
+  return 0;
+#endif
+}
+
+/*
+  loadimage - loads an image of the workspace from the persistent storage selected for the platform.
+*/
+int loadimage (object *arg) {
+#if defined(sdcardsupport)
+  SDBegin();
+  File file;
+  if (stringp(arg)) {
+    char buffer[BUFFERSIZE];
+    file = SD.open(MakeFilename(arg, buffer));
+    if (!file) error2(PSTR("problem loading from SD card or invalid filename"));
+  } else if (arg == NULL) {
+    file = SD.open("ULISP.IMG");
+    if (!file) error2(PSTR("problem loading from SD card"));
+  } else error(invalidarg, arg);
+  SDReadInt(file);
+  uintptr_t imagesize = SDReadInt(file);
+  GlobalEnv = (object *)SDReadInt(file);
+  GCStack = (object *)SDReadInt(file);
+  #if SYMBOLTABLESIZE > BUFFERSIZE
+  SymbolTop = (char *)SDReadInt(file);
+  int SymbolUsed = SymbolTop - SymbolTable;
+  for (int i=0; i<SymbolUsed; i++) SymbolTable[i] = file.read();
+  #endif
+  for (int i=0; i<CODESIZE; i++) MyCode[i] = file.read();
+  for (int i=0; i<imagesize; i++) {
+    object *obj = &Workspace[i];
+    car(obj) = (object *)SDReadInt(file);
+    cdr(obj) = (object *)SDReadInt(file);
+  }
+  file.close();
+  gc(NULL, NULL);
+  return imagesize;
+#else
+  (void) arg;
+  error2(PSTR("not available"));
+  return 0;
+#endif
+}
+
+/*
+  autorunimage - loads and runs an image of the workspace from the persistent storage selected for the platform.
+*/
+void autorunimage () {
+#if defined(sdcardsupport)
+  SDBegin();
+  File file = SD.open("ULISP.IMG");
+  if (!file) error2(PSTR("problem autorunning from SD card"));
+  object *autorun = (object *)SDReadInt(file);
+  file.close();
+  if (autorun != NULL) {
     loadimage(NULL);
     apply(autorun, NULL, NULL);
   }
@@ -1188,10 +1237,12 @@ void FlashWriteInt (unsigned int *addr, int data) {
 }
 #endif
 
+/*
+  saveimage - saves an image of the workspace to the persistent storage selected for the platform.
+*/
 int saveimage (object *arg) {
   unsigned int imagesize = compactimage(&arg);
 #if defined(sdcardsupport)
-  SD.begin(SDCARD_SS_PIN);
   File file;
   if (stringp(arg)) {
     file = SD.open(MakeFilename(arg), O_RDWR | O_CREAT | O_TRUNC);
@@ -1262,9 +1313,11 @@ int FlashReadInt (unsigned int *addr) {
 }
 #endif
 
+/*
+  loadimage - loads an image of the workspace from the persistent storage selected for the platform.
+*/
 int loadimage (object *arg) {
 #if defined(sdcardsupport)
-  SD.begin(SDCARD_SS_PIN);
   File file;
   if (stringp(arg)) file = SD.open(MakeFilename(arg));
   else if (arg == NULL) file = SD.open("/ULISP.IMG");
@@ -1311,9 +1364,11 @@ int loadimage (object *arg) {
 #endif
 }
 
+/*
+  autorunimage - loads and runs an image of the workspace from the persistent storage selected for the platform.
+*/
 void autorunimage () {
 #if defined(sdcardsupport)
-  SD.begin(SDCARD_SS_PIN);
   File file = SD.open("ULISP.IMG");
   if (!file) error(PSTR("Error: Problem autorunning from SD card"));
   object *autorun = (object *)SDReadInt(file);
@@ -1361,10 +1416,12 @@ struct image_struct {
 struct image_struct image PERSIST;
 #endif
 
+/*
+  saveimage - saves an image of the workspace to the persistent storage selected for the platform.
+*/
 int saveimage (object *arg) {
   unsigned int imagesize = compactimage(&arg);
 #if defined(sdcardsupport)
-  SD.begin(SDCARD_SS_PIN);
   File file;
   if (stringp(arg)) {
     file = SD.open(MakeFilename(arg), O_RDWR | O_CREAT | O_TRUNC);
@@ -1439,9 +1496,11 @@ int SDReadInt (File file) {
 }
 #endif
 
+/*
+  loadimage - loads an image of the workspace from the persistent storage selected for the platform.
+*/
 int loadimage (object *arg) {
 #if defined(sdcardsupport)
-  SD.begin(SDCARD_SS_PIN);
   File file;
   if (stringp(arg)) file = SD.open(MakeFilename(arg));
   else if (arg == NULL) file = SD.open("/ULISP.IMG");
@@ -1492,9 +1551,11 @@ int loadimage (object *arg) {
 #endif
 }
 
+/*
+  autorunimage - loads and runs an image of the workspace from the persistent storage selected for the platform.
+*/
 void autorunimage () {
 #if defined(sdcardsupport)
-  SD.begin(SDCARD_SS_PIN);
   File file = SD.open("ULISP.IMG");
   if (!file) error(PSTR("Problem autorunning from SD card"));
   object *autorun = (object *)SDReadInt(file);

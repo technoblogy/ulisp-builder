@@ -85,7 +85,7 @@ int subwidthlist (object *form, int w) {
 */
 void superprint (object *form, int lm, pfun_t pfun) {
   if (atom(form)) {
-    if (symbolp(form) && form->name == sym(NOTHING)) printsymbol(form, pfun);
+    if (isbuiltin(form, NOTHING)) printsymbol(form, pfun);
     else printobject(form, pfun);
   } else if (quoted(form)) {
     pfun('\'');
@@ -125,7 +125,7 @@ void superprint (object *form, int lm, pfun_t pfun) {
 */
 void superprint (object *form, int lm, pfun_t pfun) {
   if (atom(form)) {
-    if (symbolp(form) && form->name == sym(NOTHING)) printsymbol(form, pfun);
+    if (isbuiltin(form, NOTHING)) printsymbol(form, pfun);
     else printobject(form, pfun);
   } else if (quoted(form)) {
     pfun('\'');

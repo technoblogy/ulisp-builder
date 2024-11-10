@@ -57,23 +57,20 @@ Sipeed_ST7789 tft(320, 240, spi_);
 #define RAMFUNC __attribute__ ((section (".ramfunctions")))
 
 #if defined(BOARD_SIPEED_MAIX_DUINO)
-  #define WORKSPACESIZE 80000             /* Objects (16*bytes) */
+  #define WORKSPACESIZE 500000            /* Objects (16*bytes) */
   #define CODESIZE 512                    /* Bytes */
-  #define SDCARD_SS_PIN 29
   #define STACKDIFF 4096
   #define CPU_K210
 
 #elif defined(BOARD_SIPEED_MAIX_BIT)
-  #define WORKSPACESIZE 80000             /* Objects (16*bytes) */
+  #define WORKSPACESIZE 500000            /* Objects (16*bytes) */
   #define CODESIZE 512                    /* Bytes */
-  #define SDCARD_SS_PIN 29
   #define STACKDIFF 4096
   #define CPU_K210
 
 #elif defined(BOARD_SIPEED_MAIX_ONE_DOCK)
-  #define WORKSPACESIZE 80000             /* Objects (16*bytes) */
+  #define WORKSPACESIZE 500000            /* Objects (16*bytes) */
   #define CODESIZE 512                    /* Bytes */
-  #define SDCARD_SS_PIN 29
   #define STACKDIFF 4096
   #define CPU_K210
 

@@ -38,7 +38,7 @@ const char LispLibrary[] PROGMEM = "";
 
 #if defined(sdcardsupport)
 #include <SD.h>
-#define SDSIZE 91
+#define SDSIZE 720
 #else
 #define SDSIZE 0
 #endif"#)
@@ -50,6 +50,8 @@ const char LispLibrary[] PROGMEM = "";
 #define BUFFERSIZE 36  // Number of bits+4
 #define RAMFUNC __attribute__ ((section (".ramfunctions")))
 #define MEMBANK
+
+// ATSAMD21 boards ***************************************************************
 
 #if defined(ARDUINO_GEMMA_M0) || defined(ARDUINO_SEEED_XIAO_M0) || defined(ARDUINO_QTPY_M0)
   #define WORKSPACESIZE (2816-SDSIZE)     /* Objects (8*bytes) */
@@ -64,8 +66,8 @@ const char LispLibrary[] PROGMEM = "";
   #define DATAFLASH
   #define FLASHSIZE 2048000               /* 2 MBytes */
   #define CODESIZE 128                    /* Bytes */
-  #define SDCARD_SS_PIN 4
   #define STACKDIFF 320
+  #define SDCARD_SS_PIN 4
   #define CPU_ATSAMD21
 
 #elif defined(ADAFRUIT_FEATHER_M0)        /* Feather M0 without DataFlash */
@@ -73,17 +75,36 @@ const char LispLibrary[] PROGMEM = "";
   #define CPUFLASH
   #define FLASHSIZE 32768                 /* Bytes */
   #define CODESIZE 128                    /* Bytes */
-  #define SDCARD_SS_PIN 4
   #define STACKDIFF 320
+  #define SDCARD_SS_PIN 4
   #define CPU_ATSAMD21
+
+#elif defined(ARDUINO_SAMD_MKRZERO)
+  #define WORKSPACESIZE (2640-SDSIZE)     /* Objects (8*bytes) */
+  #define CPUFLASH
+  #define FLASHSIZE 32768                 /* Bytes */
+  #define CODESIZE 128                    /* Bytes */
+  #define STACKDIFF 840
+  #define CPU_ATSAMD21
+
+#elif defined(ARDUINO_SAMD_ZERO)          /* Put this last, otherwise overrides the Adafruit boards */
+  #define WORKSPACESIZE (2640-SDSIZE)     /* Objects (8*bytes) */
+  #define CPUFLASH
+  #define FLASHSIZE 32768                 /* Bytes */
+  #define CODESIZE 128                    /* Bytes */
+  #define STACKDIFF 320
+  #define SDCARD_SS_PIN 10
+  #define CPU_ATSAMD21
+
+// ATSAMD51 boards ***************************************************************
 
 #elif defined(ARDUINO_METRO_M4) || defined(ARDUINO_ITSYBITSY_M4) || defined(ARDUINO_FEATHER_M4)
   #define WORKSPACESIZE (20608-SDSIZE)    /* Objects (8*bytes) */
   #define DATAFLASH
   #define FLASHSIZE 2048000               /* 2 MBytes */
   #define CODESIZE 256                    /* Bytes */
-  #define SDCARD_SS_PIN 10
   #define STACKDIFF 400
+  #define SDCARD_SS_PIN 10
   #define CPU_ATSAMD51
 
 #elif defined(ARDUINO_PYBADGE_M4) || defined(ARDUINO_PYGAMER_M4)
@@ -91,8 +112,8 @@ const char LispLibrary[] PROGMEM = "";
   #define DATAFLASH
   #define FLASHSIZE 2048000               /* 2 MBytes */
   #define CODESIZE 256                    /* Bytes */
-  #define SDCARD_SS_PIN 10
   #define STACKDIFF 400
+  #define SDCARD_SS_PIN 10
   #define CPU_ATSAMD51
   #if defined(gfxsupport)
   const int COLOR_WHITE = 0xffff, COLOR_BLACK = 0, TFT_BACKLIGHT = 47;
@@ -120,26 +141,10 @@ const char LispLibrary[] PROGMEM = "";
   #define DATAFLASH
   #define FLASHSIZE 8192000               /* 8 MBytes */
   #define CODESIZE 256                    /* Bytes */
-  #define STACKDIFF 400
+  #define STACKDIFF 440
   #define CPU_ATSAMD51
-
-#elif defined(ARDUINO_SAMD_MKRZERO)
-  #define WORKSPACESIZE (2640-SDSIZE)     /* Objects (8*bytes) */
-  #define CPUFLASH
-  #define FLASHSIZE 32768                 /* Bytes */
-  #define SYMBOLTABLESIZE 512             /* Bytes */
-  #define CODESIZE 128                    /* Bytes */
-  #define STACKDIFF 840
-  #define CPU_ATSAMD21
-
-#elif defined(ARDUINO_SAMD_ZERO)          /* Put this last, otherwise overrides the Adafruit boards */
-  #define WORKSPACESIZE (2640-SDSIZE)     /* Objects (8*bytes) */
-  #define CPUFLASH
-  #define FLASHSIZE 32768                 /* Bytes */
-  #define CODESIZE 128                    /* Bytes */
-  #define SDCARD_SS_PIN 10
-  #define STACKDIFF 320
-  #define CPU_ATSAMD21
+  
+// nRF51 boards ***************************************************************
 
 #elif defined(ARDUINO_BBC_MICROBIT) || defined(ARDUINO_SINOBIT)
   #define WORKSPACESIZE 1344              /* Objects (8*bytes) */
@@ -147,19 +152,22 @@ const char LispLibrary[] PROGMEM = "";
   #define STACKDIFF 320
   #define CPU_NRF51822
 
-#elif defined(ARDUINO_BBC_MICROBIT_V2)
-  #define WORKSPACESIZE 12928              /* Objects (8*bytes) */
-  #define CODESIZE 128                     /* Bytes */
-  #define STACKDIFF 320
-  #define CPU_NRF52833
-
 #elif defined(ARDUINO_CALLIOPE_MINI)
   #define WORKSPACESIZE 3392              /* Objects (8*bytes) */
   #define CODESIZE 64                     /* Bytes */
   #define STACKDIFF 320
   #define CPU_NRF51822
 
-#elif defined(ARDUINO_NRF52840_ITSYBITSY) || defined(ARDUINO_Seeed_XIAO_nRF52840) || defined(ARDUINO_Seeed_XIAO_nRF52840_Sense) || defined(ARDUINO_NRF52840_CIRCUITPLAY)
+// nRF52 boards ***************************************************************
+
+#elif defined(ARDUINO_BBC_MICROBIT_V2)
+  #define WORKSPACESIZE 12928              /* Objects (8*bytes) */
+  #define CODESIZE 128                     /* Bytes */
+  #define STACKDIFF 320
+  #define CPU_NRF52833
+  
+#elif defined(ARDUINO_NRF52840_ITSYBITSY) || defined(ARDUINO_Seeed_XIAO_nRF52840) \
+  || defined(ARDUINO_Seeed_XIAO_nRF52840_Sense) || defined(ARDUINO_NRF52840_CIRCUITPLAY)
   #define WORKSPACESIZE (21120-SDSIZE)    /* Objects (8*bytes) */
   #define DATAFLASH
   #define FLASHSIZE 2048000               /* 2 MBytes */
@@ -181,21 +189,26 @@ const char LispLibrary[] PROGMEM = "";
   Adafruit_ST7789 tft = Adafruit_ST7789(&SPI1, PIN_TFT_CS, PIN_TFT_DC, PIN_TFT_RST);
   #endif
 
+// MAX32620 boards ***************************************************************
+
 #elif defined(MAX32620)
   #define WORKSPACESIZE (24704-SDSIZE)    /* Objects (8*bytes) */
-  #define SYMBOLTABLESIZE 1024            /* Bytes */
   #define CODESIZE 256                    /* Bytes */
   #define STACKDIFF 320
   #define CPU_MAX32620
   #define Wire1 Wire2
 
+// iMXRT1062 boards ***************************************************************
+
 #elif defined(ARDUINO_TEENSY40) || defined(ARDUINO_TEENSY41)
   #define WORKSPACESIZE 60000             /* Objects (8*bytes) */
+  #define CODESIZE 256                    /* Bytes */
+  #define STACKDIFF 15000
   #define LITTLEFS (960 * 1024)
   #include <LittleFS.h>
   LittleFS_Program LittleFS;
-  #define CODESIZE 256                    /* Bytes */
-  #define STACKDIFF 15000
+  #define FS_FILE_WRITE FILE_WRITE_BEGIN
+  #define FS_FILE_READ FILE_READ
   #define CPU_iMXRT1062
   #define SDCARD_SS_PIN BUILTIN_SDCARD
   #define BitOrder uint8_t
@@ -204,14 +217,17 @@ const char LispLibrary[] PROGMEM = "";
   #undef MEMBANK
   #define MEMBANK DMAMEM
 
-#elif defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_ADAFRUIT_QTPY_RP2040) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || defined(ARDUINO_SEEED_XIAO_RP2040)
-  #define WORKSPACESIZE (22912-SDSIZE)    /* Objects (8*bytes) */
+// RP2040 boards ***************************************************************
+
+#elif defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_ADAFRUIT_QTPY_RP2040) \
+  || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || defined(ARDUINO_SEEED_XIAO_RP2040)
+  #define WORKSPACESIZE (23000-SDSIZE)    /* Objects (8*bytes) */
+  #define CODESIZE 256                    /* Bytes */
+  #define STACKDIFF 480
   #define LITTLEFS
   #include <LittleFS.h>
-  #define FILE_WRITE_BEGIN "w"
-  #define FILE_READ "r"
-  #define CODESIZE 256                    /* Bytes */
-  #define STACKDIFF 320
+  #define FS_FILE_WRITE "w"
+  #define FS_FILE_READ "r"
   #define CPU_RP2040
   #if defined(gfxsupport)
   const int COLOR_WHITE = 0xffff, COLOR_BLACK = 0;
@@ -222,16 +238,83 @@ const char LispLibrary[] PROGMEM = "";
   #define TFT_I2C_POWER 22
   #endif
 
+#elif defined(ARDUINO_ADAFRUIT_FEATHER_RP2040_ADALOGGER)
+  #define WORKSPACESIZE 23000             /* Objects (8*bytes) */
+  #define CODESIZE 256                    /* Bytes */
+  #define STACKDIFF 480
+  #define LITTLEFS
+  #include <LittleFS.h>
+  #define FS_FILE_WRITE "w"
+  #define FS_FILE_READ "r"
+  #define SDCARD_SS_PIN 23
+  #define CPU_RP2040
+
 #elif defined(ARDUINO_RASPBERRY_PI_PICO_W)
   #define WORKSPACESIZE (15536-SDSIZE)    /* Objects (8*bytes) */
+  #define CODESIZE 256                    /* Bytes */
+  #define STACKDIFF 480
   #define LITTLEFS
   #include <WiFi.h>
   #include <LittleFS.h>
-  #define FILE_WRITE_BEGIN "w"
-  #define FILE_READ "r"
-  #define CODESIZE 256                    /* Bytes */
-  #define STACKDIFF 320
+  #define FS_FILE_WRITE "w"
+  #define FS_FILE_READ "r"
   #define CPU_RP2040
+
+// RP2350 boards ***************************************************************
+
+#elif defined(ARDUINO_RASPBERRY_PI_PICO_2)
+  #if defined(__riscv)
+  #define WORKSPACESIZE (42500-SDSIZE)    /* Objects (8*bytes) */
+  #define STACKDIFF 580
+  #else
+  #define WORKSPACESIZE (47000-SDSIZE)    /* Objects (8*bytes) */
+  #define STACKDIFF 520
+  #endif
+  #define CODESIZE 256                    /* Bytes */
+  #define LITTLEFS
+  #include <LittleFS.h>
+  #define FS_FILE_WRITE "w"
+  #define FS_FILE_READ "r"
+  #define CPU_RP2350
+
+#elif defined(ARDUINO_PIMORONI_PICO_PLUS_2)
+  //#define BOARD_HAS_PSRAM               /* Uncomment to use PSRAM */
+  #if defined(BOARD_HAS_PSRAM)
+  #undef MEMBANK
+  #define MEMBANK PSRAM
+  #define WORKSPACESIZE 1000000           /* Objects (8*bytes) */
+  #define STACKDIFF 580
+  #elif defined(__riscv)
+  #define WORKSPACESIZE (42000-SDSIZE)    /* Objects (8*bytes) */
+  #define STACKDIFF 580
+  #else
+  #define WORKSPACESIZE (46500-SDSIZE)    /* Objects (8*bytes) */
+  #define STACKDIFF 520
+  #endif
+  #define CODESIZE 256                    /* Bytes */
+  #define LITTLEFS
+  #include <LittleFS.h>
+  #define FS_FILE_WRITE "w"
+  #define FS_FILE_READ "r"
+  #define SDCARD_SS_PIN 10
+  #define CPU_RP2350
+
+#elif defined(ARDUINO_PIMORONI_TINY2350)
+  #if defined(__riscv)
+  #define WORKSPACESIZE (42500-SDSIZE)    /* Objects (8*bytes) */
+  #define STACKDIFF 580
+  #else
+  #define WORKSPACESIZE (47000-SDSIZE)    /* Objects (8*bytes) */
+  #define STACKDIFF 520
+  #endif
+  #define CODESIZE 256                    /* Bytes */
+  #define LITTLEFS
+  #include <LittleFS.h>
+  #define FS_FILE_WRITE "w"
+  #define FS_FILE_READ "r"
+  #define CPU_RP2350
+
+// RA4M1 boards ***************************************************************
 
 #elif defined(ARDUINO_MINIMA)
   #define WORKSPACESIZE (2032-SDSIZE)    /* Objects (8*bytes) */
@@ -305,14 +388,17 @@ void checkanalogread (int pin) {
 #elif defined(ARDUINO_NRF52840_CLUE)
   if (!((pin>=0 && pin<=4) || pin==10 || pin==12 || pin==16)) error(invalidpin, number(pin));
 #elif defined(ARDUINO_NRF52840_CIRCUITPLAY)
-   if (!(pin==0 || (pin>=2 && pin<=3) || pin==6 || (pin>=9 && pin<=10) || (pin>=22 && pin<=23))) error(invalidpin, number(pin));
+  if (!(pin==0 || (pin>=2 && pin<=3) || pin==6 || (pin>=9 && pin<=10) || (pin>=22 && pin<=23))) error(invalidpin, number(pin));
 #elif defined(MAX32620)
   if (!(pin>=49 && pin<=52)) error(invalidpin, number(pin));
 #elif defined(ARDUINO_TEENSY40)
   if (!((pin>=14 && pin<=27))) error(invalidpin, number(pin));
 #elif defined(ARDUINO_TEENSY41)
   if (!((pin>=14 && pin<=27) || (pin>=38 && pin<=41))) error(invalidpin, number(pin));
-#elif defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_RASPBERRY_PI_PICO_W) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || defined(ARDUINO_ADAFRUIT_QTPY_RP2040) || defined(ARDUINO_SEEED_XIAO_RP2040)
+#elif defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_RASPBERRY_PI_PICO_W) \
+  || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040_ADALOGGER) \
+  || defined(ARDUINO_ADAFRUIT_QTPY_RP2040) || defined(ARDUINO_SEEED_XIAO_RP2040) \
+  || defined(ARDUINO_RASPBERRY_PI_PICO_2) || defined(ARDUINO_PIMORONI_PICO_PLUS_2)
   if (!(pin>=26 && pin<=29)) error(invalidpin, number(pin));
 #elif defined(ARDUINO_MINIMA) || defined(ARDUINO_UNOWIFIR4)
   if (!((pin>=14 && pin<=21))) error(invalidpin, number(pin));
@@ -329,7 +415,7 @@ void checkanalogwrite (int pin) {
 #elif defined(ARDUINO_ITSYBITSY_M0)
   if (!((pin>=3 && pin<=6) || (pin>=8 && pin<=13) || (pin>=15 && pin<=16) || (pin>=22 && pin<=25))) error(invalidpin, number(pin));
 #elif defined(ARDUINO_NEOTRINKEY_M0)
-  error2(PSTR("not supported"));
+  error2("not supported");
 #elif defined(ARDUINO_GEMMA_M0)
   if (!(pin==0 || pin==2 || pin==9 || pin==10)) error(invalidpin, number(pin));
 #elif defined(ARDUINO_QTPY_M0)
@@ -359,14 +445,17 @@ void checkanalogwrite (int pin) {
 #elif defined(ARDUINO_NRF52840_CLUE)
   if (!(pin>=0 && pin<=46)) error(invalidpin, number(pin));
 #elif defined(ARDUINO_NRF52840_CIRCUITPLAY)
-   if (!(pin>=0 && pin<=35)) error(invalidpin, number(pin));
+  if (!(pin>=0 && pin<=35)) error(invalidpin, number(pin));
 #elif defined(MAX32620)
   if (!((pin>=20 && pin<=29) || pin==32 || (pin>=40 && pin<=48))) error(invalidpin, number(pin));
 #elif defined(ARDUINO_TEENSY40)
   if (!((pin>=0 && pin<=15) || (pin>=18 && pin<=19) || (pin>=22 && pin<=25) || (pin>=28 && pin<=29) || (pin>=33 && pin<=39))) error(invalidpin, number(pin));
 #elif defined(ARDUINO_TEENSY41)
   if (!((pin>=0 && pin<=15) || (pin>=18 && pin<=19) || (pin>=22 && pin<=25) || (pin>=28 && pin<=29) || pin==33 || (pin>=36 && pin<=37))) error(invalidpin, number(pin));
-#elif defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || defined(ARDUINO_ADAFRUIT_QTPY_RP2040) || defined(ARDUINO_SEEED_XIAO_RP2040)
+#elif defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) \
+  || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040_ADALOGGER) || defined(ARDUINO_ADAFRUIT_QTPY_RP2040) \
+  || defined(ARDUINO_SEEED_XIAO_RP2040) || defined(ARDUINO_RASPBERRY_PI_PICO_2) \
+  || defined(ARDUINO_PIMORONI_PICO_PLUS_2)
   if (!(pin>=0 && pin<=29)) error(invalidpin, number(pin));
 #elif defined(ARDUINO_RASPBERRY_PI_PICO_W)
   if (!((pin>=0 && pin<=29) || pin == 32)) error(invalidpin, number(pin));
@@ -378,13 +467,18 @@ void checkanalogwrite (int pin) {
 (defparameter *note-arm* #"
 // Note
 
-const int scale[] PROGMEM = {4186,4435,4699,4978,5274,5588,5920,6272,6645,7040,7459,7902};
+const int scale[] = {4186,4435,4699,4978,5274,5588,5920,6272,6645,7040,7459,7902};
 
 void playnote (int pin, int note, int octave) {
-#if defined(ARDUINO_NRF52840_CLUE) || defined(ARDUINO_NRF52840_CIRCUITPLAY) || defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_RASPBERRY_PI_PICO_W) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || defined(ARDUINO_ADAFRUIT_QTPY_RP2040) || defined(ARDUINO_WIO_TERMINAL) || defined(ARDUINO_SEEED_XIAO_RP2040)
+#if defined(ARDUINO_NRF52840_CLUE) || defined(ARDUINO_NRF52840_CIRCUITPLAY) \
+  || defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_RASPBERRY_PI_PICO_W) \
+  || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040_ADALOGGER) \
+  || defined(ARDUINO_ADAFRUIT_QTPY_RP2040) || defined(ARDUINO_WIO_TERMINAL) \
+  || defined(ARDUINO_SEEED_XIAO_RP2040) || defined(ARDUINO_RASPBERRY_PI_PICO_2) \
+  || defined(ARDUINO_PIMORONI_PICO_PLUS_2)
   int oct = octave + note/12;
   int prescaler = 8 - oct;
-  if (prescaler<0 || prescaler>8) error(PSTR("octave out of range"), number(oct));
+  if (prescaler<0 || prescaler>8) error("octave out of range", number(oct));
   tone(pin, scale[note%12]>>prescaler);
 #else
   (void) pin, (void) note, (void) octave;
@@ -392,7 +486,12 @@ void playnote (int pin, int note, int octave) {
 }
 
 void nonote (int pin) {
-#if defined(ARDUINO_NRF52840_CLUE) || defined(ARDUINO_NRF52840_CIRCUITPLAY) || defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_RASPBERRY_PI_PICO_W) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) || defined(ARDUINO_ADAFRUIT_QTPY_RP2040) || defined(ARDUINO_WIO_TERMINAL) || defined(ARDUINO_SEEED_XIAO_RP2040)
+#if defined(ARDUINO_NRF52840_CLUE) || defined(ARDUINO_NRF52840_CIRCUITPLAY) \
+  || defined(ARDUINO_RASPBERRY_PI_PICO) || defined(ARDUINO_RASPBERRY_PI_PICO_W) \
+  || defined(ARDUINO_RASPBERRY_PI_PICO_2) || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040) \
+  || defined(ARDUINO_ADAFRUIT_FEATHER_RP2040_ADALOGGER) || defined(ARDUINO_ADAFRUIT_QTPY_RP2040) \
+  || defined(ARDUINO_WIO_TERMINAL) || defined(ARDUINO_SEEED_XIAO_RP2040) \
+  || defined(ARDUINO_PIMORONI_PICO_PLUS_2)
   noTone(pin);
 #else
   (void) pin;
@@ -513,6 +612,13 @@ void doze (int secs) {
      ((PINMODE INPUT INPUT_PULLUP OUTPUT)
       (ANALOGREFERENCE DEFAULT EXTERNAL)))
     ("CPU_RP2040"
+     ((PINMODE INPUT INPUT_PULLUP INPUT_PULLDOWN OUTPUT)
+      (REGISTER (GPIO_IN "(SIO_BASE+SIO_GPIO_IN_OFFSET)") (GPIO_OUT "(SIO_BASE+SIO_GPIO_OUT_OFFSET)")
+                (GPIO_OUT_SET "(SIO_BASE+SIO_GPIO_OUT_SET_OFFSET)") (GPIO_OUT_CLR "(SIO_BASE+SIO_GPIO_OUT_CLR_OFFSET)")
+                (GPIO_OUT_XOR "(SIO_BASE+SIO_GPIO_OUT_XOR_OFFSET)") (GPIO_OE "(SIO_BASE+SIO_GPIO_OE_OFFSET)")
+                (GPIO_OE_SET "(SIO_BASE+SIO_GPIO_OE_SET_OFFSET)") (GPIO_OE_CLR "(SIO_BASE+SIO_GPIO_OE_CLR_OFFSET)")
+                (GPIO_OE_XOR "(SIO_BASE+SIO_GPIO_OE_XOR_OFFSET)"))))
+    ("CPU_RP2350"
      ((PINMODE INPUT INPUT_PULLUP INPUT_PULLDOWN OUTPUT)
       (REGISTER (GPIO_IN "(SIO_BASE+SIO_GPIO_IN_OFFSET)") (GPIO_OUT "(SIO_BASE+SIO_GPIO_OUT_OFFSET)")
                 (GPIO_OUT_SET "(SIO_BASE+SIO_GPIO_OUT_SET_OFFSET)") (GPIO_OUT_CLR "(SIO_BASE+SIO_GPIO_OUT_CLR_OFFSET)")

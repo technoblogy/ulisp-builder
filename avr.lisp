@@ -66,18 +66,11 @@ const char LispLibrary[] PROGMEM = "";
   #define STACKDIFF 320
   #define CPU_ATmega1284P
 
-#elif defined(__AVR_AVR64DD28__)
-  #include <Flash.h>
-  #define WORKSPACESIZE (1440-SDSIZE)      /* Objects (4*bytes) */
-  #define FLASHWRITESIZE 16384             /* Bytes */
-  #define STACKDIFF 1
-  #define CPU_AVR64DD28
-
 #elif defined(__AVR_AVR128DA48__)
   #include <Flash.h>
   #define Serial Serial1
   #define WORKSPACESIZE (2920-SDSIZE)     /* Objects (4*bytes) */
-  #define FLASHWRITESIZE 16384            /* Bytes */
+  #define FLASHWRITESIZE 15872            /* Bytes */
   #define CODESIZE 96                     /* Bytes <= 512 */
   #define STACKDIFF 320
   #define CPU_AVR128DX48
@@ -87,7 +80,7 @@ const char LispLibrary[] PROGMEM = "";
   #include <Flash.h>
   #define Serial Serial3
   #define WORKSPACESIZE (2920-SDSIZE)     /* Objects (4*bytes) */
-  #define FLASHWRITESIZE 16384            /* Bytes */
+  #define FLASHWRITESIZE 15872            /* Bytes */
   #define CODESIZE 96                     /* Bytes <= 512 */
   #define STACKDIFF 320
   #define CPU_AVR128DX48
@@ -137,7 +130,7 @@ void checkanalogwrite (int pin) {
 (defparameter *note-avr* #"
 // Note
 
-#if defined(CPU_AVR128DX48) || defined(CPU_AVR64DD28)
+#if defined(CPU_AVR128DX48)
 const int scale[] PROGMEM = {4186,4435,4699,4978,5274,5588,5920,6272,6645,7040,7459,7902};
 #else
 const uint8_t scale[] PROGMEM = {239,226,213,201,190,179,169,160,151,142,134,127};
@@ -172,7 +165,7 @@ void playnote (int pin, int note, int octave) {
   OCR2A = pgm_read_byte(&scale[note%12]) - 1;
   TCCR2B = 0<<WGM22 | prescaler<<CS20;
 
-#elif defined(CPU_AVR128DX48) || defined(CPU_AVR64DD28)
+#elif defined(CPU_AVR128DX48)
   int oct = octave + note/12;
   int prescaler = 8 - oct;
   if (prescaler<0 || prescaler>8) error(PSTR("octave out of range"), number(oct));
@@ -181,7 +174,7 @@ void playnote (int pin, int note, int octave) {
 }
 
 void nonote (int pin) {
-#if defined(CPU_AVR128DX48) || defined(CPU_AVR64DD28)
+#if defined(CPU_AVR128DX48)
   noTone(pin);
 #else
   (void) pin;
@@ -204,13 +197,7 @@ void initsleep () {
 }
 
 void sleep () {
-#if defined(CPU_AVR64DD28)
-  ADC0.CTRLA = ADC0.CTRLA & ~1; // Turn off ADC
-  delay(100);  // Give serial time to settle
-  sleep_enable();
-  sleep_cpu();
-  ADC0.CTRLA = ADC0.CTRLA | 1; // Turn on ADC
-#elif defined(CPU_ATmega2560) || defined(CPU_ATmega1284P)
+#if defined(CPU_ATmega2560) || defined(CPU_ATmega1284P)
   ADCSRA = ADCSRA & ~(1<<ADEN); // Turn off ADC
   delay(100);  // Give serial time to settle
   PRR0 = PRR0 | 1<<PRTIM0;  // Turn off Timer/Counter0

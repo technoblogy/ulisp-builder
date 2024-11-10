@@ -15,8 +15,8 @@
 #define CODE_ADDRESS 0x1be00
 #endif
 
-#if defined(CODESIZE)
 object *call (int entry, int nargs, object *args, object *env) {
+#if defined(CODESIZE)
   (void) env;
   int param[4];
   for (int i=0; i<nargs; i++) {
@@ -28,6 +28,9 @@ object *call (int entry, int nargs, object *args, object *env) {
   uint32_t address = (CODE_ADDRESS + entry)>>1; // Code addresses are word addresses on AVR
   int w = ((intfn_ptr_type)address)(param[0], param[1], param[2], param[3]);
   return number(w);
+#else
+  return nil;
+#endif
 }"#
 
 #+arm
@@ -56,6 +59,7 @@ object *call (int entry, int nargs, object *args, object *env) {
 // Assembler
 
 object *call (int entry, int nargs, object *args, object *env) {
+#if defined(CODESIZE)
   (void) env;
   int param[4];
   for (int i=0; i<nargs; i++) {
@@ -67,11 +71,15 @@ object *call (int entry, int nargs, object *args, object *env) {
   asm("fence.i");
   int w = ((intfn_ptr_type)&MyCode[entry])(param[0], param[1], param[2], param[3]);
   return number(w);
+#else
+  return nil;
+#endif
 }"#
 
 #+avr
 #"
 void putcode (object *arg, int origin, int pc) {
+#if defined(CODESIZE)
   int code = checkinteger(arg);
   uint8_t hi = (code>>8) & 0xff;
   uint8_t lo = code & 0xff; 
@@ -81,6 +89,7 @@ void putcode (object *arg, int origin, int pc) {
   printhex2(pc>>8, pserial); printhex2(pc, pserial); pserial(' ');
   printhex2(lo, pserial); pserial(' '); printhex2(hi, pserial); pserial(' ');
   #endif
+#endif
 }"#
 
 #+(or arm riscv)
@@ -146,8 +155,7 @@ int assemble (int pass, int origin, object *entries, object *env, object *pcpair
   // Round up to multiple of 2 to give code size
   if (pc%2 != 0) pc = pc + 2 - pc%2;
   return pc;
-}
-#endif"#
+}"#
 
 #+(or arm riscv)
 #"
